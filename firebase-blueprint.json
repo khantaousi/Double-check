@@ -1,0 +1,107 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "A product in the library with name, base price, and optional wholesale info",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the product" },
+        "price": { "type": "number", "description": "Base price of the product" },
+        "wholesalePrice": { "type": "number", "description": "Price when purchased in bulk" },
+        "wholesaleThreshold": { "type": "number", "description": "Minimum quantity for wholesale price" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "price"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user roles and basic info",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "permissions": {
+          "type": "object",
+          "properties": {
+            "dashboard": { "type": "boolean" },
+            "rules": { "type": "boolean" },
+            "products": { "type": "boolean" },
+            "settings": { "type": "boolean" }
+          }
+        }
+      },
+      "required": ["email", "role"]
+    },
+    "ValidationRule": {
+      "title": "Validation Rule",
+      "description": "Tier based validation logic",
+      "type": "object",
+      "properties": {
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "percentage": { "type": "number" }
+      },
+      "required": ["min", "max", "percentage"]
+    },
+    "DeliverySettings": {
+      "title": "Delivery Settings",
+      "description": "Fee configuration",
+      "type": "object",
+      "properties": {
+        "insideDhaka": { "type": "number" },
+        "outsideDhaka": { "type": "number" }
+      },
+      "required": ["insideDhaka", "outsideDhaka"]
+    },
+    "SiteSettings": {
+      "title": "Site Settings",
+      "description": "General application settings",
+      "type": "object",
+      "properties": {
+        "companyName": { "type": "string" },
+        "amountTolerance": { "type": "number" }
+      },
+      "required": ["companyName", "amountTolerance"]
+    },
+    "GiftRule": {
+      "title": "Gift Rule",
+      "description": "Dynamic gift pricing logic",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "triggerKeywords": { "type": "array", "items": { "type": "string" } },
+        "targetKeywords": { "type": "array", "items": { "type": "string" } },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["name", "triggerKeywords", "targetKeywords", "isActive"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Standardized product prices"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User roles and permissions"
+    },
+    "/config/validation_rules": {
+      "schema": "ValidationRule",
+      "description": "System wide validation rules"
+    },
+    "/config/delivery_settings": {
+      "schema": "DeliverySettings",
+      "description": "System wide delivery settings"
+    },
+    "/config/site_settings": {
+      "schema": "SiteSettings",
+      "description": "General application settings"
+    },
+    "/config/gift_rules": {
+      "schema": "GiftRule",
+      "description": "Rules for zero-pricing items based on instructions"
+    }
+  }
+}

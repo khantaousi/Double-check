@@ -1,0 +1,3 @@
+ItemType,StoreName,MerchantOrderId,RecipientName(*),RecipientPhone(*),RecipientAddress(*),RecipientCity(*),RecipientZone(*),RecipientArea,AmountToCollect(*),ItemQuantity,ItemWeight,ItemDesc,SpecialInstruction
+Gift,Store A,ORD-12345,John Doe,01700000000,123 Main St,Dhaka,Gulshan,,500,1,0.5,Item A,Fragile
+General,Store B,ORD-12346,Jane Smith,01800000000,456 Oak Ave,Chittagong,Agrabad,,700,2,0.2,Item B,

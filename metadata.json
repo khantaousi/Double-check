@@ -1,0 +1,6 @@
+{
+  "name": "PriceVal Pro",
+  "description": "Intelligent Excel price validation and data automation tool with Gemini-powered extraction and dynamic tiered discounting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["Data Processing", "Excel Automation", "AI Text Extraction"]
+}
