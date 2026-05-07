@@ -23,7 +23,7 @@ service cloud.firestore {
       return isSignedIn() && (
         isAdmin() || 
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         getUserData().get(['permissions', module], false) == true)
+         getUserData().get(['permissions', module], 'none') != 'none')
       );
     }
 
