@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 
 interface ProductLibraryProps {
   products: ProductPrice[];
+  canWrite?: boolean;
   onAdd: (name: string, price: number, wholesalePrice?: number, wholesaleThreshold?: number) => void;
   onBulkAdd?: (productsToAdd: any[]) => void;
   onDelete: (id: string) => void;
@@ -12,7 +13,7 @@ interface ProductLibraryProps {
   onUpdate: (id: string, name: string, price: number, wholesalePrice?: number, wholesaleThreshold?: number) => void;
 }
 
-export const ProductLibrary: React.FC<ProductLibraryProps> = ({ products, onAdd, onBulkAdd, onDelete, onDeleteMultiple, onUpdate }) => {
+export const ProductLibrary: React.FC<ProductLibraryProps> = ({ products, canWrite, onAdd, onBulkAdd, onDelete, onDeleteMultiple, onUpdate }) => {
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [newName, setNewName] = useState('');
@@ -107,36 +108,53 @@ export const ProductLibrary: React.FC<ProductLibraryProps> = ({ products, onAdd,
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-[10px] font-bold uppercase text-slate-400 tracking-widest flex items-center gap-2">
-          <Tag size={12} />
-          Product Price Library
-        </h3>
-        <div className="relative flex items-center gap-2">
-          {selectedProducts.size > 0 && (
-            <button
-              onClick={handleBulkDelete}
-              className="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase tracking-widest rounded-full hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
-            >
-              Delete ({selectedProducts.size})
-            </button>
-          )}
-          <input 
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search products..."
-            className="bg-slate-100 dark:bg-slate-800 text-[10px] py-1 px-3 rounded-full border-none focus:ring-1 focus:ring-blue-500/30 w-32 md:w-48 placeholder:text-slate-400 font-bold"
-          />
-          <button 
-            onClick={() => setShowBulkUpload(!showBulkUpload)}
-            className={`p-1.5 rounded-full transition-colors ${showBulkUpload ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'}`}
-            title="Bulk Upload"
-          >
-            <Upload size={14} />
-          </button>
+{canWrite && (
+        <div className="flex items-center justify-between mb-2">
+            <h3 className="text-[10px] font-bold uppercase text-slate-400 tracking-widest flex items-center gap-2">
+                <Tag size={12} />
+                Product Price Library
+            </h3>
+            <div className="relative flex items-center gap-2">
+                {selectedProducts.size > 0 && (
+                    <button
+                    onClick={handleBulkDelete}
+                    className="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase tracking-widest rounded-full hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                    >
+                    Delete ({selectedProducts.size})
+                    </button>
+                )}
+                <input 
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search products..."
+                    className="bg-slate-100 dark:bg-slate-800 text-[10px] py-1 px-3 rounded-full border-none focus:ring-1 focus:ring-blue-500/30 w-32 md:w-48 placeholder:text-slate-400 font-bold"
+                />
+                <button 
+                    onClick={() => setShowBulkUpload(!showBulkUpload)}
+                    className={`p-1.5 rounded-full transition-colors ${showBulkUpload ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'}`}
+                    title="Bulk Upload"
+                >
+                    <Upload size={14} />
+                </button>
+            </div>
         </div>
-      </div>
+      )}
+      {!canWrite && (
+        <div className="flex items-center justify-between mb-2">
+            <h3 className="text-[10px] font-bold uppercase text-slate-400 tracking-widest flex items-center gap-2">
+                <Tag size={12} />
+                Product Price Library (Read Only)
+            </h3>
+            <input 
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search products..."
+                className="bg-slate-100 dark:bg-slate-800 text-[10px] py-1 px-3 rounded-full border-none focus:ring-1 focus:ring-blue-500/30 w-32 md:w-48 placeholder:text-slate-400 font-bold"
+            />
+        </div>
+      )}
 
       {showBulkUpload && (
         <div className="bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 p-4 rounded-2xl mb-4 text-left">
@@ -179,6 +197,8 @@ export const ProductLibrary: React.FC<ProductLibraryProps> = ({ products, onAdd,
       )}
 
       <div className="space-y-4">
+      {canWrite && (
+        <div className="space-y-4">
         <div className="flex flex-col gap-3 p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-sm">
           <div className="flex gap-2">
             <div className="flex-1 relative group">
@@ -242,6 +262,8 @@ export const ProductLibrary: React.FC<ProductLibraryProps> = ({ products, onAdd,
             </div>
           </div>
         </div>
+        </div>
+      )}
 
         <div className="max-h-80 overflow-y-auto space-y-2.5 pr-2 custom-scrollbar">
           {filteredProducts.map((p) => (
@@ -310,7 +332,7 @@ export const ProductLibrary: React.FC<ProductLibraryProps> = ({ products, onAdd,
                         <div className="text-[14px] font-mono font-black text-slate-900 dark:text-slate-100 leading-none">৳{p.price}</div>
                         <div className="text-[7px] font-black text-emerald-500 uppercase tracking-widest leading-none mt-1">Retail Unit</div>
                       </div>
-                      <div className="flex items-center opacity-0 group-hover:opacity-100 transition-all gap-1">
+                      {canWrite && <div className="flex items-center opacity-0 group-hover:opacity-100 transition-all gap-1">
                         <button 
                           onClick={() => startEdit(p)}
                           className="text-slate-400 dark:text-slate-600 hover:text-blue-600 dark:hover:text-blue-400 p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
@@ -323,7 +345,7 @@ export const ProductLibrary: React.FC<ProductLibraryProps> = ({ products, onAdd,
                         >
                           <Trash2 size={15} />
                         </button>
-                      </div>
+                      </div>}
                     </div>
                   </div>
                   {p.wholesalePrice && p.wholesaleThreshold && (

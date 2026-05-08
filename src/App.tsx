@@ -57,6 +57,30 @@ export default function App() {
     }
     return false;
   });
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState('');
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    if (userProfile) {
+      setEditedName(userProfile.displayName || '');
+      setShowWelcome(true);
+      const timer = setTimeout(() => setShowWelcome(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [userProfile]);
+
+  const saveDisplayName = async () => {
+    if (!user || !userProfile) return;
+    try {
+      await updateDoc(doc(db, 'users', user.uid), { displayName: editedName });
+      setIsEditingName(false);
+    } catch (error) {
+      console.error("Error updating display name:", error);
+      alert("Failed to update name.");
+    }
+  };
 
   useEffect(() => {
     if (isDarkMode) {
@@ -179,7 +203,7 @@ export default function App() {
     }
 
     // Only fetch products if user is master admin or has specific permission
-    const canSeeProducts = user.email === 'khantaousi@gmail.com' || userProfile?.permissions?.products;
+    const canSeeProducts = user.email === 'khantaousi@gmail.com' || (userProfile?.permissions?.products && userProfile?.permissions?.products !== 'none');
     
     if (canSeeProducts) {
       const q = query(collection(db, 'products'), orderBy('name', 'asc'));
@@ -441,26 +465,45 @@ export default function App() {
     }
   };
 
+  const canWriteToTab = (tab: typeof activeTab) => {
+    if (user?.email === 'khantaousi@gmail.com') return true;
+    if (userProfile?.role === 'admin') return true;
+    return (userProfile?.permissions?.[tab as keyof UserProfile['permissions']] || 'none') === 'write';
+  };
+
   const hasAccess = (tab: typeof activeTab) => {
     if (user?.email === 'khantaousi@gmail.com') return true;
     if (userProfile?.role === 'admin') return true;
     if (tab === 'users') return false;
-    return !!userProfile?.permissions?.[tab as keyof UserProfile['permissions']];
+    return (userProfile?.permissions?.[tab as keyof UserProfile['permissions']] || 'none') !== 'none';
   };
 
   const isAdmin = userProfile?.role === 'admin' || user?.email === 'khantaousi@gmail.com';
 
   return (
     <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 overflow-hidden transition-colors duration-300">
+      {/* Mobile Sidebar Overlay */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-black/50 z-20 md:hidden"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Left Sidebar: Navigation */}
-      <aside className="w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0 shadow-sm z-10 transition-colors duration-300">
+      <aside className={`fixed md:static inset-y-0 left-0 w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0 shadow-sm z-30 transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
         <div className="p-8">
           <div className="flex items-center gap-3 mb-12">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-xl shadow-blue-500/10 dark:shadow-blue-900/40 overflow-hidden transition-shadow duration-300">
+            <div className="w-10 h-10 flex items-center justify-center overflow-hidden transition-shadow duration-300">
               {siteSettings.logoUrl ? (
                 <img src={siteSettings.logoUrl} alt="Logo" className="w-full h-full object-contain" />
               ) : (
-                <Database className="text-white" size={20} />
+                <Database className="text-slate-600 dark:text-slate-400" size={20} />
               )}
             </div>
             <div>
@@ -475,7 +518,7 @@ export default function App() {
               <div className="space-y-1">
                 {hasAccess('dashboard') && (
                   <button 
-                    onClick={() => setActiveTab('dashboard')}
+                    onClick={() => { setActiveTab('dashboard'); setIsSidebarOpen(false); }}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
                       activeTab === 'dashboard' 
                         ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
@@ -489,7 +532,7 @@ export default function App() {
 
                 {hasAccess('tracker') && (
                   <button 
-                    onClick={() => setActiveTab('tracker')}
+                    onClick={() => { setActiveTab('tracker'); setIsSidebarOpen(false); }}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
                       activeTab === 'tracker' 
                         ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-900/30 shadow-sm' 
@@ -508,7 +551,7 @@ export default function App() {
               <div className="space-y-1">
                 {hasAccess('rules') && (
                   <button 
-                    onClick={() => setActiveTab('rules')}
+                    onClick={() => { setActiveTab('rules'); setIsSidebarOpen(false); }}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
                       activeTab === 'rules' 
                         ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
@@ -522,7 +565,7 @@ export default function App() {
                 
                 {hasAccess('products') && (
                   <button 
-                    onClick={() => setActiveTab('products')}
+                    onClick={() => { setActiveTab('products'); setIsSidebarOpen(false); }}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
                       activeTab === 'products' 
                         ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
@@ -536,7 +579,7 @@ export default function App() {
 
                 {hasAccess('settings') && (
                   <button 
-                    onClick={() => setActiveTab('settings')}
+                    onClick={() => { setActiveTab('settings'); setIsSidebarOpen(false); }}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
                       activeTab === 'settings' 
                         ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
@@ -550,7 +593,7 @@ export default function App() {
                 
                 {isAdmin && (
                   <button 
-                    onClick={() => setActiveTab('users')}
+                    onClick={() => { setActiveTab('users'); setIsSidebarOpen(false); }}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
                       activeTab === 'users' 
                         ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
@@ -582,11 +625,29 @@ export default function App() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+      <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950 transition-colors duration-300 relative">
+        <AnimatePresence>
+          {showWelcome && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="absolute top-5 left-1/2 transform -translate-x-1/2 z-50 bg-blue-600 text-white px-6 py-3 rounded-full font-bold shadow-lg text-sm"
+            >
+              {userProfile?.role === 'admin' ? 'Welcome Chief' : `Welcome ${userProfile?.displayName || user.email?.split('@')[0]}`}
+            </motion.div>
+          )}
+        </AnimatePresence>
         {/* Top Header Bar */}
-        <header className="h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-10 shrink-0 sticky top-0 z-10 transition-colors duration-300">
+        <header className="h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 md:px-10 shrink-0 sticky top-0 z-10 transition-colors duration-300">
           <div className="flex items-center gap-5">
-            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 transition-colors duration-300">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="md:hidden p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              <LayoutDashboard size={20} />
+            </button>
+            <div className={`flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 transition-colors duration-300 ${data.length === 0 ? 'animate-border-green' : ''}`}>
               <span className={`w-2 h-2 rounded-full ${data.length > 0 ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
               <span className="text-[11px] font-bold uppercase tracking-tight text-slate-600 dark:text-slate-400">
                 {data.length > 0 ? 'Data Active' : 'System Ready'}
@@ -617,7 +678,20 @@ export default function App() {
                 </div>
                 <div className="flex flex-col">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-tight">{userProfile?.displayName || user.email}</span>
+                    {isEditingName ? (
+                      <div className="flex gap-1 items-center">
+                        <input 
+                          value={editedName} 
+                          onChange={(e) => setEditedName(e.target.value)}
+                          className="text-xs font-bold bg-slate-100 dark:bg-slate-900 border px-1"
+                        />
+                        <button onClick={saveDisplayName} className="text-xs text-green-600">Save</button>
+                      </div>
+                    ) : (
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-tight cursor-pointer hover:text-blue-600" onClick={() => setIsEditingName(true)}>
+                        {userProfile?.displayName || user.email?.split('@')[0]}
+                      </span>
+                    )}
                     {userProfile && (
                       <span className={`text-[8px] font-black uppercase px-1 rounded ${userProfile.role === 'admin' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'}`}>
                         {userProfile.role}
@@ -937,7 +1011,11 @@ export default function App() {
                     <h2 className="text-3xl font-black text-slate-800 dark:text-slate-100 tracking-tighter mb-2">Automated Rules</h2>
                     <p className="text-slate-400 dark:text-slate-500 font-medium tracking-tight">Define tier-based percentage discounts automatically applied to matching amounts.</p>
                   </div>
-                  <RuleEditor existingRules={rules} onRulesUpdate={handleRulesUpdate} />
+                  <RuleEditor 
+                    existingRules={rules} 
+                    onRulesUpdate={handleRulesUpdate} 
+                    canWrite={canWriteToTab('rules')}
+                  />
 
                   <div className="mt-20 border-t border-slate-100 dark:border-slate-800 pt-20">
                     <div className="mb-10 text-center">
@@ -946,12 +1024,17 @@ export default function App() {
                     </div>
                     <CustomCommandEditor 
                        settings={siteSettings} 
-                       onUpdate={handleSiteSettingsUpdate} 
+                       onUpdate={handleSiteSettingsUpdate}
+                       canWrite={canWriteToTab('settings')}
                     />
                   </div>
 
                   <div className="mt-20 border-t border-slate-100 dark:border-slate-800 pt-20">
-                    <GiftRuleEditor rules={giftRules} onUpdate={handleGiftRulesUpdate} />
+                    <GiftRuleEditor 
+                      rules={giftRules} 
+                      onUpdate={handleGiftRulesUpdate} 
+                      canWrite={canWriteToTab('settings')}
+                    />
                   </div>
                 </motion.div>
               )}
@@ -971,7 +1054,8 @@ export default function App() {
                     <p className="text-slate-400 dark:text-slate-500 font-medium tracking-tight">Unified inventory matching system for extraction and price comparison.</p>
                   </div>
                   <ProductLibrary 
-                    products={products} 
+                    products={products}
+                    canWrite={canWriteToTab('products')}
                     onAdd={handleAddProduct}
                     onBulkAdd={handleBulkAddProducts}
                     onDelete={handleDeleteProduct}
@@ -999,6 +1083,7 @@ export default function App() {
                       <GeneralSettings 
                         settings={siteSettings}
                         onUpdate={handleSiteSettingsUpdate}
+                        canWrite={canWriteToTab('settings')}
                       />
                     </div>
                     
@@ -1006,6 +1091,7 @@ export default function App() {
                       <DeliverySettings 
                         settings={delivery}
                         onUpdate={handleDeliveryUpdate}
+                        canWrite={canWriteToTab('settings')}
                       />
                     </div>
                   </div>

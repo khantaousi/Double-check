@@ -5,9 +5,10 @@ import { ValidationRule, DEFAULT_RULES } from '../types';
 interface RuleEditorProps {
   existingRules: ValidationRule[];
   onRulesUpdate: (rules: ValidationRule[]) => void;
+  canWrite?: boolean;
 }
 
-export const RuleEditor: React.FC<RuleEditorProps> = ({ existingRules, onRulesUpdate }) => {
+export const RuleEditor: React.FC<RuleEditorProps> = ({ existingRules, onRulesUpdate, canWrite = true }) => {
   const [rules, setRules] = React.useState<ValidationRule[]>(existingRules);
 
   React.useEffect(() => {
@@ -41,12 +42,12 @@ export const RuleEditor: React.FC<RuleEditorProps> = ({ existingRules, onRulesUp
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Validation Tiers</h3>
-        <button 
+        {canWrite && <button 
           onClick={addRule}
           className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-blue-600 transition-colors"
         >
           <Plus size={16} />
-        </button>
+        </button>}
       </div>
 
       <div className="space-y-2">
@@ -56,6 +57,7 @@ export const RuleEditor: React.FC<RuleEditorProps> = ({ existingRules, onRulesUp
               <input
                 type="number"
                 value={rule.min}
+                disabled={!canWrite}
                 onChange={(e) => updateRule(rule.id, 'min', Number(e.target.value))}
                 className="w-full bg-transparent text-[11px] font-bold text-blue-700 dark:text-blue-400 focus:outline-none"
               />
@@ -63,6 +65,7 @@ export const RuleEditor: React.FC<RuleEditorProps> = ({ existingRules, onRulesUp
               <input
                 type="number"
                 value={rule.max}
+                disabled={!canWrite}
                 onChange={(e) => updateRule(rule.id, 'max', Number(e.target.value))}
                 className="w-full bg-transparent text-[11px] font-bold text-blue-700 dark:text-blue-400 focus:outline-none text-right"
               />
@@ -72,29 +75,30 @@ export const RuleEditor: React.FC<RuleEditorProps> = ({ existingRules, onRulesUp
               <input
                 type="number"
                 value={rule.percentage}
+                disabled={!canWrite}
                 onChange={(e) => updateRule(rule.id, 'percentage', Number(e.target.value))}
                 className="w-full bg-transparent text-[11px] font-bold text-blue-800 dark:text-blue-300 focus:outline-none text-center"
               />
               <span className="text-[10px] font-bold text-blue-400 dark:text-blue-600">%</span>
             </div>
             
-            <button 
+            {canWrite && <button 
               onClick={() => removeRule(rule.id)}
               className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white dark:bg-slate-800 text-red-500 p-1 rounded-full shadow-sm border border-slate-100 dark:border-slate-700 hover:text-red-600"
             >
               <Trash2 size={12} />
-            </button>
+            </button>}
           </div>
         ))}
       </div>
 
-      <button 
+      {canWrite && <button 
         onClick={handleSave}
         className="mt-4 w-full py-3 bg-slate-900 dark:bg-blue-600 text-white text-xs font-bold rounded-lg shadow-lg shadow-slate-200 dark:shadow-none hover:bg-slate-800 dark:hover:bg-blue-700 transition-all flex items-center justify-center gap-2 uppercase tracking-wide active:scale-[0.98]"
       >
         <Save size={14} />
         Update Logic
-      </button>
+      </button>}
     </div>
   );
 };

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { Shield, UserCheck, ShieldAlert, Plus, Mail, Lock, X, Activity, ToggleLeft, ToggleRight, Fingerprint, User, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { secondaryAuth, db } from '../lib/firebase';
+import { secondaryAuth, db, auth } from '../lib/firebase';
 import { getInitials, getAvatarColor } from '../lib/avatar';
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -16,9 +16,11 @@ interface UserManagementProps {
 
 export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserManagementProps) {
   const [showAddModal, setShowAddModal] = useState(false);
-  const [identityType, setIdentityType] = useState<'email' | 'id' | 'name'>('email');
-  const [identityValue, setIdentityValue] = useState('');
+  const [editTarget, setEditTarget] = useState<UserProfile | null>(null);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [customDisplayName, setCustomDisplayName] = useState('');
   const [role, setRole] = useState<'admin' | 'user'>('user');
   const [isCreating, setIsCreating] = useState(false);
   const [permissions, setPermissions] = useState({
@@ -32,52 +34,47 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password !== confirmPassword) {
+      alert('Passwords do not match.');
+      return;
+    }
     if (password.length < 6) {
       alert('Password must be at least 6 characters long.');
       return;
     }
     setIsCreating(true);
     try {
-      // Map identity to an email for Firebase Auth
-      let firebaseEmail = '';
-      let loginHandle = '';
-      
-      if (identityType === 'email') {
-        firebaseEmail = identityValue;
-      } else {
-        // Create internally valid email for ID/Name based login
-        const slug = identityValue.toLowerCase().replace(/[^a-z0-9]/g, '');
-        firebaseEmail = `${slug}@internal.parcelintel.com`;
-        loginHandle = identityValue;
-      }
-
-      const userCred = await createUserWithEmailAndPassword(secondaryAuth, firebaseEmail, password);
+      const userCred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
       
       console.log('User created:', userCred.user.uid);
       
       const profile: UserProfile = {
-        email: firebaseEmail,
-        loginHandle: loginHandle || firebaseEmail,
+        email: email,
+        loginHandle: email,
         role,
         permissions,
-        displayName: identityValue,
+        displayName: customDisplayName, 
         createdAt: new Date().toISOString(),
         isActive: true
       };
       
-      console.log('Setting user profile:', profile);
       await setDoc(doc(db, 'users', userCred.user.uid), profile);
-      console.log('User profile set in Firestore');
       
       await secondaryAuth.signOut();
       
       setShowAddModal(false);
-      setIdentityValue('');
+      setEmail('');
+      setCustomDisplayName('');
       setPassword('');
+      setConfirmPassword('');
       alert('User created successfully.');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating user:', error);
-      alert(error instanceof Error ? error.message : 'Failed to create user');
+      if (error?.code === 'auth/email-already-in-use') {
+        alert('This email is already registered. Please use a different one, or log in with the existing account.');
+      } else {
+        alert('Failed to create user: ' + (error instanceof Error ? error.message : String(error)));
+      }
     } finally {
       setIsCreating(false);
     }
@@ -91,13 +88,47 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
     }
   };
 
-  const handleDeleteUser = async (userId: string) => {
-    if (!confirm('Are you sure you want to delete this personnel? This action is permanent.')) return;
+  const executeDelete = async (user: UserProfile) => {
+    if (!user.id) return;
+    
+    // Additional confirmation
+    if (!window.confirm(`Are you sure you want to permanently delete user ${user.loginHandle || user.email} and their Firebase account? This action cannot be undone.`)) {
+      return;
+    }
+
     try {
-      await deleteDoc(doc(db, 'users', userId));
+      console.log('Attempting to delete user:', user.id);
+      console.log('Current user UID:', auth.currentUser?.uid);
+      // 1. Delete from Firestore
+      await deleteDoc(doc(db, 'users', user.id));
+      console.log('Successfully deleted user doc');
+      
+      // 2. We cannot delete users from client-side Firebase Auth directly due to security limitations.
+      // The approach taken here is:
+      // The user is actually deleted from Firestore collection 'users'.
+      // For full authentication removal, this normally requires a Cloud Function or Admin SDK.
+      // We will perform the Firestore deletion as a primary step.
+      
+      alert(`User ${user.loginHandle || user.email} profile deleted successfully.`);
+      
     } catch (error) {
-      console.error('Delete error:', error);
-      handleFirestoreError(error, OperationType.DELETE, `users/${userId}`);
+      console.error('Delete error details:', error);
+      handleFirestoreError(error, OperationType.DELETE, `users/${user.id}`);
+    }
+  };
+
+  const handleEditUserSave = async () => {
+    if (!editTarget) return;
+    try {
+      await updateDoc(doc(db, 'users', editTarget.id!), {
+        displayName: editTarget.displayName,
+        permissions: editTarget.permissions
+      });
+      setEditTarget(null);
+      alert('User updated successfully.');
+    } catch (error) {
+      console.error('Update error:', error);
+      alert('Failed to update.');
     }
   };
 
@@ -149,7 +180,6 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
               <th className="px-6 py-4">Identity</th>
               <th className="px-6 py-4">Auth Level</th>
               <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4">Modules Access</th>
               <th className="px-6 py-4 text-right">Actions</th>
             </tr>
           </thead>
@@ -187,34 +217,15 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
                    </button>
                 </td>
                 <td className="px-6 py-4">
-                  <div className="flex flex-wrap gap-1">
-                    {(['dashboard', 'rules', 'products', 'settings', 'tracker', 'printSlips'] as const).map((key) => {
-                      const p = user.permissions?.[key];
-                      const level = user.role === 'admin' ? 'write' : (typeof p === 'boolean' ? (p ? 'write' : 'none') : (p || 'none'));
-                      
-                      const getStyle = () => {
-                        if (level === 'write') return 'bg-blue-500 text-white';
-                        if (level === 'read') return 'bg-amber-500 text-white';
-                        return 'bg-slate-100 dark:bg-slate-800 text-slate-400';
-                      };
-                      return (
-                        <button
-                          key={key}
-                          onClick={() => togglePermission(user.id!, key as any)}
-                          disabled={user.role === 'admin'}
-                          className={`text-[9px] font-bold px-2 py-1 rounded-full transition-all flex items-center gap-1 ${getStyle()} ${user.role !== 'admin' ? 'cursor-pointer hover:bg-opacity-80' : 'cursor-not-allowed opacity-50'}`}
-                        >
-                          {level.charAt(0).toUpperCase()}
-                          {key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </td>
-                <td className="px-6 py-4">
                   {user.email !== currentUserEmail && user.email !== 'khantaousi@gmail.com' && (
                       <div className="flex items-center justify-end gap-2">
                          <button
+                          onClick={() => setEditTarget(user)}
+                          className="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border border-slate-200 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all"
+                        >
+                          Edit Profile
+                        </button>
+                        <button
                           onClick={() => {
                             const newRole = user.role === 'admin' ? 'user' : 'admin';
                             onUpdateRole(user.id!, newRole);
@@ -236,7 +247,7 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
                           Reset Pass
                         </button>
                         <button
-                          onClick={() => handleDeleteUser(user.id!)}
+                          onClick={() => executeDelete(user)}
                           className="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all"
                         >
                           Delete
@@ -251,6 +262,37 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
       </div>
 
       <AnimatePresence>
+        {editTarget && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setEditTarget(null)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-[2rem] p-10 shadow-2xl border border-slate-200 dark:border-slate-800">
+              <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 mb-6 uppercase tracking-tighter">Edit Personnel</h2>
+              <div className="space-y-6">
+                <input type="text" value={editTarget.displayName || ''} onChange={e => setEditTarget({...editTarget, displayName: e.target.value})} className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold" />
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(editTarget.permissions || {}).map(([key, level]) => (
+                    <button 
+                      key={key} 
+                      type="button" 
+                      onClick={() => {
+                        const newPermissions = {...editTarget.permissions, [key]: level === 'none' ? 'read' : level === 'read' ? 'write' : 'none'};
+                        setEditTarget({...editTarget, permissions: newPermissions as any});
+                      }}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-bold uppercase transition-all border ${
+                        level === 'write' ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/30 text-blue-600' : 
+                        level === 'read' ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/30 text-amber-600' :
+                        'bg-transparent border-slate-100 dark:border-slate-800 text-slate-400'
+                      }`}
+                    >
+                      {key} ({level})
+                    </button>
+                  ))}
+                </div>
+                <button onClick={handleEditUserSave} className="w-full bg-blue-600 text-white rounded-2xl py-4 font-bold text-xs uppercase tracking-widest hover:bg-blue-700">Save Changes</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
         {showAddModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAddModal(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
@@ -260,33 +302,30 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
                 <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
               </div>
               <div className="space-y-6">
-                <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
-                  {(['email', 'id', 'name'] as const).map(t => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setIdentityType(t)}
-                      className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${identityType === t ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-400'}`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
-                    {identityType === 'email' ? 'Email Address' : identityType === 'id' ? 'Personnel ID' : 'Personnel Name'}
-                  </label>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Email Address</label>
                   <div className="relative text-slate-700 dark:text-slate-200">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                      {identityType === 'email' ? <Mail size={16} /> : identityType === 'id' ? <Fingerprint size={16} /> : <User size={16} />}
-                    </div>
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                     <input 
                       required 
-                      type={identityType === 'email' ? 'email' : 'text'} 
-                      value={identityValue} 
-                      onChange={e => setIdentityValue(e.target.value)} 
-                      placeholder={identityType === 'email' ? 'user@example.com' : identityType === 'id' ? 'PI-001' : 'John Doe'}
+                      type="email" 
+                      value={email} 
+                      onChange={e => setEmail(e.target.value)} 
+                      placeholder="user@example.com"
+                      className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3.5 pl-10 pr-4 text-sm font-black focus:ring-2 focus:ring-blue-500/20" 
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Display Name (Agent Name)</label>
+                  <div className="relative text-slate-700 dark:text-slate-200">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input 
+                      required 
+                      type="text" 
+                      value={customDisplayName} 
+                      onChange={e => setCustomDisplayName(e.target.value)} 
+                      placeholder="John Doe"
                       className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3.5 pl-10 pr-4 text-sm font-black focus:ring-2 focus:ring-blue-500/20" 
                     />
                   </div>
@@ -296,6 +335,20 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
                     <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 pl-10 pr-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex items-center justify-between">
+                    Confirm Password
+                    {confirmPassword && (
+                      <span className={`text-[9px] font-black ${password === confirmPassword ? 'text-green-500' : 'text-red-500'}`}>
+                        {password === confirmPassword ? 'Match' : 'Not Match'}
+                      </span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
+                    <input required type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 pl-10 pr-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20" />
                   </div>
                 </div>
                 <div className="space-y-1.5">

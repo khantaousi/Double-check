@@ -5,10 +5,12 @@ import { DeliverySettings as IDeliverySettings } from '../types';
 interface DeliverySettingsProps {
   settings: IDeliverySettings;
   onUpdate: (settings: IDeliverySettings) => void;
+  canWrite?: boolean;
 }
 
-export const DeliverySettings: React.FC<DeliverySettingsProps> = ({ settings, onUpdate }) => {
+export const DeliverySettings: React.FC<DeliverySettingsProps> = ({ settings, onUpdate, canWrite = true }) => {
   const handleChange = (key: keyof IDeliverySettings, value: string) => {
+    if (!canWrite) return;
     onUpdate({
       ...settings,
       [key]: Number(value)
@@ -35,6 +37,7 @@ export const DeliverySettings: React.FC<DeliverySettingsProps> = ({ settings, on
             <input
               type="number"
               value={settings.insideDhaka}
+              disabled={!canWrite}
               onChange={(e) => handleChange('insideDhaka', e.target.value)}
               className="w-16 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-[11px] font-bold text-blue-700 dark:text-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-500 text-right"
             />
@@ -51,6 +54,7 @@ export const DeliverySettings: React.FC<DeliverySettingsProps> = ({ settings, on
             <input
               type="number"
               value={settings.outsideDhaka}
+              disabled={!canWrite}
               onChange={(e) => handleChange('outsideDhaka', e.target.value)}
               className="w-16 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-[11px] font-bold text-blue-700 dark:text-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-500 text-right"
             />
