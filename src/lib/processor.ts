@@ -1,24 +1,34 @@
 import { DataRow, ValidationRule, ProductPrice, GiftRule, SiteSettings } from '../types';
 import { extractPrices, evaluateCustomAmountRules } from './gemini';
 
-export function parseSpecialDiscount(instruction: string, total: number): { percentage: number; fixed: number; totalDiscount: number } {
-  if (!instruction) return { percentage: 0, fixed: 0, totalDiscount: 0 };
+export function parseSpecialDiscount(instruction: string, total: number): number {
+  if (!instruction) return 0;
   
   const lower = instruction.toLowerCase();
   
-  // Find percentage
+  // 1. Percentage check: "10%"
   const pcMatch = lower.match(/(\d+)\s*%/);
-  const percentage = pcMatch ? parseInt(pcMatch[1], 10) : 0;
+  if (pcMatch) {
+    return (total * parseInt(pcMatch[1], 10)) / 100;
+  }
   
-  // Find fixed
-  let remainder = lower;
-  if(pcMatch) remainder = remainder.replace(pcMatch[0], '');                
-  const fixedMatch = remainder.match(/(\d+)\s*(?:\/|-|tk|discount|off|taka)/);
-  const fixed = fixedMatch ? parseInt(fixedMatch[1], 10) : 0;
+  // 2. Fixed value check: "100/-", "100tk", "100 discount", "100 off"
+  const fixedMatch = lower.match(/(\d+)\s*(?:\/|-|tk|discount|off|taka)/);
+  if (fixedMatch) {
+    return parseInt(fixedMatch[1], 10);
+  }
 
-  const totalDiscount = (total * percentage) / 100 + fixed;
+  // 3. Simple fallback: if number exists with keywords
+  const simpleMatch = lower.match(/(\d+)/);
+  if (simpleMatch && (lower.includes('discount') || lower.includes('off') || lower.includes('-') || lower.includes('gift'))) {
+    const val = parseInt(simpleMatch[1], 10);
+    // Safety: ignore numbers that are too large (likely phone numbers or years)
+    if (val < total && val > 0 && simpleMatch[1].length <= 4) {
+      return val;
+    }
+  }
   
-  return { percentage, fixed, totalDiscount };
+  return 0;
 }
 
 export function calculateRow(
@@ -31,8 +41,7 @@ export function calculateRow(
   // We avoid * row.ItemQuantity here because multi-product descriptions usually specify quantities internally.
   const baseTotal = (row.extractedBasePrice || 0);
   const target = row.AmountToCollect;
-  const specialDiscountObj = parseSpecialDiscount(row.SpecialInstruction, baseTotal);
-  const specialDisc = specialDiscountObj.totalDiscount;
+  const specialDisc = parseSpecialDiscount(row.SpecialInstruction, baseTotal);
 
   const isDhaka = row.RecipientCity.toLowerCase().includes('dhaka');
   const dCharge = isDhaka ? delivery.insideDhaka : delivery.outsideDhaka;
@@ -56,11 +65,6 @@ export function calculateRow(
       name: 'Special', 
       val: baseTotal - specialDisc, 
       notes: specialDisc > 0 ? [`Special discount: ${specialDisc}`] : [] 
-    },
-    { 
-      name: 'Special-Alt',
-      val: (baseTotal - specialDiscountObj.fixed) * (1 - specialDiscountObj.percentage / 100),
-      notes: (specialDiscountObj.fixed > 0 || specialDiscountObj.percentage > 0) ? [`Special discount (Alt): ${ ((baseTotal - specialDiscountObj.fixed) * (1 - specialDiscountObj.percentage / 100)).toFixed(2) }`] : []
     },
     { 
       name: 'Tiered', 
