@@ -458,7 +458,7 @@ export default function App() {
           <div className="flex items-center gap-3 mb-12">
             <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-xl shadow-blue-500/10 dark:shadow-blue-900/40 overflow-hidden transition-shadow duration-300">
               {siteSettings.logoUrl ? (
-                <img src={siteSettings.logoUrl} alt="Logo" className="w-full h-full object-contain p-1" />
+                <img src={siteSettings.logoUrl} alt="Logo" className="w-full h-full object-contain" />
               ) : (
                 <Database className="text-white" size={20} />
               )}
