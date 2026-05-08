@@ -1,34 +1,24 @@
 import { DataRow, ValidationRule, ProductPrice, GiftRule, SiteSettings } from '../types';
 import { extractPrices, evaluateCustomAmountRules } from './gemini';
 
-export function parseSpecialDiscount(instruction: string, total: number): number {
-  if (!instruction) return 0;
+export function parseSpecialDiscount(instruction: string, total: number): { percentage: number; fixed: number; totalDiscount: number } {
+  if (!instruction) return { percentage: 0, fixed: 0, totalDiscount: 0 };
   
   const lower = instruction.toLowerCase();
   
-  // 1. Percentage check: "10%"
+  // Find percentage
   const pcMatch = lower.match(/(\d+)\s*%/);
-  if (pcMatch) {
-    return (total * parseInt(pcMatch[1], 10)) / 100;
-  }
+  const percentage = pcMatch ? parseInt(pcMatch[1], 10) : 0;
   
-  // 2. Fixed value check: "100/-", "100tk", "100 discount", "100 off"
-  const fixedMatch = lower.match(/(\d+)\s*(?:\/|-|tk|discount|off|taka)/);
-  if (fixedMatch) {
-    return parseInt(fixedMatch[1], 10);
-  }
+  // Find fixed
+  let remainder = lower;
+  if(pcMatch) remainder = remainder.replace(pcMatch[0], '');                
+  const fixedMatch = remainder.match(/(\d+)\s*(?:\/|-|tk|discount|off|taka)/);
+  const fixed = fixedMatch ? parseInt(fixedMatch[1], 10) : 0;
 
-  // 3. Simple fallback: if number exists with keywords
-  const simpleMatch = lower.match(/(\d+)/);
-  if (simpleMatch && (lower.includes('discount') || lower.includes('off') || lower.includes('-') || lower.includes('gift'))) {
-    const val = parseInt(simpleMatch[1], 10);
-    // Safety: ignore numbers that are too large (likely phone numbers or years)
-    if (val < total && val > 0 && simpleMatch[1].length <= 4) {
-      return val;
-    }
-  }
+  const totalDiscount = (total * percentage) / 100 + fixed;
   
-  return 0;
+  return { percentage, fixed, totalDiscount };
 }
 
 export function calculateRow(
@@ -41,7 +31,8 @@ export function calculateRow(
   // We avoid * row.ItemQuantity here because multi-product descriptions usually specify quantities internally.
   const baseTotal = (row.extractedBasePrice || 0);
   const target = row.AmountToCollect;
-  const specialDisc = parseSpecialDiscount(row.SpecialInstruction, baseTotal);
+  const specialDiscountObj = parseSpecialDiscount(row.SpecialInstruction, baseTotal);
+  const specialDisc = specialDiscountObj.totalDiscount;
 
   const isDhaka = row.RecipientCity.toLowerCase().includes('dhaka');
   const dCharge = isDhaka ? delivery.insideDhaka : delivery.outsideDhaka;
@@ -67,6 +58,11 @@ export function calculateRow(
       notes: specialDisc > 0 ? [`Special discount: ${specialDisc}`] : [] 
     },
     { 
+      name: 'Special-Alt',
+      val: (baseTotal - specialDiscountObj.fixed) * (1 - specialDiscountObj.percentage / 100),
+      notes: (specialDiscountObj.fixed > 0 || specialDiscountObj.percentage > 0) ? [`Special discount (Alt): ${ ((baseTotal - specialDiscountObj.fixed) * (1 - specialDiscountObj.percentage / 100)).toFixed(2) }`] : []
+    },
+    { 
       name: 'Tiered', 
       val: baseTotal - (getTiered(baseTotal)?.amount || 0), 
       notes: getTiered(baseTotal) ? [`Tiered discount (${getTiered(baseTotal)!.percentage}%): ${getTiered(baseTotal)!.amount.toFixed(2)}`] : [] 
@@ -85,15 +81,48 @@ export function calculateRow(
     // 1. Without Delivery (Either because it's free or explicitly excluded)
     scenarios.push({ total: v.val, notes: v.notes });
 
-    // 2. With Delivery
-    scenarios.push({ 
-      total: v.val + dCharge, 
-      notes: [...v.notes, `Delivery charge (${isDhaka ? 'Dhaka' : 'Outside Dhaka'}): ${dCharge}`] 
+    // 2. With Delivery (Normal)
+    scenarios.push({
+      total: v.val + dCharge,
+      notes: [...v.notes, `Delivery charge (${isDhaka ? 'Dhaka' : 'Outside Dhaka'}): ${dCharge}`]
     });
   });
 
-  // Find best match (within tolerance units)
-  let bestMatch = scenarios.find(s => Math.abs(s.total - target) <= tolerance);
+  // 3. Fast Delivery Rule:
+  // If order amount > 1500, delivery charge is free (0).
+  // Try calculating WITHOUT delivery charge, then WITH (but if > 1500 it is 0).
+  const isFastDeliveryEligible = (v: { name: string; val: number; notes: string[] }) => {
+    // Determine fast delivery charge
+    const charge = v.val > 1500 ? 0 : dCharge;
+    
+    // Check without charge
+    if (Math.abs(v.val - target) <= tolerance) {
+      return { match: true, total: v.val, notes: v.notes };
+    }
+    // Check with charge
+    if (Math.abs((v.val + charge) - target) <= tolerance) {
+      return { match: true, total: v.val + charge, notes: [...v.notes, `Fast Delivery: ${charge === 0 ? 'Free' : charge}`] };
+    }
+    
+    return { match: false };
+  };
+  
+  // Find best match including Fast Delivery rules
+  let bestMatch: { total: number; notes: string[] } | undefined;
+
+  // 1. Try Fast Delivery rules first
+  for (const v of variants) {
+    const fastResult = isFastDeliveryEligible(v);
+    if (fastResult.match) {
+      bestMatch = { total: fastResult.total!, notes: fastResult.notes! };
+      break;
+    }
+  }
+
+  // 2. Fallback to standard scenarios
+  if (!bestMatch) {
+    bestMatch = scenarios.find(s => Math.abs(s.total - target) <= tolerance);
+  }
 
   if (bestMatch || row.isPermitted) {
     row.calculatedTotal = Math.round(bestMatch ? bestMatch.total : target);
