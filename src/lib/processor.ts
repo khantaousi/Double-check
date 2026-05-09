@@ -130,6 +130,10 @@ export function calculateRow(
     row.notes = [...(row.notes || []), ...(bestMatch ? bestMatch.notes : ["Permitted by Leader"])];
   } else {
     const defaultScenario = scenarios[scenarios.length - 1];
+    
+    // LOGGING DISCREPANCY
+    console.log(`Mismatch detected: Target=${target}, Scenarios=`, scenarios.map(s => s.total));
+    
     row.calculatedTotal = Math.round(defaultScenario.total);
     row.isMismatch = true;
     row.notes = [...(row.notes || []), ...defaultScenario.notes, `Mismatch: Expected ${row.calculatedTotal}, Got ${target}`];

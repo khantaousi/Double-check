@@ -26,10 +26,10 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
   const [permissions, setPermissions] = useState({
     dashboard: 'read' as 'none' | 'read' | 'write',
     rules: 'none' as 'none' | 'read' | 'write',
-    products: 'none' | 'read' | 'write',
-    settings: 'none' | 'read' | 'write',
-    tracker: 'none' | 'read' | 'write',
-    printSlips: 'none' | 'read' | 'write'
+    products: 'none' as 'none' | 'read' | 'write',
+    settings: 'none' as 'none' | 'read' | 'write',
+    tracker: 'none' as 'none' | 'read' | 'write',
+    printSlips: 'none' as 'none' | 'read' | 'write'
   });
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -232,7 +232,7 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
                             if (newRole === 'admin') {
                               // Automatically grand all permissions when becoming admin
                               updateDoc(doc(db, 'users', user.id!), { 
-                                permissions: { dashboard: true, rules: true, products: true, settings: true, tracker: true, printSlips: true }
+                                permissions: { dashboard: 'write', rules: 'write', products: 'write', settings: 'write', tracker: 'write', printSlips: 'write' }
                               }).catch(console.error);
                             }
                           }}

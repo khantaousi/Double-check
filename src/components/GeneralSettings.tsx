@@ -5,9 +5,10 @@ import { Globe, ShieldCheck, DollarSign, Upload, RotateCcw, Image as ImageIcon, 
 interface GeneralSettingsProps {
   settings: SiteSettings;
   onUpdate: (settings: SiteSettings) => void;
+  canWrite?: boolean;
 }
 
-export function GeneralSettings({ settings, onUpdate }: GeneralSettingsProps) {
+export function GeneralSettings({ settings, onUpdate, canWrite = true }: GeneralSettingsProps) {
   const [keywordInput, setKeywordInput] = useState(settings.permissionKeywords?.join(', ') || '');
   const fileInputRef = useRef<HTMLInputElement>(null);
 

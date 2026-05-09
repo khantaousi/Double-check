@@ -113,12 +113,12 @@ export default function App() {
             createdAt: new Date().toISOString(),
             isActive: true,
             permissions: {
-              dashboard: true,
-              rules: true,
-              products: true,
-              settings: true,
-              tracker: true,
-              printSlips: true
+              dashboard: 'write',
+              rules: 'write',
+              products: 'write',
+              settings: 'write',
+              tracker: 'write',
+              printSlips: 'write'
             }
           };
           await setDoc(userRef, newProfile);
@@ -208,10 +208,8 @@ export default function App() {
     }
 
     console.log('User logged in with email:', user.email, 'and UID:', user.uid);
-    // Only fetch products if user is master admin or has specific permission
-    const canSeeProducts = user.email === 'khantaousi@gmail.com' || (userProfile?.permissions?.products && userProfile?.permissions?.products !== 'none');
-    
-    if (canSeeProducts) {
+    // Only fetch products if signed in
+    if (user) {
       const q = query(collection(db, 'products'), orderBy('name', 'asc'));
       const unsubscribeProducts = onSnapshot(q, (snapshot) => {
         const productList = snapshot.docs.map(doc => ({
@@ -225,7 +223,7 @@ export default function App() {
       });
       return () => unsubscribeProducts();
     }
-  }, [user, userProfile]);
+  }, [user]);
 
   useEffect(() => {
     if (userProfile?.role === 'admin') {

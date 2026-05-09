@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 interface GiftRuleEditorProps {
   rules: GiftRule[];
   onUpdate: (rules: GiftRule[]) => void;
+  canWrite?: boolean;
 }
 
 interface KeywordInputProps {
@@ -13,9 +14,10 @@ interface KeywordInputProps {
   onChange: (value: string[]) => void;
   placeholder: string;
   className?: string;
+  disabled?: boolean;
 }
 
-function KeywordInput({ value, onChange, placeholder, className }: KeywordInputProps) {
+function KeywordInput({ value, onChange, placeholder, className, disabled }: KeywordInputProps) {
   const [localValue, setLocalValue] = React.useState(value.join(', '));
 
   // Update local value if props change from outside (e.g. from sync)
@@ -29,6 +31,7 @@ function KeywordInput({ value, onChange, placeholder, className }: KeywordInputP
   return (
     <input 
       value={localValue}
+      disabled={disabled}
       onChange={e => {
         const newVal = e.target.value;
         setLocalValue(newVal);
@@ -41,8 +44,9 @@ function KeywordInput({ value, onChange, placeholder, className }: KeywordInputP
   );
 }
 
-export function GiftRuleEditor({ rules, onUpdate }: GiftRuleEditorProps) {
+export function GiftRuleEditor({ rules, onUpdate, canWrite = true }: GiftRuleEditorProps) {
   const addRule = () => {
+    if (!canWrite) return;
     const newRule: GiftRule = {
       id: crypto.randomUUID(),
       name: 'New Gift Rule',
@@ -54,10 +58,12 @@ export function GiftRuleEditor({ rules, onUpdate }: GiftRuleEditorProps) {
   };
 
   const removeRule = (id: string) => {
+    if (!canWrite) return;
     onUpdate(rules.filter(r => r.id !== id));
   };
 
   const updateRule = (id: string, updates: Partial<GiftRule>) => {
+    if (!canWrite) return;
     onUpdate(rules.map(r => r.id === id ? { ...r, ...updates } : r));
   };
 

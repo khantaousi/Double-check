@@ -82,18 +82,13 @@ service cloud.firestore {
 
     // 2. Products Collection
     match /products/{productId} {
-      allow read: if canRead('products');
+      allow read: if isSignedIn();
       allow write: if canWrite('products');
     }
 
     // 3. Config Collection
-    match /config/{configId} {
-      allow read: if (
-        (configId == 'validation_rules' && canRead('rules')) ||
-        (configId == 'delivery_settings' && canRead('settings')) ||
-        (configId == 'site_settings' && canRead('settings')) ||
-        (configId == 'gift_rules' && (canRead('rules') || canRead('settings') || canRead('dashboard')))
-      );
+    match /config/{document=**} {
+      allow read: if true;
       allow write: if isAdmin();
     }
 
