@@ -22,7 +22,8 @@ service cloud.firestore {
     function canRead(module) {
       return isSignedIn() && (
         isAdmin() || 
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data != null &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions != null &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions[module] != 'none')
       );
     }
@@ -30,7 +31,8 @@ service cloud.firestore {
     function canWrite(module) {
       return isSignedIn() && (
         isAdmin() || 
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data != null &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions != null &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions[module] == 'write')
       );
     }

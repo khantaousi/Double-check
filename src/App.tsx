@@ -21,6 +21,7 @@ import { GeneralSettings } from './components/GeneralSettings';
 import { FileUpload } from './components/FileUpload';
 import { DataTable } from './components/DataTable';
 import { UserManagement } from './components/UserManagement';
+import WelcomeScreen from './components/WelcomeScreen';
 import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, auth, logInWithEmail, signOut, signInWithGoogle } from './lib/firebase';
@@ -129,6 +130,7 @@ export default function App() {
         const unsubscribeProfile = onSnapshot(userRef, (doc) => {
           if (doc.exists()) {
             const profile = { id: doc.id, ...doc.data() } as UserProfile;
+            console.log('User profile snapshot:', profile);
             setUserProfile(profile);
             
             // SECURITY: Immediate forced logout if account deactivated
@@ -138,6 +140,9 @@ export default function App() {
               setLoginMode('staff');
             }
           }
+        }, (error) => {
+          console.error('User profile snapshot error:', error);
+          handleFirestoreError(error, OperationType.GET, `users/${userRef.id}`);
         });
 
         return () => unsubscribeProfile();
@@ -158,7 +163,7 @@ export default function App() {
         setRules(doc.data().rules as ValidationRule[]);
       }
     }, (error) => {
-      console.warn("Rules sync restricted.");
+      handleFirestoreError(error, OperationType.GET, 'config/validation_rules');
     });
 
     // Sync Delivery Settings
@@ -167,7 +172,7 @@ export default function App() {
         setDelivery(doc.data() as IDeliverySettings);
       }
     }, (error) => {
-      console.warn("Delivery sync restricted.");
+      handleFirestoreError(error, OperationType.GET, 'config/delivery_settings');
     });
 
     // Sync Gift Rules
@@ -176,7 +181,7 @@ export default function App() {
         setGiftRules(doc.data().rules as GiftRule[]);
       }
     }, (error) => {
-      console.warn("Gift rules sync restricted.");
+      handleFirestoreError(error, OperationType.GET, 'config/gift_rules');
     });
 
     // Sync Site Settings
@@ -185,7 +190,7 @@ export default function App() {
         setSiteSettings(doc.data() as SiteSettings);
       }
     }, (error) => {
-      console.warn("Site settings sync restricted.");
+      handleFirestoreError(error, OperationType.GET, 'config/site_settings');
     });
 
     return () => {
@@ -202,6 +207,7 @@ export default function App() {
       return;
     }
 
+    console.log('User logged in with email:', user.email, 'and UID:', user.uid);
     // Only fetch products if user is master admin or has specific permission
     const canSeeProducts = user.email === 'khantaousi@gmail.com' || (userProfile?.permissions?.products && userProfile?.permissions?.products !== 'none');
     
@@ -214,6 +220,7 @@ export default function App() {
         })) as ProductPrice[];
         setProducts(productList);
       }, (error) => {
+        console.error('Products snapshot error:', error);
         handleFirestoreError(error, OperationType.LIST, 'products');
       });
       return () => unsubscribeProducts();
@@ -627,16 +634,7 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950 transition-colors duration-300 relative">
         <AnimatePresence>
-          {showWelcome && (
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="absolute top-5 left-1/2 transform -translate-x-1/2 z-50 bg-blue-600 text-white px-6 py-3 rounded-full font-bold shadow-lg text-sm"
-            >
-              {userProfile?.role === 'admin' ? 'Welcome Chief' : `Welcome ${userProfile?.displayName || user.email?.split('@')[0]}`}
-            </motion.div>
-          )}
+          {showWelcome && <WelcomeScreen onComplete={() => setShowWelcome(false)} userProfile={userProfile} user={user} />}
         </AnimatePresence>
         {/* Top Header Bar */}
         <header className="h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 md:px-10 shrink-0 sticky top-0 z-10 transition-colors duration-300">
