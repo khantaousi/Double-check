@@ -60,34 +60,23 @@ service cloud.firestore {
     // 1. Users Collection
     match /users/{userId} {
       allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow list: if true;
+      allow list: if isAdmin();
       
-      allow create: if (
-        // Only Master Admin can create via the custom interface
-        request.auth.token.email == 'khantaousi@gmail.com'
-      ) || (
-        // Standard users can only create their own profile IF it doesn't exist
-        // and we verify the ID matches. Role must be 'user' by default.
-        isSignedIn() && request.auth.uid == userId && !exists(/databases/$(database)/documents/users/$(userId)) &&
-        incoming().role == 'user'
-      );
+      allow create: if isSignedIn() && request.auth.uid == userId;
 
-      allow update: if isAdmin() || (
-        isSignedIn() && request.auth.uid == userId &&
-        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL'])
-      );
+      allow update: if (isSignedIn() && request.auth.uid == userId) || isAdmin();
 
       allow delete: if isAdmin();
     }
 
     // 2. Products Collection
     match /products/{productId} {
-      allow read: if isSignedIn();
-      allow write: if canWrite('products');
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // 3. Config Collection
-    match /config/{document=**} {
+    match /config/{configId} {
       allow read: if true;
       allow write: if isAdmin();
     }

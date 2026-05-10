@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { Shield, UserCheck, ShieldAlert, Plus, Mail, Lock, X, Activity, ToggleLeft, ToggleRight, Fingerprint, User, CheckCircle2 } from 'lucide-react';
+import { Shield, UserCheck, ShieldAlert, Plus, Mail, Lock, X, Activity, ToggleLeft, ToggleRight, Fingerprint, User, CheckCircle2, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { secondaryAuth, db, auth } from '../lib/firebase';
 import { getInitials, getAvatarColor } from '../lib/avatar';
@@ -23,6 +23,42 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
   const [customDisplayName, setCustomDisplayName] = useState('');
   const [role, setRole] = useState<'admin' | 'user'>('user');
   const [isCreating, setIsCreating] = useState(false);
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 30000); // UI update every 30s
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatLastSeen = (lastSeen?: string, isOnline?: boolean) => {
+    if (!lastSeen) return 'Never joined';
+    
+    const date = new Date(lastSeen);
+    const diff = now.getTime() - date.getTime();
+    
+    // If last updated within 5 minutes, and flagged online, show online
+    // Actually the flag is better, but this handles tab closes better
+    const isActuallyOnline = isOnline && diff < 5 * 60 * 1000;
+
+    if (isActuallyOnline) return 'Active Now';
+
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  };
+
+  const isUserOnline = (user: UserProfile) => {
+    if (!user.lastSeen || !user.isOnline) return false;
+    const diff = now.getTime() - new Date(user.lastSeen).getTime();
+    return diff < 5 * 60 * 1000;
+  };
+
   const [permissions, setPermissions] = useState({
     dashboard: 'read' as 'none' | 'read' | 'write',
     rules: 'none' as 'none' | 'read' | 'write',
@@ -188,14 +224,28 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
               <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} key={user.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${!user.isActive ? 'opacity-60 bg-slate-50/50 dark:bg-slate-900/50' : ''}`}>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg ${getAvatarColor(user.displayName || user.email)} flex items-center justify-center text-white text-[10px] font-black shadow-sm`}>
-                      {getInitials(user.displayName || user.email)}
+                    <div className="relative">
+                      <div className={`w-10 h-10 rounded-xl ${getAvatarColor(user.displayName || user.email)} flex items-center justify-center text-white text-xs font-black shadow-sm transition-transform hover:scale-105`}>
+                        {getInitials(user.displayName || user.email)}
+                      </div>
+                      <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-900 ${isUserOnline(user) ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-slate-300 dark:bg-slate-700'}`} />
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{user.displayName || 'No Name'}</p>
-                      <div className="flex items-center gap-1 opacity-60">
-                         <Fingerprint size={10} className="text-slate-400" />
-                         <p className="text-[9px] font-bold text-slate-500 tracking-tight uppercase">{user.loginHandle || user.email}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-black text-slate-800 dark:text-slate-100">{user.displayName || 'No Name'}</p>
+                        {isUserOnline(user) && (
+                          <span className="flex h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-0.5 mt-0.5">
+                        <div className="flex items-center gap-1 opacity-60">
+                           <Fingerprint size={10} className="text-slate-400" />
+                           <p className="text-[9px] font-bold text-slate-500 tracking-tight uppercase">{user.loginHandle || user.email}</p>
+                        </div>
+                        <div className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+                          <Clock size={10} />
+                          {formatLastSeen(user.lastSeen, user.isOnline)}
+                        </div>
                       </div>
                     </div>
                   </div>

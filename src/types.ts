@@ -28,6 +28,8 @@ export interface UserProfile {
   photoURL?: string;
   createdAt: string;
   isActive: boolean;    // For activating/deactivating users
+  lastSeen?: string;    // ISO string of last activity
+  isOnline?: boolean;   // Current online status
   permissions?: {
     dashboard: 'none' | 'read' | 'write';
     rules: 'none' | 'read' | 'write';

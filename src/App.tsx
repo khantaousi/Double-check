@@ -97,55 +97,93 @@ export default function App() {
     const unsubscribeAuth = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        if (u.email === 'khantaousi@gmail.com') {
-          seedProducts();
-        }
-        
-        const userRef = doc(db, 'users', u.uid);
-        const userSnap = await getDoc(userRef);
-        
-        if (!userSnap.exists() && u.email === 'khantaousi@gmail.com') {
-          const newProfile: UserProfile = {
-            email: u.email!,
-            role: 'admin',
-            displayName: u.displayName || u.email!.split('@')[0],
-            photoURL: u.photoURL || '',
-            createdAt: new Date().toISOString(),
-            isActive: true,
-            permissions: {
-              dashboard: 'write',
-              rules: 'write',
-              products: 'write',
-              settings: 'write',
-              tracker: 'write',
-              printSlips: 'write'
-            }
-          };
-          await setDoc(userRef, newProfile);
-          setUserProfile(newProfile);
-        } else if (userSnap.exists()) {
-          setUserProfile({ id: userSnap.id, ...userSnap.data() } as UserProfile);
-        }
-
-        const unsubscribeProfile = onSnapshot(userRef, (doc) => {
-          if (doc.exists()) {
-            const profile = { id: doc.id, ...doc.data() } as UserProfile;
-            console.log('User profile snapshot:', profile);
-            setUserProfile(profile);
-            
-            // SECURITY: Immediate forced logout if account deactivated
-            if (profile.isActive === false && u.email !== 'khantaousi@gmail.com') {
-              signOut();
-              setAuthError('Your account has been deactivated by an administrator.');
-              setLoginMode('staff');
-            }
+        try {
+          if (u.email === 'khantaousi@gmail.com') {
+            seedProducts();
           }
-        }, (error) => {
-          console.error('User profile snapshot error:', error);
-          handleFirestoreError(error, OperationType.GET, `users/${userRef.id}`);
-        });
+          
+          const userRef = doc(db, 'users', u.uid);
+          const userSnap = await getDoc(userRef);
+          
+          if (!userSnap.exists()) {
+            const isMasterAdmin = u.email === 'khantaousi@gmail.com';
+            const newProfile: UserProfile = {
+              email: u.email!,
+              role: isMasterAdmin ? 'admin' : 'user',
+              displayName: u.displayName || u.email!.split('@')[0],
+              photoURL: u.photoURL || '',
+              createdAt: new Date().toISOString(),
+              lastSeen: new Date().toISOString(),
+              isOnline: true,
+              isActive: true,
+              permissions: isMasterAdmin ? {
+                dashboard: 'write',
+                rules: 'write',
+                products: 'write',
+                settings: 'write',
+                tracker: 'write',
+                printSlips: 'write'
+              } : {
+                dashboard: 'read',
+                rules: 'none',
+                products: 'none',
+                settings: 'none',
+                tracker: 'none',
+                printSlips: 'none'
+              }
+            };
+            await setDoc(userRef, newProfile);
+            setUserProfile(newProfile);
+          } else {
+            const profileData = userSnap.data() as UserProfile;
+            const updatedProfile = { 
+              ...profileData, 
+              isOnline: true, 
+              lastSeen: new Date().toISOString() 
+            };
+            await updateDoc(userRef, { 
+              isOnline: true, 
+              lastSeen: new Date().toISOString() 
+            });
+            setUserProfile({ id: userSnap.id, ...updatedProfile });
+          }
 
-        return () => unsubscribeProfile();
+          // Heartbeat to keep lastSeen updated while browsing
+          const heartbeat = setInterval(() => {
+            if (auth.currentUser) {
+              updateDoc(userRef, { 
+                lastSeen: new Date().toISOString(),
+                isOnline: true 
+              }).catch(console.error);
+            }
+          }, 60000); // Every 1 minute
+
+          const unsubscribeProfile = onSnapshot(userRef, (doc) => {
+            if (doc.exists()) {
+              const profile = { id: doc.id, ...doc.data() } as UserProfile;
+              setUserProfile(profile);
+              
+              // SECURITY: Immediate forced logout if account deactivated
+              if (profile.isActive === false && u.email !== 'khantaousi@gmail.com') {
+                updateDoc(userRef, { isOnline: false, lastSeen: new Date().toISOString() }).catch(console.error);
+                signOut();
+                setAuthError('Your account has been deactivated by an administrator.');
+                setLoginMode('staff');
+              }
+            }
+          }, (error) => {
+            console.error('User profile snapshot error:', error);
+          });
+
+          return () => {
+            unsubscribeProfile();
+            clearInterval(heartbeat);
+            // Ideally set offline on cleanup, but browser close won't hit this.
+            // We'll rely on lastSeen logic in UI if isOnline is stale.
+          };
+        } catch (error) {
+          console.error("Auth state synchronization error:", error);
+        }
       } else {
         setUserProfile(null);
       }
@@ -232,7 +270,16 @@ export default function App() {
           id: doc.id,
           ...doc.data()
         })) as UserProfile[];
-        setAllUsers(userList);
+        // Sort by Role (Admin first) then lastSeen descending
+        const sortedUsers = [...userList].sort((a, b) => {
+          if (a.role === 'admin' && b.role !== 'admin') return -1;
+          if (a.role !== 'admin' && b.role === 'admin') return 1;
+          
+          const timeA = a.lastSeen ? new Date(a.lastSeen).getTime() : 0;
+          const timeB = b.lastSeen ? new Date(b.lastSeen).getTime() : 0;
+          return timeB - timeA;
+        });
+        setAllUsers(sortedUsers);
       }, (error) => {
         handleFirestoreError(error, OperationType.LIST, 'users');
       });
@@ -617,11 +664,11 @@ export default function App() {
         <div className="mt-auto p-8 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
           <div className="flex items-center gap-2 mb-4 text-[10px] font-bold uppercase text-slate-400 tracking-widest">
             <Sparkles size={12} className="text-blue-500" />
-            Powered by Taousi
+            Powered by <a href="https://md-ahbab-khan-taousi.vercel.app/" target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 transition-colors cursor-pointer">Taousi</a>
           </div>
           <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Taousi Intelligence</span>
+              <a href="https://md-ahbab-khan-taousi.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-blue-600 transition-colors cursor-pointer">Taousi Intelligence</a>
               <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
             </div>
             <p className="text-[10px] text-slate-400 font-medium">Ultra-high precision engine</p>
@@ -670,7 +717,10 @@ export default function App() {
                   <div className={`w-8 h-8 rounded-lg ${getAvatarColor(userProfile?.displayName || user.email)} flex items-center justify-center text-white text-xs font-black shadow-sm`}>
                     {getInitials(userProfile?.displayName || user.email)}
                   </div>
-                  <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white dark:border-slate-800 rounded-full" />
+                  <div className={`absolute -bottom-1 -right-1 w-3 h-3 border-2 border-white dark:border-slate-800 rounded-full ${userProfile?.isActive !== false ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.3)]' : 'bg-slate-300'}`} />
+                  {userProfile?.isOnline && (
+                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-ping opacity-75" />
+                  )}
                 </div>
                 <div className="flex flex-col">
                   <div className="flex items-center gap-1.5">
@@ -694,7 +744,21 @@ export default function App() {
                       </span>
                     )}
                   </div>
-                  <button onClick={() => signOut()} className="text-[10px] font-bold text-slate-400 dark:text-slate-500 hover:text-red-500 transition-colors text-left uppercase tracking-tighter">Sign Out</button>
+                  <button 
+                    onClick={async () => {
+                      if (user) {
+                        try {
+                          await updateDoc(doc(db, 'users', user.uid), { isOnline: false, lastSeen: new Date().toISOString() });
+                        } catch (e) {
+                          console.error("Offline sync error:", e);
+                        }
+                      }
+                      signOut();
+                    }} 
+                    className="text-[10px] font-bold text-slate-400 dark:text-slate-500 hover:text-red-500 transition-colors text-left uppercase tracking-tighter"
+                  >
+                    Sign Out
+                  </button>
                 </div>
               </div>
             ) : (
@@ -732,12 +796,23 @@ export default function App() {
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="flex flex-col items-center justify-center py-20 text-center"
+                className="flex flex-col items-center justify-center py-20 text-center relative"
               >
+                {/* Admin Access Pin */}
+                <div className="absolute top-0 right-0">
+                  <button 
+                    onClick={() => setLoginMode('admin')}
+                    className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-400 hover:text-blue-500 hover:border-blue-500/50 transition-all shadow-sm group"
+                    title="Administration Portal"
+                  >
+                    <ShieldAlert size={16} className="group-hover:scale-110 transition-transform" />
+                  </button>
+                </div>
+
                 <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center mb-8 shadow-2xl shadow-blue-200 dark:shadow-none">
                   <Lock className="text-white" size={32} />
                 </div>
-                <h2 className="text-4xl font-black text-slate-800 dark:text-slate-100 tracking-tighter mb-4">SYSTEM GATEWAY</h2>
+                <h2 className="text-4xl font-black text-slate-800 dark:text-slate-100 tracking-tighter mb-4 uppercase">System Gateway</h2>
                 <p className="text-slate-400 dark:text-slate-500 max-w-md mx-auto mb-10 font-medium leading-relaxed">
                   PriceVal Pro extraction environment is restricted. Select your authorization channel to initialize session.
                 </p>
@@ -754,18 +829,10 @@ export default function App() {
                       <button 
                         onClick={() => setLoginMode('staff')}
                         disabled={isAuthLoading}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 hover:border-blue-500 transition-all group disabled:opacity-50"
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 hover:border-blue-500 transition-all group disabled:opacity-50"
                       >
-                        <Users size={18} className="text-slate-400 group-hover:text-blue-500" />
-                        Staff Terminal Login
-                      </button>
-                      <button 
-                        onClick={() => setLoginMode('admin')}
-                        disabled={isAuthLoading}
-                        className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 dark:shadow-none disabled:opacity-50"
-                      >
-                        <ShieldAlert size={18} />
-                        Master Portal (Admin Only)
+                        <LogIn size={18} className="text-slate-400 group-hover:text-blue-500" />
+                        Login
                       </button>
                     </motion.div>
                   )}
@@ -782,7 +849,7 @@ export default function App() {
                       <div className="relative">
                         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         <input 
-                          required type="text" placeholder="Email, ID, or Personnel Name" 
+                          required type="text" placeholder="abc@gmail.com" 
                           disabled={isAuthLoading}
                           value={authEmail} onChange={e => setAuthEmail(e.target.value)}
                           className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl py-4 pl-12 pr-6 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-bold disabled:opacity-50"
