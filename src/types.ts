@@ -118,7 +118,7 @@ export const DEFAULT_DELIVERY_SETTINGS: DeliverySettings = {
 };
 
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
-  companyName: 'Vics DA team',
+  companyName: 'Parcel Intelligence',
   amountTolerance: 5,
   permissionKeywords: ['permit', 'permit by', 'permitted by', 'permitted', 'authorized', 'boss ok', 'leader ok'],
   logoUrl: '',
