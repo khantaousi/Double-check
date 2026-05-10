@@ -16,7 +16,7 @@ interface TeamWorkProps {
 export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => {
   const [tasks, setTasks] = useState<TeamTask[]>([]);
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [view, setView] = useState<'list' | 'analytics'>('list');
+  const [view, setView] = useState<'list' | 'report'>('list');
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
@@ -25,7 +25,9 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     isEveryday: false,
     scheduledDate: format(new Date(), 'yyyy-MM-dd')
   });
-  const [dateFilter, setDateFilter] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [boardDateRange, setBoardDateRange] = useState<'today' | 'yesterday' | '30days' | 'custom'>('today');
+  const [boardCustomStart, setBoardCustomStart] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [boardCustomEnd, setBoardCustomEnd] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingTask, setEditingTask] = useState<TeamTask | null>(null);
 
@@ -60,27 +62,49 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       console.error("Task subscription error:", error);
     });
 
-    // Cleanup logic: Auto-remove tasks older than 30 days (excluding everyday tasks)
-    if (isAdmin) {
-      const cleanupOldTasks = async () => {
-        const thirtyDaysAgo = subDays(new Date(), 30);
-        const oldQuery = query(
-          collection(db, 'tasks'), 
-          where('assignedAt', '<', thirtyDaysAgo.toISOString()),
-          where('isEveryday', '==', false)
-        );
-        const oldDocs = await getDocs(oldQuery);
-        if (!oldDocs.empty) {
-          const batch = writeBatch(db);
-          oldDocs.docs.forEach(d => batch.delete(d.ref));
-          await batch.commit();
-        }
-      };
-      cleanupOldTasks();
-    }
-
     return () => unsubscribe();
   }, [isAdmin]);
+
+  const [purgeStartDate, setPurgeStartDate] = useState(format(subDays(new Date(), 90), 'yyyy-MM-dd'));
+  const [purgeEndDate, setPurgeEndDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
+  const [isPurging, setIsPurging] = useState(false);
+
+  const handlePurgeTasks = async () => {
+    if (!isAdmin) return;
+    if (!window.confirm(`Are you sure you want to PERMANENTLY delete all non-daily tasks between ${purgeStartDate} and ${purgeEndDate}? This cannot be undone.`)) return;
+
+    setIsPurging(true);
+    try {
+      const startISO = new Date(purgeStartDate);
+      startISO.setHours(0, 0, 0, 0);
+      
+      const endISO = new Date(purgeEndDate);
+      endISO.setHours(23, 59, 59, 999);
+
+      const oldQuery = query(
+        collection(db, 'tasks'), 
+        where('assignedAt', '>=', startISO.toISOString()),
+        where('assignedAt', '<=', endISO.toISOString()),
+        where('isEveryday', '==', false)
+      );
+      const oldDocs = await getDocs(oldQuery);
+      
+      if (oldDocs.empty) {
+        alert("No records found within this date range.");
+        return;
+      }
+
+      const batch = writeBatch(db);
+      oldDocs.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      alert(`Successfully deleted ${oldDocs.size} legacy tasks.`);
+    } catch (error) {
+      console.error("Purge error:", error);
+      alert("Failed to purge tasks. Check permissions.");
+    } finally {
+      setIsPurging(false);
+    }
+  };
 
   const handleOpenEditModal = (task: TeamTask) => {
     setEditingTask(task);
@@ -228,17 +252,29 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
   const filteredTasks = useMemo(() => {
     let list = [];
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const yesterdayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+
     if (isAdmin) {
-      list = tasks.filter(t => 
-        t.isEveryday || format(parseISO(t.assignedAt), 'yyyy-MM-dd') === dateFilter
-      );
+      list = tasks.filter(t => {
+        if (t.isEveryday) return true;
+        const taskDate = format(parseISO(t.assignedAt), 'yyyy-MM-dd');
+        
+        if (boardDateRange === 'today') return taskDate === todayStr;
+        if (boardDateRange === 'yesterday') return taskDate === yesterdayStr;
+        if (boardDateRange === '30days') {
+          const thirtyDaysAgo = format(subDays(new Date(), 30), 'yyyy-MM-dd');
+          return taskDate >= thirtyDaysAgo;
+        }
+        if (boardDateRange === 'custom') return taskDate >= boardCustomStart && taskDate <= boardCustomEnd;
+        return false;
+      });
     } else {
       // Users see their tasks for today, pending tasks from past, or everyday tasks
-      const today = format(new Date(), 'yyyy-MM-dd');
       list = tasks.filter(t => 
         t.isEveryday ||
         t.status !== 'completed' || 
-        format(parseISO(t.assignedAt), 'yyyy-MM-dd') === today
+        format(parseISO(t.assignedAt), 'yyyy-MM-dd') === todayStr
       );
     }
 
@@ -249,7 +285,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       if (orderA !== orderB) return orderA - orderB;
       return new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime();
     });
-  }, [tasks, isAdmin, dateFilter]);
+  }, [tasks, isAdmin, boardDateRange, boardCustomStart, boardCustomEnd]);
 
   // Analytics Calculations
   const [statsDateRange, setStatsDateRange] = useState<'today' | 'yesterday' | '30days' | 'custom'>('30days');
@@ -267,14 +303,14 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       const taskDate = format(parseISO(t.assignedAt), 'yyyy-MM-dd');
       if (statsDateRange === 'today') return taskDate === todayStr;
       if (statsDateRange === 'yesterday') return taskDate === yesterdayStr;
-      if (statsDateRange === '30days') return true; // We already clean up older than 30 days
+      if (statsDateRange === '30days') return true; 
       if (statsDateRange === 'custom') {
         return taskDate >= customStatsStart && taskDate <= customStatsEnd;
       }
       return true;
     });
 
-    const userStatsMap = new Map<string, { name: string, completed: number, avgMinutes: number, totalMinutes: number }>();
+    const userStatsMap = new Map<string, { name: string, completed: number, avgMinutes: number, totalMinutes: number, taskIds: string[] }>();
     
     filteredForStats.forEach(task => {
       // Only count completed tasks
@@ -284,16 +320,34 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                         task.isApproved === true;
 
       if (isCountable) {
-        const stats = userStatsMap.get(task.assigneeId) || { name: task.assigneeName, completed: 0, avgMinutes: 0, totalMinutes: 0 };
+        const stats = userStatsMap.get(task.assigneeId) || { name: task.assigneeName, completed: 0, avgMinutes: 0, totalMinutes: 0, taskIds: [] };
         stats.completed += 1;
         stats.totalMinutes += task.durationMinutes;
         stats.avgMinutes = Math.round(stats.totalMinutes / stats.completed);
+        stats.taskIds.push(task.id);
         userStatsMap.set(task.assigneeId, stats);
       }
     });
 
     return Array.from(userStatsMap.values()).sort((a, b) => b.completed - a.completed);
   }, [tasks, isAdmin, statsDateRange, customStatsStart, customStatsEnd]);
+
+  const handleDeleteUserTasks = async (taskIds: string[], userName: string) => {
+    if (!isAdmin) return;
+    if (!window.confirm(`Are you sure you want to PERMANENTLY delete all ${taskIds.length} completed & approved tasks for ${userName} in this report period?`)) return;
+
+    try {
+      const batch = writeBatch(db);
+      taskIds.forEach(id => {
+        batch.delete(doc(db, 'tasks', id));
+      });
+      await batch.commit();
+      alert(`Deleted ${taskIds.length} tasks for ${userName}.`);
+    } catch (error) {
+      console.error("Manual report delete error:", error);
+      alert("Failed to delete tasks.");
+    }
+  };
 
   // Allow assignment to ALL active users
   const assignableUsers = allUsers.filter(u => u.isActive);
@@ -322,25 +376,53 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                 Board
               </button>
               <button 
-                onClick={() => setView('analytics')}
-                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${view === 'analytics' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500'}`}
+                onClick={() => setView('report')}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${view === 'report' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500'}`}
               >
-                Stats
+                Report
               </button>
             </div>
           )}
           
           {((isAdmin && view === 'list') || !isAdmin) && (
-            <div className="flex items-center gap-2">
-              {isAdmin && (
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                  <input 
-                    type="date" 
-                    value={dateFilter}
-                    onChange={(e) => setDateFilter(e.target.value)}
-                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl py-2 pl-9 pr-4 text-xs font-bold focus:ring-2 focus:ring-blue-500/20 outline-none"
-                  />
+            <div className="flex items-center gap-4">
+              {isAdmin && view === 'list' && (
+                <div className="flex items-center gap-4">
+                  <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                    {(['today', 'yesterday', '30days', 'custom'] as const).map(range => (
+                      <button
+                        key={range}
+                        onClick={() => setBoardDateRange(range)}
+                        className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all ${
+                          boardDateRange === range ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                      >
+                        {range === '30days' ? 'Last 30D' : range}
+                      </button>
+                    ))}
+                  </div>
+
+                  {boardDateRange === 'custom' && (
+                    <motion.div 
+                      initial={{ opacity: 0, x: -10 }} 
+                      animate={{ opacity: 1, x: 0 }}
+                      className="flex items-center gap-2"
+                    >
+                      <input 
+                        type="date" 
+                        value={boardCustomStart}
+                        onChange={(e) => setBoardCustomStart(e.target.value)}
+                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-1.5 px-3 text-[10px] font-bold outline-none"
+                      />
+                      <span className="text-slate-400 text-[10px] font-black uppercase">To</span>
+                      <input 
+                        type="date" 
+                        value={boardCustomEnd}
+                        onChange={(e) => setBoardCustomEnd(e.target.value)}
+                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-1.5 px-3 text-[10px] font-bold outline-none"
+                      />
+                    </motion.div>
+                  )}
                 </div>
               )}
               <button 
@@ -365,6 +447,48 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
           )}
         </div>
       </div>
+
+      {/* Admin Purge Tool (Integrated for both views) */}
+      {isAdmin && (
+        <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 rounded-[2rem] p-6 flex flex-col md:flex-row items-center justify-between gap-4 mb-2">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-2xl text-red-600">
+              <Trash2 size={24} />
+            </div>
+            <div>
+              <h4 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">Database Purge Utility</h4>
+              <p className="text-[10px] font-bold text-slate-400 uppercase">Clear historical task data to optimize performance</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex flex-col">
+              <span className="text-[8px] font-black text-slate-400 uppercase mb-1 ml-1">From Date</span>
+              <input 
+                type="date" 
+                value={purgeStartDate}
+                onChange={(e) => setPurgeStartDate(e.target.value)}
+                className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-xl py-2 px-4 text-xs font-bold outline-none"
+              />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[8px] font-black text-slate-400 uppercase mb-1 ml-1">To Date</span>
+              <input 
+                type="date" 
+                value={purgeEndDate}
+                onChange={(e) => setPurgeEndDate(e.target.value)}
+                className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-xl py-2 px-4 text-xs font-bold outline-none"
+              />
+            </div>
+            <button 
+              onClick={handlePurgeTasks}
+              disabled={isPurging}
+              className="mt-4 md:mt-0 bg-red-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:opacity-50 shadow-lg shadow-red-200 dark:shadow-none"
+            >
+              {isPurging ? 'Purging...' : 'Execute Purge'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <AnimatePresence mode="wait">
@@ -543,13 +667,13 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
           </motion.div>
         ) : (
           <motion.div 
-            key="analytics"
+            key="report"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             className="space-y-6"
           >
-            {/* Stats Filters */}
+            {/* Report Filters */}
             <div className="flex flex-wrap items-center gap-4 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm">
               <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
                 {(['today', 'yesterday', '30days', 'custom'] as const).map(range => (
@@ -582,7 +706,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
               )}
             </div>
 
-            {/* Top Stats Row */}
+        {/* Top Report Row */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] p-8 shadow-sm">
                 <div className="flex items-center gap-3 mb-4">
@@ -679,7 +803,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                 </h3>
                 <div className="space-y-6">
                   {(analyticsData || []).map((staff, idx) => (
-                    <div key={staff.name} className="flex items-center justify-between">
+                    <div key={staff.name} className="flex items-center justify-between group">
                       <div className="flex items-center gap-3">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black ${
                           idx === 0 ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
@@ -691,9 +815,20 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                           <p className="text-[9px] font-bold text-slate-400 uppercase">{staff.completed} Tasks</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-xs font-black text-blue-600">{staff.avgMinutes}m</p>
-                        <p className="text-[8px] font-bold text-slate-400 uppercase italic">AVG TIME</p>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-xs font-black text-blue-600">{staff.avgMinutes}m</p>
+                          <p className="text-[8px] font-bold text-slate-400 uppercase italic">AVG TIME</p>
+                        </div>
+                        {isAdmin && staff.taskIds.length > 0 && (
+                          <button 
+                            onClick={() => handleDeleteUserTasks(staff.taskIds, staff.name)}
+                            className="p-2 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                            title={`Clear ${staff.completed} report tasks`}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}

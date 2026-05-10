@@ -604,6 +604,31 @@ export default function App() {
             <div>
               <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4 pl-4">Core Workspace</p>
               <div className="space-y-1">
+                {userProfile && (
+                  <button 
+                    onClick={() => { setActiveTab('team'); setIsSidebarOpen(false); }}
+                    className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
+                      activeTab === 'team' 
+                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
+                        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Layout size={18} />
+                      Team Work
+                    </div>
+                    {pendingTasksCount > 0 && (
+                      <motion.span 
+                        initial={{ scale: 0.5, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full flex items-center justify-center shadow-sm min-w-[18px] animate-pulse"
+                      >
+                        {pendingTasksCount}
+                      </motion.span>
+                    )}
+                  </button>
+                )}
+
                 {hasAccess('dashboard') && (
                   <button 
                     onClick={() => { setActiveTab('dashboard'); setIsSidebarOpen(false); }}
@@ -629,31 +654,6 @@ export default function App() {
                   >
                     <Activity size={18} />
                     Product Tracking (PT)
-                  </button>
-                )}
-
-                {userProfile && (
-                  <button 
-                    onClick={() => { setActiveTab('team'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
-                      activeTab === 'team' 
-                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
-                        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Layout size={18} />
-                      Team Work
-                    </div>
-                    {pendingTasksCount > 0 && (
-                      <motion.span 
-                        initial={{ scale: 0.5, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full flex items-center justify-center shadow-sm min-w-[18px] animate-pulse"
-                      >
-                        {pendingTasksCount}
-                      </motion.span>
-                    )}
                   </button>
                 )}
               </div>
