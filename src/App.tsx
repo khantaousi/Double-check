@@ -748,7 +748,7 @@ export default function App() {
           </div>
           <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300">
             <div className="flex items-center justify-between mb-1">
-              <a href="https://md-ahbab-khan-taousi.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-xs font-black text-[#1858ff] hover:opacity-80 transition-opacity cursor-pointer">Taousi Intelligence</a>
+              <a href="#" className="text-xs font-black text-[#1858ff] hover:opacity-80 transition-opacity cursor-pointer">Vics DA team</a>
               <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
             </div>
             <p className="text-[10px] text-slate-400 font-medium">Ultra-high precision engine</p>
