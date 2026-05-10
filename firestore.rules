@@ -86,7 +86,7 @@ service cloud.firestore {
     function isValidTask(data) {
       return data.title is string && data.title.size() > 0 && data.title.size() <= 500 &&
              data.assigneeId is string &&
-             data.status in ['pending', 'in-progress', 'completed'] &&
+             data.status in ['pending', 'in-progress', 'completed', 'paused'] &&
              data.assignedAt is string;
     }
 
@@ -110,9 +110,9 @@ service cloud.firestore {
         (
           request.auth.uid == existing().assigneeId &&
           isValidTask(incoming()) && (
-            // Normal task progression (started/completed)
+            // Normal task progression (started/completed/paused)
             // User can update these fields on ANY task assigned to them
-            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'completedAt', 'startedAt', 'durationMinutes', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'completedAt', 'startedAt', 'durationMinutes', 'updatedAt', 'lastPausedAt', 'resumedAt', 'totalPauseMinutes']) ||
             // Or self-editing own pending/unapproved task
             (
               existing().isSelfAssigned == true && 

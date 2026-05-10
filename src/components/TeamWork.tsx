@@ -3,7 +3,7 @@ import { UserProfile, TeamTask } from '../types';
 import { db, auth } from '../lib/firebase';
 import { collection, addDoc, query, where, onSnapshot, updateDoc, doc, deleteDoc, orderBy, getDocs, writeBatch } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/errors';
-import { CheckCircle2, Clock, Plus, UserPlus, Trash2, Calendar, Layout, User, Play, BarChart3, TrendingUp, Timer, Database, Edit, CheckCheck, X } from 'lucide-react';
+import { CheckCircle2, Clock, Plus, UserPlus, Trash2, Calendar, Layout, User, Play, Pause, BarChart3, TrendingUp, Timer, Database, Edit, CheckCheck, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, differenceInMinutes, parseISO, subDays } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -224,16 +224,44 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     }
   };
 
+  const handlePauseTask = async (taskId: string) => {
+    try {
+      await updateDoc(doc(db, 'tasks', taskId), {
+        status: 'paused',
+        lastPausedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `tasks/${taskId}`);
+    }
+  };
+
+  const handleResumeTask = async (task: TeamTask) => {
+    try {
+      const now = new Date();
+      const pauseDuration = task.lastPausedAt ? differenceInMinutes(now, parseISO(task.lastPausedAt)) : 0;
+      const totalPause = (task.totalPauseMinutes || 0) + pauseDuration;
+
+      await updateDoc(doc(db, 'tasks', task.id), {
+        status: 'in-progress',
+        resumedAt: now.toISOString(),
+        totalPauseMinutes: totalPause
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `tasks/${task.id}`);
+    }
+  };
+
   const handleCompleteTask = async (task: TeamTask) => {
     const now = new Date();
     const startTimeStr = task.startedAt || task.assignedAt;
-    const duration = differenceInMinutes(now, parseISO(startTimeStr));
+    const rawDuration = differenceInMinutes(now, parseISO(startTimeStr));
+    const effectiveDuration = Math.max(0, rawDuration - (task.totalPauseMinutes || 0));
 
     try {
       await updateDoc(doc(db, 'tasks', task.id), {
         status: 'completed',
         completedAt: now.toISOString(),
-        durationMinutes: duration
+        durationMinutes: effectiveDuration
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `tasks/${task.id}`);
@@ -270,10 +298,10 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       });
     } else {
       // Users see their tasks for today, pending tasks from past, or everyday tasks
+      // UNTIL they are approved by admin. Once approved, they disappear.
       list = tasks.filter(t => 
         t.isEveryday ||
-        t.status !== 'completed' || 
-        format(parseISO(t.assignedAt), 'yyyy-MM-dd') === todayStr
+        (t.status !== 'completed' || !t.isApproved)
       );
     }
 
@@ -309,7 +337,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       return true;
     });
 
-    const userStatsMap = new Map<string, { name: string, completed: number, avgMinutes: number, totalMinutes: number, taskIds: string[] }>();
+    const userStatsMap = new Map<string, { name: string, completed: number, avgMinutes: number, totalMinutes: number, totalPause: number, taskIds: string[] }>();
     
     filteredForStats.forEach(task => {
       // Only count completed tasks
@@ -319,9 +347,10 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                         task.isApproved === true;
 
       if (isCountable) {
-        const stats = userStatsMap.get(task.assigneeId) || { name: task.assigneeName, completed: 0, avgMinutes: 0, totalMinutes: 0, taskIds: [] };
+        const stats = userStatsMap.get(task.assigneeId) || { name: task.assigneeName, completed: 0, avgMinutes: 0, totalMinutes: 0, totalPause: 0, taskIds: [] };
         stats.completed += 1;
         stats.totalMinutes += task.durationMinutes;
+        stats.totalPause += (task.totalPauseMinutes || 0);
         stats.avgMinutes = Math.round(stats.totalMinutes / stats.completed);
         stats.taskIds.push(task.id);
         userStatsMap.set(task.assigneeId, stats);
@@ -528,15 +557,17 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                         <div className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 w-fit ${
                           task.isRejected ? 'bg-red-100 text-red-600' :
                           task.status === 'completed' ? (task.isApproved ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-600') : 
-                          task.status === 'in-progress' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
+                          task.status === 'in-progress' ? 'bg-amber-100 text-amber-600' : 
+                          task.status === 'paused' ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-600'
                         }`}>
                           <div className={`w-1.5 h-1.5 rounded-full ${
                             task.isRejected ? 'bg-red-500' :
                             task.status === 'completed' ? (task.isApproved ? 'bg-green-500' : 'bg-slate-400') : 
-                            task.status === 'in-progress' ? 'bg-amber-500 animate-pulse' : 'bg-blue-500'
+                            task.status === 'in-progress' ? 'bg-amber-500 animate-pulse' : 
+                            task.status === 'paused' ? 'bg-slate-400' : 'bg-blue-500'
                           }`} />
                           {task.isRejected ? 'Rejected' : 
-                           task.status === 'completed' ? (task.isApproved ? 'Completed & Approved' : 'Pending Approval') : 
+                           task.status === 'completed' ? (task.isApproved ? 'Completed & Approved' : 'Submitted') : 
                            task.status}
                           {task.isEveryday && <span className="ml-1 opacity-70">• DAILY</span>}
                         </div>
@@ -616,25 +647,35 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                             </button>
                           </div>
                         )}
-                        {task.status === 'pending' && !isAdmin && (
+                        {(task.status === 'pending' || task.status === 'paused') && !isAdmin && (
                           <button 
-                            onClick={() => handleStartTask(task.id)}
+                            onClick={() => task.status === 'paused' ? handleResumeTask(task) : handleStartTask(task.id)}
                             className="bg-blue-600 text-white px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none flex items-center gap-2 text-[10px] font-black uppercase"
-                            title="Start Task"
+                            title={task.status === 'paused' ? "Resume Task" : "Start Task"}
                           >
                             <Play size={14} fill="currentColor" />
-                            Start
+                            {task.status === 'paused' ? 'Resume' : 'Start'}
                           </button>
                         )}
                         {task.status === 'in-progress' && !isAdmin && (
-                          <button 
-                            onClick={() => handleCompleteTask(task)}
-                            className="bg-green-600 text-white px-4 py-2.5 rounded-xl hover:bg-green-700 transition-all shadow-lg shadow-green-200 dark:shadow-none flex items-center gap-2 text-[10px] font-black uppercase"
-                            title="Submit Task"
-                          >
-                            <CheckCircle2 size={16} />
-                            Submit
-                          </button>
+                          <div className="flex items-center gap-2">
+                             <button 
+                              onClick={() => handlePauseTask(task.id)}
+                              className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-4 py-2.5 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700 flex items-center gap-2 text-[10px] font-black uppercase"
+                              title="Pause Task"
+                            >
+                              <Pause size={14} fill="currentColor" />
+                              Pause
+                            </button>
+                            <button 
+                              onClick={() => handleCompleteTask(task)}
+                              className="bg-green-600 text-white px-4 py-2.5 rounded-xl hover:bg-green-700 transition-all shadow-lg shadow-green-200 dark:shadow-none flex items-center gap-2 text-[10px] font-black uppercase"
+                              title="Submit Task"
+                            >
+                              <CheckCircle2 size={16} />
+                              Submit
+                            </button>
+                          </div>
                         )}
                         {task.status === 'completed' && (
                           <div className="flex flex-col items-end">
@@ -832,6 +873,10 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-xs font-black text-slate-400 dark:text-slate-500">{staff.totalPause}m</p>
+                          <p className="text-[8px] font-bold text-slate-300 dark:text-slate-600 uppercase italic">PAUSE</p>
+                        </div>
                         <div className="text-right">
                           <p className="text-xs font-black text-blue-600">{staff.avgMinutes}m</p>
                           <p className="text-[8px] font-bold text-slate-400 uppercase italic">AVG TIME</p>

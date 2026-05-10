@@ -81,11 +81,14 @@ export interface TeamTask {
   description?: string;
   assigneeId: string;
   assigneeName: string;
-  status: 'pending' | 'in-progress' | 'completed';
+  status: 'pending' | 'in-progress' | 'completed' | 'paused';
   assignedAt: string;
   startedAt?: string;
   completedAt?: string;
   durationMinutes?: number;
+  totalPauseMinutes?: number;
+  lastPausedAt?: string;
+  resumedAt?: string;
   createdBy: string;
   order?: number;
   isEveryday?: boolean;
