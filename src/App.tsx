@@ -94,7 +94,20 @@ export default function App() {
   }, [isDarkMode]);
 
   useEffect(() => {
+    let unsubscribeProfile: (() => void) | null = null;
+    let heartbeat: NodeJS.Timeout | null = null;
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (u) => {
+      // Clean up previous listeners
+      if (unsubscribeProfile) {
+        unsubscribeProfile();
+        unsubscribeProfile = null;
+      }
+      if (heartbeat) {
+        clearInterval(heartbeat);
+        heartbeat = null;
+      }
+
       setUser(u);
       if (u) {
         try {
@@ -149,7 +162,7 @@ export default function App() {
           }
 
           // Heartbeat to keep lastSeen updated while browsing
-          const heartbeat = setInterval(() => {
+          heartbeat = setInterval(() => {
             if (auth.currentUser) {
               updateDoc(userRef, { 
                 lastSeen: new Date().toISOString(),
@@ -158,7 +171,7 @@ export default function App() {
             }
           }, 60000); // Every 1 minute
 
-          const unsubscribeProfile = onSnapshot(userRef, (doc) => {
+          unsubscribeProfile = onSnapshot(userRef, (doc) => {
             if (doc.exists()) {
               const profile = { id: doc.id, ...doc.data() } as UserProfile;
               setUserProfile(profile);
@@ -172,15 +185,11 @@ export default function App() {
               }
             }
           }, (error) => {
-            console.error('User profile snapshot error:', error);
+            // Only log if we're still supposed to be listening (i.e. not signed out)
+            if (auth.currentUser) {
+              console.error('User profile snapshot error:', error);
+            }
           });
-
-          return () => {
-            unsubscribeProfile();
-            clearInterval(heartbeat);
-            // Ideally set offline on cleanup, but browser close won't hit this.
-            // We'll rely on lastSeen logic in UI if isOnline is stale.
-          };
         } catch (error) {
           console.error("Auth state synchronization error:", error);
         }
@@ -189,7 +198,11 @@ export default function App() {
       }
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeProfile) unsubscribeProfile();
+      if (heartbeat) clearInterval(heartbeat);
+    };
   }, []);
 
   useEffect(() => {
@@ -664,11 +677,11 @@ export default function App() {
         <div className="mt-auto p-8 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
           <div className="flex items-center gap-2 mb-4 text-[10px] font-bold uppercase text-slate-400 tracking-widest">
             <Sparkles size={12} className="text-blue-500" />
-            Powered by <a href="https://md-ahbab-khan-taousi.vercel.app/" target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 transition-colors cursor-pointer">Taousi</a>
+            Powered by <a href="https://md-ahbab-khan-taousi.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-[#1858ff] font-black hover:opacity-80 transition-opacity cursor-pointer">Taousi</a>
           </div>
           <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300">
             <div className="flex items-center justify-between mb-1">
-              <a href="https://md-ahbab-khan-taousi.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-blue-600 transition-colors cursor-pointer">Taousi Intelligence</a>
+              <a href="https://md-ahbab-khan-taousi.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-xs font-black text-[#1858ff] hover:opacity-80 transition-opacity cursor-pointer">Taousi Intelligence</a>
               <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
             </div>
             <p className="text-[10px] text-slate-400 font-medium">Ultra-high precision engine</p>

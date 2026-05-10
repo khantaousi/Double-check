@@ -45,6 +45,10 @@ service cloud.firestore {
       );
     }
 
+    function isMasterAdmin() {
+      return isSignedIn() && request.auth.token.email == 'khantaousi@gmail.com';
+    }
+
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
     }
@@ -59,14 +63,12 @@ service cloud.firestore {
 
     // 1. Users Collection
     match /users/{userId} {
-      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow list: if isAdmin();
+      // Owner access - NO isAdmin() check here to prevent recursion
+      allow get, create, update: if isSignedIn() && request.auth.uid == userId;
       
-      allow create: if isSignedIn() && request.auth.uid == userId;
-
-      allow update: if (isSignedIn() && request.auth.uid == userId) || isAdmin();
-
-      allow delete: if isAdmin();
+      // Admin/Master access
+      allow read, write: if isMasterAdmin();
+      allow list, update, delete: if isAdmin();
     }
 
     // 2. Products Collection
