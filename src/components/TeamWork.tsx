@@ -84,8 +84,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       const oldQuery = query(
         collection(db, 'tasks'), 
         where('assignedAt', '>=', startISO.toISOString()),
-        where('assignedAt', '<=', endISO.toISOString()),
-        where('isEveryday', '==', false)
+        where('assignedAt', '<=', endISO.toISOString())
       );
       const oldDocs = await getDocs(oldQuery);
       

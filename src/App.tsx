@@ -62,17 +62,20 @@ export default function App() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
   const [showWelcome, setShowWelcome] = useState(false);
+  const [hasShownWelcome, setHasShownWelcome] = useState(false);
+  const [hasSeeded, setHasSeeded] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [pendingTasksCount, setPendingTasksCount] = useState(0);
 
+  const isAdmin = userProfile?.role === 'admin' || user?.email === 'khantaousi@gmail.com';
+
   useEffect(() => {
-    if (userProfile) {
+    if (userProfile && !hasShownWelcome) {
       setEditedName(userProfile.displayName || '');
       setShowWelcome(true);
-      const timer = setTimeout(() => setShowWelcome(false), 5000);
-      return () => clearTimeout(timer);
+      setHasShownWelcome(true);
     }
-  }, [userProfile]);
+  }, [userProfile, hasShownWelcome]);
 
   const saveDisplayName = async () => {
     if (!user || !userProfile) return;
@@ -113,8 +116,9 @@ export default function App() {
       setUser(u);
       if (u) {
         try {
-          if (u.email === 'khantaousi@gmail.com') {
+          if (u.email === 'khantaousi@gmail.com' && !hasSeeded) {
             seedProducts();
+            setHasSeeded(true);
           }
           
           const userRef = doc(db, 'users', u.uid);
@@ -255,25 +259,42 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    if (!user) {
+    if (!user || !userProfile) {
       setPendingTasksCount(0);
       return;
     }
 
-    const q = query(
-      collection(db, 'tasks'),
-      where('assigneeId', '==', user.uid),
-      where('status', '==', 'pending')
-    );
+    let q;
+    if (isAdmin) {
+      // Admin sees self-assigned tasks awaiting approval
+      q = query(
+        collection(db, 'tasks'),
+        where('isSelfAssigned', '==', true),
+        where('isApproved', '==', false)
+      );
+    } else {
+      // Agent sees tasks assigned to them that are not yet completed
+      q = query(
+        collection(db, 'tasks'),
+        where('assigneeId', '==', user.uid),
+        where('status', 'in', ['pending', 'in-progress'])
+      );
+    }
 
     const unsubscribeTasks = onSnapshot(q, (snapshot) => {
-      setPendingTasksCount(snapshot.size);
+      if (isAdmin) {
+        // For admin, explicitly filter out rejected tasks if not captured by query
+        const count = snapshot.docs.filter(doc => !doc.data().isRejected).length;
+        setPendingTasksCount(count);
+      } else {
+        setPendingTasksCount(snapshot.size);
+      }
     }, (error) => {
       console.error("Pending tasks count error:", error);
     });
 
     return () => unsubscribeTasks();
-  }, [user]);
+  }, [user, userProfile, isAdmin]);
 
   useEffect(() => {
     if (!user) {
@@ -566,8 +587,6 @@ export default function App() {
     return (userProfile?.permissions?.[tab as keyof UserProfile['permissions']] || 'none') !== 'none';
   };
 
-  const isAdmin = userProfile?.role === 'admin' || user?.email === 'khantaousi@gmail.com';
-
   return (
     <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 overflow-hidden transition-colors duration-300">
       {/* Mobile Sidebar Overlay */}
@@ -623,7 +642,7 @@ export default function App() {
                         animate={{ scale: 1, opacity: 1 }}
                         className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full flex items-center justify-center shadow-sm min-w-[18px] animate-pulse"
                       >
-                        {pendingTasksCount}
+                        {pendingTasksCount > 9 ? '9+' : pendingTasksCount}
                       </motion.span>
                     )}
                   </button>
