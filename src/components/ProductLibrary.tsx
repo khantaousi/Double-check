@@ -102,9 +102,14 @@ export const ProductLibrary: React.FC<ProductLibraryProps> = ({ products, canWri
     reader.readAsBinaryString(file);
   };
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredProducts = products.filter(p => {
+    const s = searchTerm.toLowerCase();
+    return (
+      p.name.toLowerCase().includes(s) ||
+      (p.wholesalePrice !== undefined && String(p.wholesalePrice).includes(s)) ||
+      (p.wholesaleThreshold !== undefined && String(p.wholesaleThreshold).includes(s))
+    );
+  });
 
   return (
     <div className="space-y-4">
@@ -114,28 +119,33 @@ export const ProductLibrary: React.FC<ProductLibraryProps> = ({ products, canWri
                 <Tag size={12} />
                 Product Price Library
             </h3>
-            <div className="relative flex items-center gap-2">
+            <div className="relative flex items-center gap-3">
                 {selectedProducts.size > 0 && (
                     <button
                     onClick={handleBulkDelete}
-                    className="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase tracking-widest rounded-full hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                    className="px-3 py-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase tracking-widest rounded-xl hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors shadow-sm"
                     >
                     Delete ({selectedProducts.size})
                     </button>
                 )}
-                <input 
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search products..."
-                    className="bg-slate-100 dark:bg-slate-800 text-[10px] py-1 px-3 rounded-full border-none focus:ring-1 focus:ring-blue-500/30 w-32 md:w-48 placeholder:text-slate-400 font-bold"
-                />
+                <div className="relative group">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors">
+                    <Plus size={14} className="rotate-45" />
+                  </span>
+                  <input 
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Search items, prices, or qty..."
+                      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] py-2.5 pl-10 pr-4 rounded-xl focus:ring-2 focus:ring-blue-500/20 w-44 md:w-64 placeholder:text-slate-300 font-black shadow-sm transition-all focus:border-blue-500/50"
+                  />
+                </div>
                 <button 
                     onClick={() => setShowBulkUpload(!showBulkUpload)}
-                    className={`p-1.5 rounded-full transition-colors ${showBulkUpload ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'}`}
+                    className={`p-2.5 rounded-xl transition-all shadow-sm ${showBulkUpload ? 'bg-blue-600 text-white' : 'bg-white text-slate-500 hover:text-blue-600 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-500/50'}`}
                     title="Bulk Upload"
                 >
-                    <Upload size={14} />
+                    <Upload size={16} />
                 </button>
             </div>
         </div>
@@ -146,13 +156,18 @@ export const ProductLibrary: React.FC<ProductLibraryProps> = ({ products, canWri
                 <Tag size={12} />
                 Product Price Library (Read Only)
             </h3>
-            <input 
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search products..."
-                className="bg-slate-100 dark:bg-slate-800 text-[10px] py-1 px-3 rounded-full border-none focus:ring-1 focus:ring-blue-500/30 w-32 md:w-48 placeholder:text-slate-400 font-bold"
-            />
+            <div className="relative group">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors">
+                <Plus size={14} className="rotate-45" />
+              </span>
+              <input 
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search items, prices, or qty..."
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] py-2.5 pl-10 pr-4 rounded-xl focus:ring-2 focus:ring-blue-500/20 w-44 md:w-64 placeholder:text-slate-300 font-black shadow-sm transition-all focus:border-blue-500/50"
+              />
+            </div>
         </div>
       )}
 
