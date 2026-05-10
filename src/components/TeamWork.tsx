@@ -451,9 +451,12 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       {isAdmin && (
         <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 rounded-[2rem] p-6 flex flex-col md:flex-row items-center justify-between gap-4 mb-2">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-2xl text-red-600">
+            <motion.div 
+              whileHover={{ scale: 1.1, rotate: 10 }}
+              className="p-3 bg-red-100 dark:bg-red-900/30 rounded-2xl text-red-600"
+            >
               <Trash2 size={24} />
-            </div>
+            </motion.div>
             <div>
               <h4 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">Database Purge Utility</h4>
               <p className="text-[10px] font-bold text-slate-400 uppercase">Clear historical task data to optimize performance</p>
@@ -512,10 +515,12 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                   <motion.div 
                     layout
                     key={task.id}
-                    className={`p-6 rounded-[2rem] border transition-all relative overflow-hidden ${
+                    whileHover={{ y: -8, scale: 1.01 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                    className={`p-6 rounded-[2rem] border transition-all relative overflow-hidden group cursor-pointer ${
                       task.status === 'completed' 
                         ? 'bg-slate-50/50 dark:bg-slate-800/30 border-slate-100 dark:border-slate-800 opacity-80' 
-                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-100/50 dark:shadow-none'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-100/50 dark:shadow-none hover:shadow-2xl hover:shadow-blue-500/10 hover:border-blue-200 dark:hover:border-blue-800'
                     }`}
                   >
                     <div className="flex justify-between items-start mb-4">
@@ -709,9 +714,12 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] p-8 shadow-sm">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-2xl text-blue-600">
+                  <motion.div 
+                    whileHover={{ scale: 1.1, y: -2 }}
+                    className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-2xl text-blue-600"
+                  >
                     <CheckCircle2 size={24} />
-                  </div>
+                  </motion.div>
                   <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Completed</span>
                 </div>
                 <div className="text-3xl font-black text-slate-800 dark:text-slate-100">
@@ -721,9 +729,12 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] p-8 shadow-sm">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-2xl text-amber-600">
+                  <motion.div 
+                    whileHover={{ scale: 1.1, y: -2 }}
+                    className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-2xl text-amber-600"
+                  >
                     <Timer size={24} />
-                  </div>
+                  </motion.div>
                   <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Avg Time</span>
                 </div>
                 <div className="text-3xl font-black text-slate-800 dark:text-slate-100">
@@ -734,9 +745,12 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] p-8 shadow-sm">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl text-indigo-600">
+                  <motion.div 
+                    whileHover={{ scale: 1.1, y: -2 }}
+                    className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl text-indigo-600"
+                  >
                     <Play size={24} />
-                  </div>
+                  </motion.div>
                   <span className="text-xs font-black text-slate-400 uppercase tracking-widest">At Work</span>
                 </div>
                 <div className="text-3xl font-black text-slate-800 dark:text-slate-100">
@@ -746,9 +760,12 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] p-8 shadow-sm">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="p-3 bg-violet-100 dark:bg-violet-900/30 rounded-2xl text-violet-600">
+                  <motion.div 
+                    whileHover={{ scale: 1.1, y: -2 }}
+                    className="p-3 bg-violet-100 dark:bg-violet-900/30 rounded-2xl text-violet-600"
+                  >
                     <Database size={24} />
-                  </div>
+                  </motion.div>
                   <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Ops Hours</span>
                 </div>
                 <div className="text-3xl font-black text-slate-800 dark:text-slate-100">
