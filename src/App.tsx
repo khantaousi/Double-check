@@ -16,16 +16,17 @@ import { GiftRuleEditor } from './components/GiftRuleEditor';
 import { CustomCommandEditor } from './components/CustomCommandEditor';
 import { ProductLibrary } from './components/ProductLibrary';
 import { ProductTracker } from './components/ProductTracker';
+import { TeamWork } from './components/TeamWork';
 import { DeliverySettings } from './components/DeliverySettings';
 import { GeneralSettings } from './components/GeneralSettings';
 import { FileUpload } from './components/FileUpload';
 import { DataTable } from './components/DataTable';
 import { UserManagement } from './components/UserManagement';
 import WelcomeScreen from './components/WelcomeScreen';
-import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity } from 'lucide-react';
+import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, auth, logInWithEmail, signOut, signInWithGoogle } from './lib/firebase';
-import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, setDoc, getDoc, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, setDoc, getDoc, writeBatch, where } from 'firebase/firestore';
 import { seedProducts } from './lib/seed';
 import { handleFirestoreError, OperationType } from './lib/errors';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
@@ -33,7 +34,7 @@ import { getInitials, getAvatarColor } from './lib/avatar';
 import { PrintSlips } from './components/PrintSlips';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'rules' | 'products' | 'settings' | 'users' | 'tracker' | 'printSlips'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'rules' | 'products' | 'settings' | 'users' | 'tracker' | 'printSlips' | 'team'>('dashboard');
   const [data, setData] = useState<DataRow[]>([]);
   const [rules, setRules] = useState<ValidationRule[]>(DEFAULT_RULES);
   const [delivery, setDelivery] = useState<IDeliverySettings>(DEFAULT_DELIVERY_SETTINGS);
@@ -62,6 +63,7 @@ export default function App() {
   const [editedName, setEditedName] = useState('');
   const [showWelcome, setShowWelcome] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [pendingTasksCount, setPendingTasksCount] = useState(0);
 
   useEffect(() => {
     if (userProfile) {
@@ -250,6 +252,27 @@ export default function App() {
       unsubscribeGifts();
       unsubscribeSite();
     };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setPendingTasksCount(0);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'tasks'),
+      where('assigneeId', '==', user.uid),
+      where('status', '==', 'pending')
+    );
+
+    const unsubscribeTasks = onSnapshot(q, (snapshot) => {
+      setPendingTasksCount(snapshot.size);
+    }, (error) => {
+      console.error("Pending tasks count error:", error);
+    });
+
+    return () => unsubscribeTasks();
   }, [user]);
 
   useEffect(() => {
@@ -606,6 +629,31 @@ export default function App() {
                   >
                     <Activity size={18} />
                     Product Tracking (PT)
+                  </button>
+                )}
+
+                {userProfile && (
+                  <button 
+                    onClick={() => { setActiveTab('team'); setIsSidebarOpen(false); }}
+                    className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
+                      activeTab === 'team' 
+                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
+                        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Layout size={18} />
+                      Team Work
+                    </div>
+                    {pendingTasksCount > 0 && (
+                      <motion.span 
+                        initial={{ scale: 0.5, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full flex items-center justify-center shadow-sm min-w-[18px] animate-pulse"
+                      >
+                        {pendingTasksCount}
+                      </motion.span>
+                    )}
                   </button>
                 )}
               </div>
@@ -1071,6 +1119,19 @@ export default function App() {
                     <p className="text-slate-400 dark:text-slate-500 font-medium tracking-tight">Consolidated view of all products detected in current upload.</p>
                   </div>
                   <ProductTracker data={data} />
+                </motion.div>
+              )}
+
+              {activeTab === 'team' && (
+                <motion.div
+                  key="team"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="max-w-6xl mx-auto pt-10"
+                >
+                  <TeamWork userProfile={userProfile!} allUsers={allUsers} />
                 </motion.div>
               )}
 

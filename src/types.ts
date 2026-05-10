@@ -75,6 +75,29 @@ export interface DataRow {
   notes?: string[];
 }
 
+export interface TeamTask {
+  id: string;
+  title: string;
+  description?: string;
+  assigneeId: string;
+  assigneeName: string;
+  status: 'pending' | 'in-progress' | 'completed';
+  assignedAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  durationMinutes?: number;
+  createdBy: string;
+  order?: number;
+  isEveryday?: boolean;
+  isSelfAssigned?: boolean;
+  isApproved?: boolean;
+  isRejected?: boolean;
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
+}
+
 export interface DeliverySettings {
   insideDhaka: number;
   outsideDhaka: number;
