@@ -77,30 +77,39 @@
       },
       "required": ["name", "triggerKeywords", "targetKeywords", "isActive"]
     },
+    "WorkCategory": {
+      "title": "Work Category",
+      "description": "Pre-defined types of work set by admin",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "color": { "type": "string" },
+        "icon": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"]
+    },
     "TeamTask": {
       "title": "Team Task",
-      "description": "Assignments given by admin to staff members or self-assigned by agents",
+      "description": "Assignments given by admin to multiple agents",
       "type": "object",
       "properties": {
         "title": { "type": "string" },
         "description": { "type": "string" },
-        "assigneeId": { "type": "string" },
-        "assigneeName": { "type": "string" },
-        "status": { "type": "string", "enum": ["pending", "in-progress", "completed"] },
+        "assigneeIds": { "type": "array", "items": { "type": "string" } },
+        "assigneeNames": { "type": "array", "items": { "type": "string" } },
+        "status": { "type": "string", "enum": ["pending", "in-progress", "completed", "verified"] },
+        "category": { "type": "string" },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"] },
         "assignedAt": { "type": "string", "format": "date-time" },
+        "dueDate": { "type": "string", "format": "date-time" },
         "completedAt": { "type": "string", "format": "date-time" },
-        "startedAt": { "type": "string", "format": "date-time" },
         "createdBy": { "type": "string" },
-        "order": { "type": "number" },
-        "isEveryday": { "type": "boolean" },
-        "isSelfAssigned": { "type": "boolean" },
-        "isApproved": { "type": "boolean" },
-        "approvedBy": { "type": "string" },
-        "approvedAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" },
-        "durationMinutes": { "type": "number" }
+        "comments": { "type": "array", "items": { "type": "string" } }
       },
-      "required": ["title", "assigneeId", "status", "assignedAt"]
+      "required": ["title", "assigneeIds", "status", "assignedAt"]
     }
   },
   "firestore": {
@@ -115,6 +124,10 @@
     "/tasks/{taskId}": {
       "schema": "TeamTask",
       "description": "Assignments and their completion status"
+    },
+    "/categories/{categoryId}": {
+      "schema": "WorkCategory",
+      "description": "Admin defined work types"
     },
     "/config/validation_rules": {
       "schema": "ValidationRule",

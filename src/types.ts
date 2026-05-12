@@ -75,30 +75,36 @@ export interface DataRow {
   notes?: string[];
 }
 
+export interface WorkCategory {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  createdAt: string;
+}
+
 export interface TeamTask {
   id: string;
   title: string;
   description?: string;
-  assigneeId: string;
-  assigneeName: string;
-  status: 'pending' | 'in-progress' | 'completed' | 'paused';
+  assigneeIds: string[];
+  assigneeNames: string[];
+  status: 'pending' | 'in-progress' | 'completed' | 'verified' | 'paused';
+  category?: string;
+  priority?: 'low' | 'medium' | 'high';
   assignedAt: string;
   startedAt?: string;
   completedAt?: string;
+  dueDate?: string;
   durationMinutes?: number;
   totalPauseMinutes?: number;
   lastPausedAt?: string;
   resumedAt?: string;
   createdBy: string;
-  order?: number;
-  isEveryday?: boolean;
-  isSelfAssigned?: boolean;
-  isApproved?: boolean;
-  isRejected?: boolean;
-  approvedBy?: string;
-  approvedAt?: string;
-  rejectedBy?: string;
-  rejectedAt?: string;
+  updatedAt: string;
+  comments?: string[];
+  isGlobal?: boolean;
 }
 
 export interface DeliverySettings {

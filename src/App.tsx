@@ -276,7 +276,7 @@ export default function App() {
       // Agent sees tasks assigned to them that are not yet completed
       q = query(
         collection(db, 'tasks'),
-        where('assigneeId', '==', user.uid),
+        where('assigneeIds', 'array-contains', user.uid),
         where('status', 'in', ['pending', 'in-progress'])
       );
     }

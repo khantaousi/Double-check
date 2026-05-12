@@ -1,6 +1,6 @@
 {
-  "name": "Double Check",
-  "description": "Intelligent Excel price validation and data automation tool with Gemini-powered extraction and dynamic tiered discounting.",
+  "name": "TeamTask Hub",
+  "description": "Collaborative task management system with multi-agent assignment, admin-defined work categories, and real-time agent dashboards.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }
