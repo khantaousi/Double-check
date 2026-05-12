@@ -11,48 +11,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isEmailVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
-    }
-
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-    }
-
-    function canRead(module) {
-      return isSignedIn() && (
-        isAdmin() || 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data != null &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions != null &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions[module] != 'none')
-      );
-    }
-
-    function canWrite(module) {
-      return isSignedIn() && (
-        isAdmin() || 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data != null &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions != null &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions[module] == 'write')
-      );
-    }
-
-    function isAdmin() {
-      return isSignedIn() && (
-        (request.auth.token.keys().contains('email') && request.auth.token.email.lower() == 'khantaousi@gmail.com') ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
-      );
-    }
-
-    function isMasterAdmin() {
-      return isSignedIn() && request.auth.token.keys().contains('email') && request.auth.token.email.lower() == 'khantaousi@gmail.com';
-    }
-
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
-    }
-
     function incoming() {
       return request.resource.data;
     }
@@ -61,58 +19,49 @@ service cloud.firestore {
       return resource.data;
     }
 
-    // 1. Users Collection
-    match /users/{userId} {
-      // Owner access - NO isAdmin() check here to prevent recursion
-      allow get, create, update: if isSignedIn() && request.auth.uid == userId;
-      
-      // Admin/Master access
-      allow read, write: if isMasterAdmin();
-      allow list, update, delete: if isAdmin();
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email.lower() == 'khantaousi@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
     }
 
-    // 2. Products Collection
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // 1. Products Library
     match /products/{productId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // 3. Config Collection
+    // 2. Config Data
     match /config/{configId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    function isValidTask(data) {
-      return data.title is string && data.title.size() > 0 && data.title.size() <= 500 &&
-             data.assigneeIds is list &&
-             data.status in ['pending', 'in-progress', 'completed', 'verified', 'paused'] &&
-             data.assignedAt is string;
+    // 3. User Profiles
+    match /users/{userId} {
+      allow get, create, update: if isOwner(userId);
+      allow list, delete: if isAdmin();
+      allow update: if isAdmin();
     }
 
-    // 4. Tasks Collection
+    // 4. Tasks
     match /tasks/{taskId} {
-      allow get: if isSignedIn() && (request.auth.uid in resource.data.assigneeIds || isAdmin());
       allow list: if isSignedIn();
-      
-      allow create: if isSignedIn() && isValidTask(incoming()) && isAdmin();
-
-      allow update: if isSignedIn() && (
-        isAdmin() || 
-        (
-          request.auth.uid in existing().assigneeIds &&
-          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'completedAt', 'updatedAt', 'comments', 'startedAt', 'lastPausedAt', 'resumedAt', 'totalPauseMinutes', 'durationMinutes'])
-        )
-      );
-      
+      allow get: if isSignedIn() && (isOwner(resource.data.assigneeId) || isAdmin());
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (isOwner(resource.data.assigneeId) || isAdmin());
       allow delete: if isAdmin();
     }
-
-    // 5. Categories Collection
-    match /categories/{categoryId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+    
+    // 5. Connection Test
+    match /test/connection {
+      allow read: if true;
     }
-
   }
 }

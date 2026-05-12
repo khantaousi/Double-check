@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, TeamTask, WorkCategory } from '../types';
+import { UserProfile, TeamTask } from '../types';
 import { db, auth } from '../lib/firebase';
 import { collection, addDoc, query, where, onSnapshot, updateDoc, doc, deleteDoc, orderBy, getDocs, writeBatch } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/errors';
@@ -15,22 +15,15 @@ interface TeamWorkProps {
 
 export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => {
   const [tasks, setTasks] = useState<TeamTask[]>([]);
-  const [categories, setCategories] = useState<WorkCategory[]>([]);
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [view, setView] = useState<'list' | 'report'>('list');
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
-    assigneeIds: [] as string[],
-    category: '',
-    priority: 'medium' as 'low' | 'medium' | 'high',
-    dueDate: format(new Date(), 'yyyy-MM-dd')
-  });
-  const [newCategory, setNewCategory] = useState({
-    name: '',
-    description: '',
-    color: '#3b82f6'
+    assigneeId: '',
+    order: 1,
+    isEveryday: false,
+    scheduledDate: format(new Date(), 'yyyy-MM-dd')
   });
   const [boardDateRange, setBoardDateRange] = useState<'today' | 'yesterday' | '30days' | 'custom'>('today');
   const [boardCustomStart, setBoardCustomStart] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -45,22 +38,16 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     const currentUid = auth.currentUser?.uid;
     if (!currentUid) return;
 
-    // Sync categories
-    const qCat = query(collection(db, 'categories'), orderBy('createdAt', 'desc'));
-    const unsubCat = onSnapshot(qCat, (snapshot) => {
-      setCategories(snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as WorkCategory[]);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'categories');
-    });
-
     // Sync tasks
     let q;
     if (isAdmin) {
+      // Admin sees everything for history/reporting
       q = query(collection(db, 'tasks'), orderBy('assignedAt', 'desc'));
     } else {
+      // Users see their own tasks
       q = query(
         collection(db, 'tasks'), 
-        where('assigneeIds', 'array-contains', currentUid),
+        where('assigneeId', '==', currentUid),
         orderBy('assignedAt', 'desc')
       );
     }
@@ -123,50 +110,72 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     setNewTask({
       title: task.title,
       description: task.description || '',
-      assigneeIds: task.assigneeIds || [],
-      category: task.category || '',
-      priority: task.priority || 'medium',
-      dueDate: task.dueDate ? format(parseISO(task.dueDate), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')
+      assigneeId: task.assigneeId,
+      order: task.order || 1,
+      isEveryday: task.isEveryday || false,
+      scheduledDate: format(parseISO(task.assignedAt), 'yyyy-MM-dd')
     });
     setShowAssignModal(true);
   };
 
   const handleAssignTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTask.title || (!isAdmin && !auth.currentUser?.uid) || (isAdmin && newTask.assigneeIds.length === 0)) return;
+    if (!newTask.title || (!isAdmin && !auth.currentUser?.uid) || (isAdmin && !newTask.assigneeId)) return;
 
     setIsSubmitting(true);
     try {
-      const selectedUsers = allUsers.filter(u => newTask.assigneeIds.includes(u.id));
+      const selectedUser = isAdmin ? allUsers.find(u => u.id === newTask.assigneeId) : userProfile;
+      const scheduledDateTime = new Date(newTask.scheduledDate);
       const now = new Date();
       
+      // If daily, we use current time but mark as everyday
+      // If custom date, we use that date
+      if (format(scheduledDateTime, 'yyyy-MM-dd') !== format(now, 'yyyy-MM-dd')) {
+        scheduledDateTime.setHours(9, 0, 0, 0);
+      }
+
       const taskData: any = {
         title: newTask.title,
         description: newTask.description,
-        assigneeIds: isAdmin ? newTask.assigneeIds : [auth.currentUser?.uid || ''],
-        assigneeNames: isAdmin ? selectedUsers.map(u => u.displayName || 'Unknown') : [userProfile.displayName || 'Unknown'],
+        assigneeId: isAdmin ? newTask.assigneeId : (auth.currentUser?.uid || ''),
+        assigneeName: selectedUser?.displayName || 'Unknown',
         status: 'pending',
-        category: newTask.category,
-        priority: newTask.priority,
-        assignedAt: now.toISOString(),
-        dueDate: newTask.dueDate ? new Date(newTask.dueDate).toISOString() : null,
+        assignedAt: newTask.isEveryday ? now.toISOString() : scheduledDateTime.toISOString(),
         createdBy: auth.currentUser?.uid,
-        updatedAt: now.toISOString()
+        order: newTask.order,
+        isEveryday: newTask.isEveryday || false,
       };
 
+      // Self-assignment logic
+      if (!isAdmin) {
+        taskData.isSelfAssigned = true;
+        taskData.isApproved = false;
+      }
+
       if (editingTask) {
-        await updateDoc(doc(db, 'tasks', editingTask.id), taskData);
+        try {
+          await updateDoc(doc(db, 'tasks', editingTask.id), {
+            ...taskData,
+            updatedAt: now.toISOString()
+          });
+        } catch (error) {
+          handleFirestoreError(error, OperationType.UPDATE, `tasks/${editingTask.id}`);
+        }
       } else {
-        await addDoc(collection(db, 'tasks'), taskData);
+        try {
+          await addDoc(collection(db, 'tasks'), taskData);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.CREATE, 'tasks');
+        }
       }
 
       setNewTask({ 
         title: '', 
         description: '', 
-        assigneeIds: [],
-        category: '',
-        priority: 'medium',
-        dueDate: format(new Date(), 'yyyy-MM-dd')
+        assigneeId: '', 
+        order: (newTask.order || 0) + 1,
+        isEveryday: false,
+        scheduledDate: format(new Date(), 'yyyy-MM-dd')
       });
       setEditingTask(null);
       setShowAssignModal(false);
@@ -174,30 +183,6 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       console.error("Error saving task:", error);
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleCreateCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCategory.name || !isAdmin) return;
-    try {
-      await addDoc(collection(db, 'categories'), {
-        ...newCategory,
-        createdAt: new Date().toISOString()
-      });
-      setNewCategory({ name: '', description: '', color: '#3b82f6' });
-      setShowCategoryModal(false);
-    } catch (error) {
-      console.error("Category creation error:", error);
-    }
-  };
-
-  const handleDeleteCategory = async (id: string) => {
-    if (!isAdmin || !window.confirm("Delete this category?")) return;
-    try {
-      await deleteDoc(doc(db, 'categories', id));
-    } catch (error) {
-      console.error("Category delete error:", error);
     }
   };
 
@@ -356,20 +341,19 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     
     filteredForStats.forEach(task => {
       // Only count completed tasks
+      // All completed tasks MUST be approved to show in stats
       const isCountable = task.status === 'completed' && 
+                        task.durationMinutes !== undefined &&
                         task.isApproved === true;
 
       if (isCountable) {
-        task.assigneeIds.forEach((uid, index) => {
-          const name = task.assigneeNames[index] || 'Unknown';
-          const stats = userStatsMap.get(uid) || { name, completed: 0, avgMinutes: 0, totalMinutes: 0, totalPause: 0, taskIds: [] };
-          stats.completed += 1;
-          // In multi-assignee, we might want to attribute full time to each or split it
-          // For simplicity, attributing full time to each participant
-          // stats.totalMinutes += task.durationMinutes || 0; 
-          stats.taskIds.push(task.id);
-          userStatsMap.set(uid, stats);
-        });
+        const stats = userStatsMap.get(task.assigneeId) || { name: task.assigneeName, completed: 0, avgMinutes: 0, totalMinutes: 0, totalPause: 0, taskIds: [] };
+        stats.completed += 1;
+        stats.totalMinutes += task.durationMinutes;
+        stats.totalPause += (task.totalPauseMinutes || 0);
+        stats.avgMinutes = Math.round(stats.totalMinutes / stats.completed);
+        stats.taskIds.push(task.id);
+        userStatsMap.set(task.assigneeId, stats);
       }
     });
 
@@ -469,25 +453,16 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                   )}
                 </div>
               )}
-              {isAdmin && view === 'list' && (
-                <button 
-                  onClick={() => setShowCategoryModal(true)}
-                  className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-slate-200 transition-all shadow-sm whitespace-nowrap"
-                >
-                  <Database size={16} />
-                  Work Types
-                </button>
-              )}
               <button 
                 onClick={() => {
                   setEditingTask(null);
                   setNewTask({
                     title: '',
                     description: '',
-                    assigneeIds: isAdmin ? [] : [auth.currentUser?.uid || ''],
-                    category: '',
-                    priority: 'medium',
-                    dueDate: format(new Date(), 'yyyy-MM-dd')
+                    assigneeId: isAdmin ? '' : (auth.currentUser?.uid || ''),
+                    order: 1,
+                    isEveryday: false,
+                    scheduledDate: format(new Date(), 'yyyy-MM-dd')
                   });
                   setShowAssignModal(true);
                 }}
@@ -583,22 +558,22 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                           task.isRejected ? 'bg-red-100 text-red-600' :
                           task.status === 'completed' ? (task.isApproved ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-600') : 
                           task.status === 'in-progress' ? 'bg-amber-100 text-amber-600' : 
-                          'bg-blue-100 text-blue-600'
+                          task.status === 'paused' ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-600'
                         }`}>
                           <div className={`w-1.5 h-1.5 rounded-full ${
                             task.isRejected ? 'bg-red-500' :
                             task.status === 'completed' ? (task.isApproved ? 'bg-green-500' : 'bg-slate-400') : 
                             task.status === 'in-progress' ? 'bg-amber-500 animate-pulse' : 
-                            'bg-blue-500'
+                            task.status === 'paused' ? 'bg-slate-400' : 'bg-blue-500'
                           }`} />
                           {task.isRejected ? 'Rejected' : 
-                           task.status === 'completed' ? (task.isApproved ? 'Completed' : 'Submitted') : 
+                           task.status === 'completed' ? (task.isApproved ? 'Completed & Approved' : 'Submitted') : 
                            task.status}
+                          {task.isEveryday && <span className="ml-1 opacity-70">• DAILY</span>}
                         </div>
-                        {task.category && (
-                          <div className="text-[10px] font-black text-blue-600 uppercase tracking-tighter pl-1 flex items-center gap-1">
-                            <Database size={10} />
-                            {task.category}
+                        {task.order !== undefined && (
+                          <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter pl-1">
+                            PRIORITY: #{task.order}
                           </div>
                         )}
                       </div>
@@ -639,19 +614,16 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                     )}
 
                     <div className="flex items-center justify-between pt-6 border-t border-slate-100 dark:border-slate-800">
-                      <div className="flex items-center">
-                        {task.assigneeNames.map((name, i) => (
-                          <div 
-                            key={i} 
-                            className={`w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 border-2 border-white dark:border-slate-900 flex items-center justify-center text-[10px] font-black text-blue-600 uppercase -ml-2 first:ml-0`}
-                            title={name}
-                          >
-                            {name.charAt(0)}
-                          </div>
-                        ))}
-                        <div className="ml-3 flex flex-col">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-black text-blue-600 uppercase">
+                          {task.assigneeName.charAt(0)}
+                        </div>
+                        <div className="flex flex-col">
                           <span className="text-[10px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-tighter">
-                            {task.assigneeNames.length} {task.assigneeNames.length > 1 ? 'Agents' : 'Agent'}
+                            {task.assigneeName}
+                          </span>
+                          <span className="text-[8px] font-black text-slate-400 uppercase">
+                            assigned @ {format(parseISO(task.assignedAt), 'hh:mm a')}
                           </span>
                         </div>
                       </div>
@@ -1013,58 +985,30 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
                 <div className="grid grid-cols-2 gap-4">
                   {isAdmin && (
-                    <div className="col-span-2">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Multiple Assignees</label>
-                      <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Assignee</label>
+                      <select 
+                        required
+                        value={newTask.assigneeId}
+                        onChange={e => setNewTask({ ...newTask, assigneeId: e.target.value })}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-transparent focus:border-blue-500/20 rounded-2xl py-4 px-6 text-sm font-bold focus:ring-4 focus:ring-blue-500/5 transition-all outline-none appearance-none"
+                      >
+                        <option value="">Select Staff Member</option>
                         {assignableUsers.map(u => (
-                          <label key={u.id} className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-colors">
-                            <input 
-                              type="checkbox"
-                              checked={newTask.assigneeIds.includes(u.id)}
-                              onChange={e => {
-                                if (e.target.checked) {
-                                  setNewTask({ ...newTask, assigneeIds: [...newTask.assigneeIds, u.id] });
-                                } else {
-                                  setNewTask({ ...newTask, assigneeIds: newTask.assigneeIds.filter(id => id !== u.id) });
-                                }
-                              }}
-                              className="w-4 h-4 rounded text-blue-600"
-                            />
-                            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase truncate">
-                              {u.displayName}
-                            </span>
-                          </label>
+                          <option key={u.id} value={u.id}>{u.displayName} ({u.email.split('@')[0]})</option>
                         ))}
-                      </div>
+                      </select>
                     </div>
                   )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Work Type</label>
-                    <select 
-                      value={newTask.category}
-                      onChange={e => setNewTask({ ...newTask, category: e.target.value })}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-transparent focus:border-blue-500/20 rounded-2xl py-4 px-6 text-sm font-bold focus:ring-4 focus:ring-blue-500/5 transition-all outline-none appearance-none"
-                    >
-                      <option value="">No Category</option>
-                      {categories.map(cat => (
-                        <option key={cat.id} value={cat.name}>{cat.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Priority Level</label>
-                    <select 
-                      value={newTask.priority}
-                      onChange={e => setNewTask({ ...newTask, priority: e.target.value as any })}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-transparent focus:border-blue-500/20 rounded-2xl py-4 px-6 text-sm font-bold focus:ring-4 focus:ring-blue-500/5 transition-all outline-none appearance-none"
-                    >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                    </select>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Display Order</label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      value={newTask.order}
+                      onChange={e => setNewTask({ ...newTask, order: parseInt(e.target.value) || 1 })}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-transparent focus:border-blue-500/20 rounded-2xl py-4 px-6 text-sm font-bold focus:ring-4 focus:ring-blue-500/5 transition-all outline-none"
+                    />
                   </div>
                 </div>
 
@@ -1094,85 +1038,6 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                   </button>
                 </div>
               </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Category Manager Modal */}
-      <AnimatePresence>
-        {showCategoryModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowCategoryModal(false)}
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl flex flex-col overflow-hidden"
-            >
-              <div className="p-10 pb-4 flex justify-between items-start">
-                <div>
-                  <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100 uppercase tracking-tighter mb-2">Work Categories</h3>
-                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Define standard work types for the team</p>
-                </div>
-                <button onClick={() => setShowCategoryModal(false)} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-                  <X size={24} />
-                </button>
-              </div>
-
-              <div className="p-10 pt-4 space-y-8 overflow-y-auto max-h-[70vh]">
-                <form onSubmit={handleCreateCategory} className="bg-slate-50 dark:bg-slate-800 p-6 rounded-3xl space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Name</label>
-                      <input 
-                        required
-                        type="text" 
-                        value={newCategory.name}
-                        onChange={e => setNewCategory({ ...newCategory, name: e.target.value })}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl py-3 px-4 text-xs font-bold"
-                        placeholder="e.g., Development"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Color</label>
-                      <input 
-                        type="color" 
-                        value={newCategory.color}
-                        onChange={e => setNewCategory({ ...newCategory, color: e.target.value })}
-                        className="w-full h-10 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl px-1 py-1"
-                      />
-                    </div>
-                  </div>
-                  <button className="w-full bg-blue-600 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700">
-                    Add Work Type
-                  </button>
-                </form>
-
-                <div className="space-y-3">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Existing Types</label>
-                  {categories.map(cat => (
-                    <div key={cat.id} className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl group transition-all hover:border-slate-300">
-                      <div className="flex items-center gap-3">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
-                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase">{cat.name}</span>
-                      </div>
-                      <button 
-                        onClick={() => handleDeleteCategory(cat.id)}
-                        className="p-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </motion.div>
           </div>
         )}

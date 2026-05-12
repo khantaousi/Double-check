@@ -1,24 +1,67 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default deny
+    // 0. Global Safety Net
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Helper functions
+    // Phase 3: Primitive Definitions
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isValidProduct(data) {
-      return data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
-             data.price is number && data.price >= 0;
+    function incoming() {
+      return request.resource.data;
     }
 
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email.lower() == 'khantaousi@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // 1. Products Library
     match /products/{productId} {
-      allow read: if true; // Allow anyone to read the price library
-      allow write: if isSignedIn() && isValidProduct(request.resource.data);
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 2. Config Data
+    match /config/{configId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 3. User Profiles
+    match /users/{userId} {
+      allow get, create, update: if isOwner(userId);
+      allow list, delete: if isAdmin();
+      allow update: if isAdmin();
+    }
+
+    // 4. Tasks
+    match /tasks/{taskId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && (isOwner(resource.data.assigneeId) || isAdmin());
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (isOwner(resource.data.assigneeId) || isAdmin());
+      allow delete: if isAdmin();
+    }
+    
+    // 5. Connection Test
+    match /test/connection {
+      allow read: if true;
     }
   }
 }
