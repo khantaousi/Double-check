@@ -31,21 +31,35 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+
+    function isValidTask(data) {
+      return data.title is string && data.title.size() <= 200 &&
+             data.assigneeId is string &&
+             data.assignedAt is string &&
+             data.status in ['pending', 'in-progress', 'completed', 'paused'];
+    }
+
     // 1. Products Library
     match /products/{productId} {
-      allow read: if true;
+      allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
     // 2. Config Data
     match /config/{configId} {
-      allow read: if true;
+      allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
     // 3. User Profiles
     match /users/{userId} {
-      allow get, create, update: if isOwner(userId);
+      allow get, create: if isOwner(userId);
+      allow update: if isOwner(userId) && (
+        !incoming().diff(existing()).affectedKeys().hasAny(['role', 'email'])
+      );
       allow list, delete: if isAdmin();
       allow update: if isAdmin();
     }
@@ -54,8 +68,19 @@ service cloud.firestore {
     match /tasks/{taskId} {
       allow list: if isSignedIn();
       allow get: if isSignedIn() && (isOwner(resource.data.assigneeId) || isAdmin());
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && (isOwner(resource.data.assigneeId) || isAdmin());
+      allow create: if isSignedIn() && isValidTask(incoming());
+      allow update: if isSignedIn() && (isOwner(resource.data.assigneeId) || isAdmin()) && (
+        // Validation helper for types
+        isValidTask(incoming()) && (
+          // Admin can change anything
+          isAdmin() ||
+          // User can change status and timing fields
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'status', 'startedAt', 'completedAt', 'durationMinutes', 
+            'totalPauseMinutes', 'lastPausedAt', 'resumedAt', 'updatedAt'
+          ])
+        )
+      );
       allow delete: if isAdmin();
     }
     

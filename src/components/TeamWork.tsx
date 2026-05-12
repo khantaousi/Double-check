@@ -20,7 +20,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
-    assigneeId: '',
+    assigneeIds: [] as string[],
     order: 1,
     isEveryday: false,
     scheduledDate: format(new Date(), 'yyyy-MM-dd')
@@ -110,7 +110,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     setNewTask({
       title: task.title,
       description: task.description || '',
-      assigneeId: task.assigneeId,
+      assigneeIds: [task.assigneeId],
       order: task.order || 1,
       isEveryday: task.isEveryday || false,
       scheduledDate: format(parseISO(task.assignedAt), 'yyyy-MM-dd')
@@ -120,59 +120,70 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
   const handleAssignTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTask.title || (!isAdmin && !auth.currentUser?.uid) || (isAdmin && !newTask.assigneeId)) return;
+    const effectiveAssigneeIds = isAdmin ? newTask.assigneeIds : [auth.currentUser?.uid || ''];
+    if (!newTask.title || effectiveAssigneeIds.length === 0) return;
 
     setIsSubmitting(true);
     try {
-      const selectedUser = isAdmin ? allUsers.find(u => u.id === newTask.assigneeId) : userProfile;
-      const scheduledDateTime = new Date(newTask.scheduledDate);
       const now = new Date();
-      
-      // If daily, we use current time but mark as everyday
-      // If custom date, we use that date
+      const scheduledDateTime = new Date(newTask.scheduledDate);
       if (format(scheduledDateTime, 'yyyy-MM-dd') !== format(now, 'yyyy-MM-dd')) {
         scheduledDateTime.setHours(9, 0, 0, 0);
       }
 
-      const taskData: any = {
-        title: newTask.title,
-        description: newTask.description,
-        assigneeId: isAdmin ? newTask.assigneeId : (auth.currentUser?.uid || ''),
-        assigneeName: selectedUser?.displayName || 'Unknown',
-        status: 'pending',
-        assignedAt: newTask.isEveryday ? now.toISOString() : scheduledDateTime.toISOString(),
-        createdBy: auth.currentUser?.uid,
-        order: newTask.order,
-        isEveryday: newTask.isEveryday || false,
-      };
-
-      // Self-assignment logic
-      if (!isAdmin) {
-        taskData.isSelfAssigned = true;
-        taskData.isApproved = false;
-      }
-
       if (editingTask) {
+        // Edit is always single task
+        const selectedUser = allUsers.find(u => u.id === effectiveAssigneeIds[0]) || userProfile;
+        const taskData = {
+          title: newTask.title,
+          description: newTask.description,
+          assigneeId: effectiveAssigneeIds[0],
+          assigneeName: selectedUser.displayName || 'Unknown',
+          assignedAt: newTask.isEveryday ? (editingTask.assignedAt || now.toISOString()) : scheduledDateTime.toISOString(),
+          order: newTask.order,
+          isEveryday: newTask.isEveryday || false,
+          updatedAt: now.toISOString()
+        };
+        
         try {
-          await updateDoc(doc(db, 'tasks', editingTask.id), {
-            ...taskData,
-            updatedAt: now.toISOString()
-          });
+          await updateDoc(doc(db, 'tasks', editingTask.id), taskData);
         } catch (error) {
           handleFirestoreError(error, OperationType.UPDATE, `tasks/${editingTask.id}`);
         }
       } else {
-        try {
-          await addDoc(collection(db, 'tasks'), taskData);
-        } catch (error) {
-          handleFirestoreError(error, OperationType.CREATE, 'tasks');
-        }
+        // Creation can be multiple
+        const batch = writeBatch(db);
+        
+        effectiveAssigneeIds.forEach(uid => {
+          const selectedUser = allUsers.find(u => u.id === uid) || userProfile;
+          const taskData: any = {
+            title: newTask.title,
+            description: newTask.description,
+            assigneeId: uid,
+            assigneeName: selectedUser.displayName || 'Unknown',
+            status: 'pending',
+            assignedAt: newTask.isEveryday ? now.toISOString() : scheduledDateTime.toISOString(),
+            createdBy: auth.currentUser?.uid,
+            order: newTask.order,
+            isEveryday: newTask.isEveryday || false,
+          };
+
+          if (!isAdmin) {
+            taskData.isSelfAssigned = true;
+            taskData.isApproved = false;
+          }
+
+          const newDocRef = doc(collection(db, 'tasks'));
+          batch.set(newDocRef, taskData);
+        });
+
+        await batch.commit();
       }
 
       setNewTask({ 
         title: '', 
         description: '', 
-        assigneeId: '', 
+        assigneeIds: [], 
         order: (newTask.order || 0) + 1,
         isEveryday: false,
         scheduledDate: format(new Date(), 'yyyy-MM-dd')
@@ -459,7 +470,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                   setNewTask({
                     title: '',
                     description: '',
-                    assigneeId: isAdmin ? '' : (auth.currentUser?.uid || ''),
+                    assigneeIds: isAdmin ? [] : [(auth.currentUser?.uid || '')],
                     order: 1,
                     isEveryday: false,
                     scheduledDate: format(new Date(), 'yyyy-MM-dd')
@@ -952,8 +963,44 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                   <div className={newTask.isEveryday ? 'opacity-30 pointer-events-none' : ''}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {isAdmin && (
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Assignees (Multi-select)</label>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        {assignableUsers.map(u => (
+                          <label key={u.id} className="flex items-center gap-2 p-2 rounded-xl hover:bg-white dark:hover:bg-slate-700 transition-colors cursor-pointer group">
+                            <input 
+                              type="checkbox"
+                              checked={newTask.assigneeIds.includes(u.id || '')}
+                              onChange={e => {
+                                const uid = u.id || '';
+                                if (e.target.checked) {
+                                  setNewTask({ ...newTask, assigneeIds: [...newTask.assigneeIds, uid] });
+                                } else {
+                                  setNewTask({ ...newTask, assigneeIds: newTask.assigneeIds.filter(id => id !== uid) });
+                                }
+                              }}
+                              className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500/20"
+                            />
+                            <div className="flex flex-col">
+                              <span className="text-[10px] font-black text-slate-700 dark:text-slate-200 uppercase truncate">
+                                {u.displayName}
+                              </span>
+                              <span className="text-[8px] font-bold text-slate-400 uppercase">
+                                {u.email.split('@')[0]}
+                              </span>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                      {newTask.assigneeIds.length === 0 && (
+                        <p className="text-[9px] text-red-500 font-bold mt-1 ml-1 uppercase">Please select at least one agent</p>
+                      )}
+                    </div>
+                  )}
+                  
+                  <div className={newTask.isEveryday ? 'opacity-30 pointer-events-none' : ''}>
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Schedule Date</label>
                     <input 
                       type="date" 
@@ -963,8 +1010,9 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                       className="w-full bg-slate-50 dark:bg-slate-800 border border-transparent focus:border-blue-500/20 rounded-2xl py-4 px-6 text-sm font-bold focus:ring-4 focus:ring-blue-500/5 transition-all outline-none"
                     />
                   </div>
+                  
                   <div className="flex flex-col justify-end">
-                    <label className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl cursor-pointer hover:bg-slate-100 transition-colors">
+                    <label className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors h-full">
                       <input 
                         type="checkbox"
                         checked={newTask.isEveryday}
@@ -983,33 +1031,15 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  {isAdmin && (
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Assignee</label>
-                      <select 
-                        required
-                        value={newTask.assigneeId}
-                        onChange={e => setNewTask({ ...newTask, assigneeId: e.target.value })}
-                        className="w-full bg-slate-50 dark:bg-slate-800 border border-transparent focus:border-blue-500/20 rounded-2xl py-4 px-6 text-sm font-bold focus:ring-4 focus:ring-blue-500/5 transition-all outline-none appearance-none"
-                      >
-                        <option value="">Select Staff Member</option>
-                        {assignableUsers.map(u => (
-                          <option key={u.id} value={u.id}>{u.displayName} ({u.email.split('@')[0]})</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Display Order</label>
-                    <input 
+                <div>
+                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Display Order</label>
+                   <input 
                       type="number" 
                       min="1"
                       value={newTask.order}
                       onChange={e => setNewTask({ ...newTask, order: parseInt(e.target.value) || 1 })}
                       className="w-full bg-slate-50 dark:bg-slate-800 border border-transparent focus:border-blue-500/20 rounded-2xl py-4 px-6 text-sm font-bold focus:ring-4 focus:ring-blue-500/5 transition-all outline-none"
                     />
-                  </div>
                 </div>
 
                 <div>
