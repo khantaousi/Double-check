@@ -400,112 +400,85 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   return (
     <div className="space-y-6 pb-20">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-3">
-            <Layout className="text-blue-600" />
-            TEAM PERFORMANCE
-          </h2>
-          <p className="text-slate-500 text-sm font-medium">
-            {isAdmin ? 'System assignments and efficiency reporting' : 'Your current workload and tasks'}
-          </p>
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-[0_8px_20px_-6px_rgba(37,99,235,0.5)]">
+            <Layout className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tight leading-none mb-1">Team Performance</h2>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">
+              {isAdmin ? 'System assignments and efficiency reporting' : 'Your current workload and tasks'}
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-slate-900 shadow-sm border border-slate-100 dark:border-slate-800 p-2 rounded-[2rem]">
           {isAdmin && (
-            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mr-2">
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
               <button 
                 onClick={() => setView('list')}
-                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${view === 'list' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500'}`}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'list' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
               >
-                Board
+                Overview
               </button>
               <button 
                 onClick={() => setView('report')}
-                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${view === 'report' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500'}`}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'report' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 Report
               </button>
             </div>
           )}
-          
-          {((isAdmin && view === 'list') || !isAdmin) && (
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-                {(['all', 'pending', 'in-progress', 'paused', 'completed'] as const).map(status => (
-                  <button
-                    key={status}
-                    onClick={() => setStatusFilter(status)}
-                    className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all ${
-                      statusFilter === status ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'
-                    }`}
-                  >
-                    {status}
-                  </button>
-                ))}
-              </div>
 
-              {isAdmin && view === 'list' && (
-                <div className="flex items-center gap-2">
-                  <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1 hidden md:block" />
-                  
-                  <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-                    {(['today', 'yesterday', '30days', 'custom'] as const).map(range => (
-                      <button
-                        key={range}
-                        onClick={() => setBoardDateRange(range)}
-                        className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all ${
-                          boardDateRange === range ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'
-                        }`}
-                      >
-                        {range === '30days' ? 'Last 30D' : range}
-                      </button>
-                    ))}
-                  </div>
-
-                  {boardDateRange === 'custom' && (
-                    <motion.div 
-                      initial={{ opacity: 0, x: -10 }} 
-                      animate={{ opacity: 1, x: 0 }}
-                      className="flex items-center gap-2"
-                    >
-                      <input 
-                        type="date" 
-                        value={boardCustomStart}
-                        onChange={(e) => setBoardCustomStart(e.target.value)}
-                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-1.5 px-3 text-[10px] font-bold outline-none"
-                      />
-                      <span className="text-slate-400 text-[10px] font-black uppercase">To</span>
-                      <input 
-                        type="date" 
-                        value={boardCustomEnd}
-                        onChange={(e) => setBoardCustomEnd(e.target.value)}
-                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-1.5 px-3 text-[10px] font-bold outline-none"
-                      />
-                    </motion.div>
-                  )}
-                </div>
-              )}
-              <button 
-                onClick={() => {
-                  setEditingTask(null);
-                  setNewTask({
-                    title: '',
-                    description: '',
-                    assigneeIds: isAdmin ? [] : [(auth.currentUser?.uid || '')],
-                    order: 1,
-                    isEveryday: false,
-                    scheduledDate: format(new Date(), 'yyyy-MM-dd')
-                  });
-                  setShowAssignModal(true);
-                }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 dark:shadow-none whitespace-nowrap"
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl overflow-x-auto no-scrollbar">
+            {(['all', 'pending', 'in-progress', 'paused', 'completed'] as const).map(status => (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase transition-all whitespace-nowrap ${
+                  statusFilter === status ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'
+                }`}
               >
-                <Plus size={16} />
-                {isAdmin ? 'Assign Work' : 'Add Task'}
+                {status}
               </button>
+            ))}
+          </div>
+
+          {isAdmin && view === 'list' && (
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
+              {(['today', 'yesterday', '30days', 'custom'] as const).map(range => (
+                <button
+                  key={range}
+                  onClick={() => setBoardDateRange(range)}
+                  className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase transition-all whitespace-nowrap ${
+                    boardDateRange === range ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  {range === '30days' ? '30 Days' : range}
+                </button>
+              ))}
             </div>
           )}
+
+          <button 
+            onClick={() => {
+              setEditingTask(null);
+              setNewTask({
+                title: '',
+                description: '',
+                assigneeIds: isAdmin ? [] : [(auth.currentUser?.uid || '')],
+                order: 1,
+                isEveryday: false,
+                scheduledDate: format(new Date(), 'yyyy-MM-dd')
+              });
+              setShowAssignModal(true);
+            }}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_8px_20px_-6px_rgba(37,99,235,0.4)] active:scale-95 flex items-center gap-2 whitespace-nowrap"
+          >
+            <Plus size={16} />
+            {isAdmin ? 'Assign Work' : 'Add Task'}
+          </button>
         </div>
       </div>
 
