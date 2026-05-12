@@ -31,6 +31,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingTask, setEditingTask] = useState<TeamTask | null>(null);
 
+  const [statusFilter, setStatusFilter] = useState<'all' | TeamTask['status']>('all');
   const isAdmin = userProfile.role === 'admin';
 
   useEffect(() => {
@@ -316,6 +317,11 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       );
     }
 
+    // Filter by status if not 'all'
+    if (statusFilter !== 'all') {
+      list = list.filter(t => t.status === statusFilter);
+    }
+
     // Sort by order asc, then by assignedAt desc
     return list.sort((a, b) => {
       const orderA = a.order ?? 999;
@@ -323,7 +329,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       if (orderA !== orderB) return orderA - orderB;
       return new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime();
     });
-  }, [tasks, isAdmin, boardDateRange, boardCustomStart, boardCustomEnd]);
+  }, [tasks, isAdmin, boardDateRange, boardCustomStart, boardCustomEnd, statusFilter]);
 
   // Analytics Calculations
   const [statsDateRange, setStatsDateRange] = useState<'today' | 'yesterday' | '30days' | 'custom'>('30days');
@@ -424,9 +430,25 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
           )}
           
           {((isAdmin && view === 'list') || !isAdmin) && (
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                {(['all', 'pending', 'in-progress', 'paused', 'completed'] as const).map(status => (
+                  <button
+                    key={status}
+                    onClick={() => setStatusFilter(status)}
+                    className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all ${
+                      statusFilter === status ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+
               {isAdmin && view === 'list' && (
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1 hidden md:block" />
+                  
                   <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
                     {(['today', 'yesterday', '30days', 'custom'] as const).map(range => (
                       <button
