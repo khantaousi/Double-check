@@ -69,6 +69,7 @@ export interface DataRow {
   extractedBasePrice?: number;
   calculatedTotal?: number;
   isMismatch?: boolean;
+  isInvalid?: boolean;
   isDuplicate?: boolean;
   isWholesale?: boolean;
   isPermitted?: boolean;

@@ -11,7 +11,7 @@ interface DataTableProps {
 export const DataTable: React.FC<DataTableProps> = ({ data, onUpdatePrice }) => {
   if (data.length === 0) return null;
 
-  const mismatchCount = data.filter(r => r.isMismatch || r.isDuplicate).length;
+  const mismatchCount = data.filter(r => r.isMismatch || r.isDuplicate || r.isInvalid).length;
 
   return (
     <div className="space-y-6">
@@ -64,7 +64,7 @@ export const DataTable: React.FC<DataTableProps> = ({ data, onUpdatePrice }) => 
                   key={row.id} 
                   className={`
                     transition-colors group
-                    ${(row.isMismatch || row.isDuplicate) 
+                    ${(row.isMismatch || row.isDuplicate || row.isInvalid) 
                       ? 'bg-red-50/70 dark:bg-red-900/20 hover:bg-red-100/70 dark:hover:bg-red-900/30' 
                       : row.isPermitted 
                         ? 'bg-purple-50/50 dark:bg-purple-900/15 hover:bg-purple-100/50 dark:hover:bg-purple-900/25 border-l-2 border-l-purple-500'
@@ -74,7 +74,7 @@ export const DataTable: React.FC<DataTableProps> = ({ data, onUpdatePrice }) => 
                 >
                   <td className="p-4 pl-6">
                     <div className="flex flex-col min-w-[140px]">
-                      <span className={`text-[12px] font-black font-sans not-italic ${row.isMismatch ? 'text-red-900 dark:text-red-400' : 'text-slate-800 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors'}`}>
+                      <span className={`text-[12px] font-black font-sans not-italic ${(row.isMismatch || row.isInvalid) ? 'text-red-900 dark:text-red-400' : 'text-slate-800 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors'}`}>
                         {row.RecipientName}
                       </span>
                       <div className="flex items-center gap-1.5 mt-0.5 opacity-60">
@@ -115,7 +115,7 @@ export const DataTable: React.FC<DataTableProps> = ({ data, onUpdatePrice }) => 
                   </td>
                   <td className="p-4 text-center">
                     <div className="flex flex-col">
-                        <span className={`font-black text-[12px] font-mono not-italic ${row.isMismatch ? 'text-red-500' : 'text-slate-700 dark:text-slate-300'}`}>
+                        <span className={`font-black text-[12px] font-mono not-italic ${(row.isMismatch || row.isInvalid) ? 'text-red-500' : 'text-slate-700 dark:text-slate-300'}`}>
                           ৳{row.AmountToCollect.toLocaleString()}
                         </span>
                         <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none mt-0.5 opacity-50">Collected</span>
@@ -134,7 +134,13 @@ export const DataTable: React.FC<DataTableProps> = ({ data, onUpdatePrice }) => 
                   </td>
                   <td className="p-4 text-right pr-8">
                     <div className="flex flex-col items-end gap-1.5">
-                      {row.isMismatch ? (
+                      {row.isInvalid ? (
+                        <div className="flex flex-col items-end">
+                            <span className="inline-flex items-center gap-1.5 bg-orange-600 text-white px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider shadow-[0_4px_12px_rgba(234,88,12,0.25)]">
+                              <AlertTriangle size={10} /> Invalid
+                            </span>
+                        </div>
+                      ) : row.isMismatch ? (
                         <div className="flex flex-col items-end">
                             <span className="inline-flex items-center gap-1.5 bg-red-600 text-white px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider shadow-[0_4px_12px_rgba(220,38,38,0.25)]">
                               <AlertTriangle size={10} /> Mismatch

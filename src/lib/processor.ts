@@ -318,7 +318,18 @@ export async function processData(
     }
 
     // Default calculation
-    return calculateRow(row, rules, delivery, siteSettings.amountTolerance);
+    const processedRow = calculateRow(row, rules, delivery, siteSettings.amountTolerance);
+
+    // Validate if name contains numeric values (misaligned columns or invalid data)
+    const nameClean = processedRow.RecipientName.trim();
+    const containsNumber = /\d/.test(nameClean);
+    
+    if (containsNumber) {
+      processedRow.isInvalid = true;
+      processedRow.notes = [...(processedRow.notes || []), "Invalid Order: Name field contains numeric value"];
+    }
+
+    return processedRow;
   });
 
   // Check if we need to apply a custom AI rule for amount evaluation
