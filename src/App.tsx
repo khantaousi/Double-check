@@ -66,6 +66,7 @@ export default function App() {
   const [hasSeeded, setHasSeeded] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [pendingTasksCount, setPendingTasksCount] = useState(0);
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
 
   const isAdmin = userProfile?.role === 'admin' || user?.email === 'khantaousi@gmail.com';
 
@@ -741,17 +742,29 @@ export default function App() {
           </nav>
         </div>
         
-        <div className="mt-auto p-8 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-          <div className="flex items-center gap-2 mb-4 text-[10px] font-bold uppercase text-slate-400 tracking-widest">
-            <Sparkles size={12} className="text-blue-500" />
-            Powered by <a href="https://md-ahbab-khan-taousi.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-[#1858ff] font-black hover:opacity-80 transition-opacity cursor-pointer">Taousi</a>
-          </div>
-          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300">
-            <div className="flex items-center justify-between mb-1">
-              <a href="https://md-ahbab-khan-taousi.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-xs font-black text-[#1858ff] hover:opacity-80 transition-opacity cursor-pointer">Taousi Intelligence</a>
-              <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+        <div className="mt-auto p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-4">
+          {user && (
+            <button 
+              onClick={() => setShowSignOutConfirm(true)}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all border border-transparent hover:border-red-100 dark:hover:border-red-900/20 shadow-sm group"
+            >
+              <LogOut size={16} className="group-hover:translate-x-1 transition-transform" />
+              Sign Out Session
+            </button>
+          )}
+
+          <div className="px-4">
+            <div className="flex items-center gap-2 mb-4 text-[10px] font-bold uppercase text-slate-400 tracking-widest">
+              <Sparkles size={12} className="text-blue-500" />
+              Powered by <a href="https://md-ahbab-khan-taousi.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-[#1858ff] font-black hover:opacity-80 transition-opacity cursor-pointer">Taousi</a>
             </div>
-            <p className="text-[10px] text-slate-400 font-medium">Ultra-high precision engine</p>
+            <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300">
+              <div className="flex items-center justify-between mb-1">
+                <a href="https://md-ahbab-khan-taousi.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-xs font-black text-[#1858ff] hover:opacity-80 transition-opacity cursor-pointer">Taousi Intelligence</a>
+                <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium">Ultra-high precision engine</p>
+            </div>
           </div>
         </div>
       </aside>
@@ -824,21 +837,6 @@ export default function App() {
                       </span>
                     )}
                   </div>
-                  <button 
-                    onClick={async () => {
-                      if (user) {
-                        try {
-                          await updateDoc(doc(db, 'users', user.uid), { isOnline: false, lastSeen: new Date().toISOString() });
-                        } catch (e) {
-                          console.error("Offline sync error:", e);
-                        }
-                      }
-                      signOut();
-                    }} 
-                    className="text-[10px] font-bold text-slate-400 dark:text-slate-500 hover:text-red-500 transition-colors text-left uppercase tracking-tighter"
-                  >
-                    Sign Out
-                  </button>
                 </div>
               </div>
             ) : (
@@ -1292,6 +1290,59 @@ export default function App() {
           </div>
         </section>
       </main>
+
+      {/* Sign Out Confirmation Overlay */}
+      <AnimatePresence>
+        {showSignOutConfirm && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSignOutConfirm(false)}
+              className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-2xl border border-slate-100 dark:border-slate-800"
+            >
+              <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-2xl flex items-center justify-center text-red-600 mb-6 mx-auto">
+                <LogOut size={32} />
+              </div>
+              <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 text-center uppercase tracking-tighter mb-2">Confirm Sign Out</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-sm font-medium text-center leading-relaxed mb-8">
+                Are you sure you want to terminate your current session? You will need to re-authenticate to access the workspace.
+              </p>
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={async () => {
+                    if (user) {
+                      try {
+                        await updateDoc(doc(db, 'users', user.uid), { isOnline: false, lastSeen: new Date().toISOString() });
+                      } catch (e) {
+                        console.error("Offline sync error:", e);
+                      }
+                    }
+                    signOut();
+                    setShowSignOutConfirm(false);
+                  }}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-red-500/20 transition-all active:scale-95"
+                >
+                  Yes, Sign Out
+                </button>
+                <button 
+                  onClick={() => setShowSignOutConfirm(false)}
+                  className="w-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-700 transition-all active:scale-95"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

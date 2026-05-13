@@ -337,8 +337,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   const [customStatsEnd, setCustomStatsEnd] = useState(format(new Date(), 'yyyy-MM-dd'));
 
   const analyticsData = useMemo(() => {
-    if (!isAdmin) return null;
-
+    const currentUid = auth.currentUser?.uid;
     const now = new Date();
     const todayStr = format(now, 'yyyy-MM-dd');
     const yesterdayStr = format(subDays(now, 1), 'yyyy-MM-dd');
@@ -414,22 +413,20 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
         </div>
 
         <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-slate-900 shadow-sm border border-slate-100 dark:border-slate-800 p-2 rounded-[2rem]">
-          {isAdmin && (
-            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
-              <button 
-                onClick={() => setView('list')}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'list' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                Overview
-              </button>
-              <button 
-                onClick={() => setView('report')}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'report' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                Report
-              </button>
-            </div>
-          )}
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
+            <button 
+              onClick={() => setView('list')}
+              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'list' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Overview
+            </button>
+            <button 
+              onClick={() => setView('report')}
+              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${view === 'report' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Report
+            </button>
+          </div>
 
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl overflow-x-auto no-scrollbar">
             {(['all', 'pending', 'in-progress', 'paused', 'completed'] as const).map(status => (
@@ -446,18 +443,42 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
           </div>
 
           {isAdmin && view === 'list' && (
-            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
-              {(['today', 'yesterday', '30days', 'custom'] as const).map(range => (
-                <button
-                  key={range}
-                  onClick={() => setBoardDateRange(range)}
-                  className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase transition-all whitespace-nowrap ${
-                    boardDateRange === range ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'
-                  }`}
+            <div className="flex items-center gap-2">
+              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
+                {(['today', 'yesterday', '30days', 'custom'] as const).map(range => (
+                  <button
+                    key={range}
+                    onClick={() => setBoardDateRange(range)}
+                    className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase transition-all whitespace-nowrap ${
+                      boardDateRange === range ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {range === '30days' ? '30 Days' : range}
+                  </button>
+                ))}
+              </div>
+
+              {boardDateRange === 'custom' && (
+                <motion.div 
+                  initial={{ opacity: 0, x: -10 }} 
+                  animate={{ opacity: 1, x: 0 }}
+                  className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl"
                 >
-                  {range === '30days' ? '30 Days' : range}
-                </button>
-              ))}
+                  <input 
+                    type="date" 
+                    value={boardCustomStart}
+                    onChange={(e) => setBoardCustomStart(e.target.value)}
+                    className="bg-white dark:bg-slate-900 border-none rounded-xl py-1.5 px-3 text-[9px] font-bold outline-none"
+                  />
+                  <span className="text-slate-400 text-[9px] font-black uppercase">To</span>
+                  <input 
+                    type="date" 
+                    value={boardCustomEnd}
+                    onChange={(e) => setBoardCustomEnd(e.target.value)}
+                    className="bg-white dark:bg-slate-900 border-none rounded-xl py-1.5 px-3 text-[9px] font-bold outline-none"
+                  />
+                </motion.div>
+              )}
             </div>
           )}
 
@@ -827,7 +848,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
               <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-10">
                 <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 mb-8 uppercase tracking-widest flex items-center gap-3">
                   <BarChart3 className="text-blue-600" size={18} />
-                  Efficiency Comparison By Staff
+                  {isAdmin ? 'Efficiency Comparison By Staff' : 'Personal Performance Overview'}
                 </h3>
                 <div className="h-[400px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
@@ -862,7 +883,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-10">
                 <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 mb-8 uppercase tracking-widest flex items-center gap-3">
                   <TrendingUp className="text-green-600" size={18} />
-                  Rankings
+                  {isAdmin ? 'Team Rankings' : 'Personal Rank'}
                 </h3>
                 <div className="space-y-6">
                   {(analyticsData || []).map((staff, idx) => (
