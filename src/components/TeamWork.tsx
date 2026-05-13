@@ -3,6 +3,7 @@ import { UserProfile, TeamTask } from '../types';
 import { db, auth } from '../lib/firebase';
 import { collection, addDoc, query, where, onSnapshot, updateDoc, doc, deleteDoc, orderBy, getDocs, writeBatch } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/errors';
+import { cleanObject } from '../lib/utils';
 import { CheckCircle2, Clock, Plus, UserPlus, Trash2, Calendar, Layout, User, Play, Pause, BarChart3, TrendingUp, Timer, Database, Edit, CheckCheck, X, Bell, ChevronDown, ChevronUp, History } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, differenceInMinutes, parseISO, subDays } from 'date-fns';
@@ -55,11 +56,11 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
   const sendNotification = async (notif: Omit<AppNotification, 'id' | 'isRead' | 'createdAt'>) => {
     try {
-      await addDoc(collection(db, 'notifications'), {
+      await addDoc(collection(db, 'notifications'), cleanObject({
         ...notif,
         isRead: false,
         createdAt: new Date().toISOString()
-      });
+      }));
     } catch (error) {
       console.error("Error sending notification:", error);
     }
@@ -186,20 +187,20 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
         // Edit is always single task
         const selectedUser = allUsers.find(u => u.id === effectiveAssigneeIds[0]) || userProfile;
         const newHistory = [...(editingTask.history || []), createHistoryEntry('created', 'Task Protocol Updated')];
-        const taskData = {
-          title: newTask.title,
-          description: newTask.description,
+        const taskData = cleanObject({
+          title: newTask.title || '',
+          description: newTask.description || '',
           assigneeId: effectiveAssigneeIds[0],
           assigneeName: selectedUser.displayName || 'Unknown',
           assignedAt: newTask.isEveryday ? (editingTask.assignedAt || now.toISOString()) : scheduledDateTime.toISOString(),
-          order: newTask.order,
+          order: newTask.order || 0,
           isEveryday: newTask.isEveryday || false,
           updatedAt: now.toISOString(),
           history: newHistory
-        };
+        });
         
         try {
-          await updateDoc(doc(db, 'tasks', editingTask.id), taskData);
+          await updateDoc(doc(db, 'tasks', editingTask.id), cleanObject(taskData));
           if (editingTask.assigneeId !== effectiveAssigneeIds[0]) {
             sendNotification({
               userId: effectiveAssigneeIds[0],
@@ -219,25 +220,25 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
         effectiveAssigneeIds.forEach(uid => {
           const selectedUser = allUsers.find(u => u.id === uid) || userProfile;
           const taskId = doc(collection(db, 'tasks')).id;
-          const taskData: any = {
-            title: newTask.title,
-            description: newTask.description,
+          const taskData = cleanObject({
+            title: newTask.title || '',
+            description: newTask.description || '',
             assigneeId: uid,
             assigneeName: selectedUser.displayName || 'Unknown',
             status: 'pending',
             assignedAt: newTask.isEveryday ? now.toISOString() : scheduledDateTime.toISOString(),
-            createdBy: auth.currentUser?.uid,
-            order: newTask.order,
+            createdBy: auth.currentUser?.uid || 'system',
+            order: newTask.order || 0,
             isEveryday: newTask.isEveryday || false,
             history: [createHistoryEntry('created')]
-          };
+          });
 
           if (!isAdmin) {
             taskData.isSelfAssigned = true;
             taskData.isApproved = false;
           }
 
-          batch.set(doc(db, 'tasks', taskId), taskData);
+          batch.set(doc(db, 'tasks', taskId), cleanObject(taskData));
 
           // Notifications
           if (isAdmin) {
@@ -274,13 +275,13 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   const handleApproveTask = async (task: TeamTask) => {
     try {
       const newHistory = [...(task.history || []), createHistoryEntry('approved')];
-      await updateDoc(doc(db, 'tasks', task.id), {
+      await updateDoc(doc(db, 'tasks', task.id), cleanObject({
         isApproved: true,
         isRejected: false,
-        approvedBy: auth.currentUser?.uid,
+        approvedBy: auth.currentUser?.uid || 'admin',
         approvedAt: new Date().toISOString(),
         history: newHistory
-      });
+      }));
       // Notify Agent
       sendNotification({
         userId: task.assigneeId,
@@ -298,13 +299,13 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     if (!window.confirm("Are you sure you want to reject this task?")) return;
     try {
       const newHistory = [...(task.history || []), createHistoryEntry('rejected')];
-      await updateDoc(doc(db, 'tasks', task.id), {
+      await updateDoc(doc(db, 'tasks', task.id), cleanObject({
         isRejected: true,
         isApproved: false,
-        rejectedBy: auth.currentUser?.uid,
+        rejectedBy: auth.currentUser?.uid || 'admin',
         rejectedAt: new Date().toISOString(),
         history: newHistory
-      });
+      }));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `tasks/${task.id}`);
     }
@@ -313,11 +314,11 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   const handleStartTask = async (task: TeamTask) => {
     try {
       const newHistory = [...(task.history || []), createHistoryEntry('in-progress')];
-      await updateDoc(doc(db, 'tasks', task.id), {
+      await updateDoc(doc(db, 'tasks', task.id), cleanObject({
         status: 'in-progress',
         startedAt: new Date().toISOString(),
         history: newHistory
-      });
+      }));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `tasks/${task.id}`);
     }
@@ -326,11 +327,11 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   const handlePauseTask = async (task: TeamTask) => {
     try {
       const newHistory = [...(task.history || []), createHistoryEntry('paused')];
-      await updateDoc(doc(db, 'tasks', task.id), {
+      await updateDoc(doc(db, 'tasks', task.id), cleanObject({
         status: 'paused',
         lastPausedAt: new Date().toISOString(),
         history: newHistory
-      });
+      }));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `tasks/${task.id}`);
     }
@@ -343,12 +344,12 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       const totalPause = (task.totalPauseMinutes || 0) + pauseDuration;
       const newHistory = [...(task.history || []), createHistoryEntry('in-progress', `Resumed after ${pauseDuration}m pause`)];
 
-      await updateDoc(doc(db, 'tasks', task.id), {
+      await updateDoc(doc(db, 'tasks', task.id), cleanObject({
         status: 'in-progress',
         resumedAt: now.toISOString(),
         totalPauseMinutes: totalPause,
         history: newHistory
-      });
+      }));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `tasks/${task.id}`);
     }
@@ -362,23 +363,25 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     const newHistory = [...(task.history || []), createHistoryEntry('completed')];
 
     try {
-      await updateDoc(doc(db, 'tasks', task.id), {
+      await updateDoc(doc(db, 'tasks', task.id), cleanObject({
         status: 'completed',
         completedAt: now.toISOString(),
         durationMinutes: effectiveDuration,
         history: newHistory
-      });
+      }));
 
       // Notify Admins
       if (task.isSelfAssigned) {
         allUsers.filter(u => u.role === 'admin').forEach(admin => {
-          sendNotification({
-            userId: admin.id!,
-            title: 'Critical: Approval Required',
-            message: `User ${task.assigneeName} completed self-assigned task: ${task.title}`,
-            type: 'task_needs_approval',
-            taskId: task.id
-          });
+          if (admin.id) {
+            sendNotification({
+              userId: admin.id,
+              title: 'Critical: Approval Required',
+              message: `User ${task.assigneeName} completed self-assigned task: ${task.title}`,
+              type: 'task_needs_approval',
+              taskId: task.id
+            });
+          }
         });
       }
     } catch (error) {

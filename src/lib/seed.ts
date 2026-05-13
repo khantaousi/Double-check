@@ -1,6 +1,7 @@
 import { db, authReady } from './firebase';
 import { collection, writeBatch, doc, getDocs, setDoc, getDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './errors';
+import { cleanObject } from './utils';
 
 const initialProducts = [
   { name: "Mehedi Mix 120gm", price: 350 },
@@ -45,10 +46,10 @@ export async function seedProducts() {
       const batch = writeBatch(db);
       initialProducts.forEach(p => {
         const newDoc = doc(productsCol);
-        batch.set(newDoc, {
+        batch.set(newDoc, cleanObject({
           ...p,
           updatedAt: new Date().toISOString()
-        });
+        }));
       });
       try {
         await batch.commit();
@@ -65,7 +66,7 @@ export async function seedProducts() {
     if (!giftSnap.exists()) {
       console.log("Seeding initial gift rules...");
       try {
-        await setDoc(giftConfigRef, {
+        await setDoc(giftConfigRef, cleanObject({
           rules: [
             {
               id: 'rule-sm',
@@ -89,7 +90,7 @@ export async function seedProducts() {
               isActive: true
             }
           ]
-        });
+        }));
       } catch (err) {
         handleFirestoreError(err, OperationType.WRITE, 'config/gift_rules');
       }
@@ -100,12 +101,12 @@ export async function seedProducts() {
     const siteSnap = await getDoc(siteConfigRef);
     if (!siteSnap.exists()) {
       console.log("Seeding initial site settings...");
-      await setDoc(siteConfigRef, {
+      await setDoc(siteConfigRef, cleanObject({
         companyName: 'Parcel Intelligence',
         amountTolerance: 5,
         permissionKeywords: ['permit', 'permit by', 'permitted by', 'permitted', 'authorized', 'boss ok', 'leader ok'],
         logoUrl: ''
-      });
+      }));
     }
   } catch (error) {
     console.error("General seed error:", error);

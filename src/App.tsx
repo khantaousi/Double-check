@@ -29,6 +29,8 @@ import { db, auth, logInWithEmail, signOut, signInWithGoogle } from './lib/fireb
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, setDoc, getDoc, writeBatch, where } from 'firebase/firestore';
 import { seedProducts } from './lib/seed';
 import { handleFirestoreError, OperationType } from './lib/errors';
+import { cleanObject } from './lib/utils';
+
 import { format, subDays, parseISO } from 'date-fns';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { getInitials, getAvatarColor } from './lib/avatar';
@@ -84,7 +86,7 @@ export default function App() {
   const saveDisplayName = async () => {
     if (!user || !userProfile) return;
     try {
-      await updateDoc(doc(db, 'users', user.uid), { displayName: editedName });
+      await updateDoc(doc(db, 'users', user.uid), cleanObject({ displayName: editedName || '' }));
       setIsEditingName(false);
     } catch (error) {
       console.error("Error updating display name:", error);
@@ -155,7 +157,7 @@ export default function App() {
                 printSlips: 'none'
               }
             };
-            await setDoc(userRef, newProfile);
+            await setDoc(userRef, cleanObject(newProfile));
             setUserProfile(newProfile);
           } else {
             const profileData = userSnap.data() as UserProfile;
@@ -164,20 +166,20 @@ export default function App() {
               isOnline: true, 
               lastSeen: new Date().toISOString() 
             };
-            await updateDoc(userRef, { 
+            await updateDoc(userRef, cleanObject({ 
               isOnline: true, 
               lastSeen: new Date().toISOString() 
-            });
+            }));
             setUserProfile({ id: userSnap.id, ...updatedProfile });
           }
 
           // Heartbeat to keep lastSeen updated while browsing
           heartbeat = setInterval(() => {
             if (auth.currentUser) {
-              updateDoc(userRef, { 
+              updateDoc(userRef, cleanObject({ 
                 lastSeen: new Date().toISOString(),
                 isOnline: true 
-              }).catch(console.error);
+              })).catch(console.error);
             }
           }, 60000); // Every 1 minute
 
@@ -188,7 +190,7 @@ export default function App() {
               
               // SECURITY: Immediate forced logout if account deactivated
               if (profile.isActive === false && u.email !== 'khantaousi@gmail.com') {
-                updateDoc(userRef, { isOnline: false, lastSeen: new Date().toISOString() }).catch(console.error);
+                updateDoc(userRef, cleanObject({ isOnline: false, lastSeen: new Date().toISOString() })).catch(console.error);
                 signOut();
                 setAuthError('Your account has been deactivated by an administrator.');
                 setLoginMode('staff');
@@ -414,7 +416,7 @@ export default function App() {
   const handleRulesUpdate = async (newRules: ValidationRule[]) => {
     setRules(newRules);
     try {
-      await setDoc(doc(db, 'config', 'validation_rules'), { rules: newRules });
+      await setDoc(doc(db, 'config', 'validation_rules'), cleanObject({ rules: newRules }));
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'config/validation_rules');
     }
@@ -430,7 +432,7 @@ export default function App() {
   const handleGiftRulesUpdate = async (newRules: GiftRule[]) => {
     setGiftRules(newRules);
     try {
-      await setDoc(doc(db, 'config', 'gift_rules'), { rules: newRules });
+      await setDoc(doc(db, 'config', 'gift_rules'), cleanObject({ rules: newRules }));
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'config/gift_rules');
     }
@@ -446,7 +448,7 @@ export default function App() {
   const handleDeliveryUpdate = async (newSettings: IDeliverySettings) => {
     setDelivery(newSettings);
     try {
-      await setDoc(doc(db, 'config', 'delivery_settings'), newSettings);
+      await setDoc(doc(db, 'config', 'delivery_settings'), cleanObject(newSettings));
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'config/delivery_settings');
     }
@@ -462,7 +464,7 @@ export default function App() {
   const handleSiteSettingsUpdate = async (newSettings: SiteSettings) => {
     setSiteSettings(newSettings);
     try {
-      await setDoc(doc(db, 'config', 'site_settings'), newSettings);
+      await setDoc(doc(db, 'config', 'site_settings'), cleanObject(newSettings));
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'config/site_settings');
     }
@@ -481,13 +483,13 @@ export default function App() {
       return;
     }
     try {
-      await addDoc(collection(db, 'products'), {
+      await addDoc(collection(db, 'products'), cleanObject({
         name,
         price,
-        wholesalePrice: wholesalePrice || null,
-        wholesaleThreshold: wholesaleThreshold || null,
+        wholesalePrice: wholesalePrice ?? null,
+        wholesaleThreshold: wholesaleThreshold ?? null,
         updatedAt: new Date().toISOString()
-      });
+      }));
       alert('Product added successfully!');
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'products');
@@ -507,13 +509,13 @@ export default function App() {
       for (const p of productsToAdd) {
         if (!p.name || p.price === undefined) continue;
         const ref = doc(collection(db, 'products'));
-        batch.set(ref, {
+        batch.set(ref, cleanObject({
           name: p.name,
           price: Number(p.price) || 0,
           wholesalePrice: p.wholesalePrice ? Number(p.wholesalePrice) : null,
           wholesaleThreshold: p.wholesaleThreshold ? Number(p.wholesaleThreshold) : null,
           updatedAt: new Date().toISOString()
-        });
+        }));
         count++;
       }
       
@@ -553,13 +555,13 @@ export default function App() {
   const handleUpdateProduct = async (id: string, name: string, price: number, wholesalePrice?: number, wholesaleThreshold?: number) => {
     if (!user) return;
     try {
-      await updateDoc(doc(db, 'products', id), {
+      await updateDoc(doc(db, 'products', id), cleanObject({
         name,
         price,
-        wholesalePrice: wholesalePrice || null,
-        wholesaleThreshold: wholesaleThreshold || null,
+        wholesalePrice: wholesalePrice ?? null,
+        wholesaleThreshold: wholesaleThreshold ?? null,
         updatedAt: new Date().toISOString()
-      });
+      }));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `products/${id}`);
     }
@@ -568,9 +570,9 @@ export default function App() {
   const handleUpdateUserRole = async (userId: string, newRole: 'admin' | 'user') => {
     if (!isAdmin) return;
     try {
-      await updateDoc(doc(db, 'users', userId), {
+      await updateDoc(doc(db, 'users', userId), cleanObject({
         role: newRole
-      });
+      }));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
     }
@@ -1414,7 +1416,7 @@ export default function App() {
                   onClick={async () => {
                     if (user) {
                       try {
-                        await updateDoc(doc(db, 'users', user.uid), { isOnline: false, lastSeen: new Date().toISOString() });
+                        await updateDoc(doc(db, 'users', user.uid), cleanObject({ isOnline: false, lastSeen: new Date().toISOString() }));
                       } catch (e) {
                         console.error("Offline sync error:", e);
                       }

@@ -7,6 +7,7 @@ import { getInitials, getAvatarColor } from '../lib/avatar';
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/errors';
+import { cleanObject } from '../lib/utils';
 
 interface UserManagementProps {
   users: UserProfile[];
@@ -94,7 +95,7 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
         isActive: true
       };
       
-      await setDoc(doc(db, 'users', userCred.user.uid), profile);
+      await setDoc(doc(db, 'users', userCred.user.uid), cleanObject(profile));
       
       await secondaryAuth.signOut();
       
@@ -118,7 +119,7 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
 
   const toggleStatus = async (userId: string, currentStatus: boolean) => {
     try {
-      await updateDoc(doc(db, 'users', userId), { isActive: !currentStatus });
+      await updateDoc(doc(db, 'users', userId), cleanObject({ isActive: !currentStatus }));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
     }
@@ -156,10 +157,10 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
   const handleEditUserSave = async () => {
     if (!editTarget) return;
     try {
-      await updateDoc(doc(db, 'users', editTarget.id!), {
-        displayName: editTarget.displayName,
+      await updateDoc(doc(db, 'users', editTarget.id!), cleanObject({
+        displayName: editTarget.displayName || '',
         permissions: editTarget.permissions
-      });
+      }));
       setEditTarget(null);
       alert('User updated successfully.');
     } catch (error) {
@@ -191,7 +192,7 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
       [key]: nextPermission
     };
     try {
-      await updateDoc(doc(db, 'users', userId), { permissions: newPermissions });
+      await updateDoc(doc(db, 'users', userId), cleanObject({ permissions: newPermissions }));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
     }
@@ -281,9 +282,9 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
                             onUpdateRole(user.id!, newRole);
                             if (newRole === 'admin') {
                               // Automatically grand all permissions when becoming admin
-                              updateDoc(doc(db, 'users', user.id!), { 
+                              updateDoc(doc(db, 'users', user.id!), cleanObject({ 
                                 permissions: { dashboard: 'write', rules: 'write', products: 'write', settings: 'write', tracker: 'write', printSlips: 'write' }
-                              }).catch(console.error);
+                              })).catch(console.error);
                             }
                           }}
                           className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-all ${user.role === 'admin' ? 'border-amber-200 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/10' : 'border-blue-200 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10'}`}
