@@ -3,7 +3,7 @@ import { UserProfile, TeamTask } from '../types';
 import { db, auth } from '../lib/firebase';
 import { collection, addDoc, query, where, onSnapshot, updateDoc, doc, deleteDoc, orderBy, getDocs, writeBatch } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/errors';
-import { cleanObject } from '../lib/utils';
+import { cleanObject, getBSTISOString, formatBST } from '../lib/utils';
 import { CheckCircle2, Clock, Plus, UserPlus, Trash2, Calendar, Layout, User, Play, Pause, BarChart3, TrendingUp, Timer, Database, Edit, CheckCheck, X, Bell, ChevronDown, ChevronUp, History } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, differenceInMinutes, parseISO, subDays } from 'date-fns';
@@ -25,11 +25,11 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     assigneeIds: [] as string[],
     order: 1,
     isEveryday: false,
-    scheduledDate: format(new Date(), 'yyyy-MM-dd')
+    scheduledDate: formatBST(new Date(), 'yyyy-MM-dd')
   });
   const [boardDateRange, setBoardDateRange] = useState<'today' | 'yesterday' | '30days' | 'custom'>('today');
-  const [boardCustomStart, setBoardCustomStart] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [boardCustomEnd, setBoardCustomEnd] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [boardCustomStart, setBoardCustomStart] = useState(formatBST(new Date(), 'yyyy-MM-dd'));
+  const [boardCustomEnd, setBoardCustomEnd] = useState(formatBST(new Date(), 'yyyy-MM-dd'));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingTask, setEditingTask] = useState<TeamTask | null>(null);
 
@@ -59,7 +59,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       await addDoc(collection(db, 'notifications'), cleanObject({
         ...notif,
         isRead: false,
-        createdAt: new Date().toISOString()
+        createdAt: getBSTISOString()
       }));
     } catch (error) {
       console.error("Error sending notification:", error);
@@ -78,7 +78,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
   const createHistoryEntry = (status: TaskHistoryEntry['status'], note?: string): TaskHistoryEntry => ({
     status,
-    timestamp: new Date().toISOString(),
+    timestamp: getBSTISOString(),
     performerId: auth.currentUser?.uid || 'system',
     performerName: userProfile.displayName || 'System',
     note
@@ -117,8 +117,8 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     return () => unsubscribe();
   }, [isAdmin]);
 
-  const [purgeStartDate, setPurgeStartDate] = useState(format(subDays(new Date(), 90), 'yyyy-MM-dd'));
-  const [purgeEndDate, setPurgeEndDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
+  const [purgeStartDate, setPurgeStartDate] = useState(formatBST(subDays(new Date(), 90), 'yyyy-MM-dd'));
+  const [purgeEndDate, setPurgeEndDate] = useState(formatBST(subDays(new Date(), 30), 'yyyy-MM-dd'));
   const [isPurging, setIsPurging] = useState(false);
 
   const handlePurgeTasks = async () => {
@@ -135,8 +135,8 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
       const oldQuery = query(
         collection(db, 'tasks'), 
-        where('assignedAt', '>=', startISO.toISOString()),
-        where('assignedAt', '<=', endISO.toISOString())
+        where('assignedAt', '>=', getBSTISOString(startISO)),
+        where('assignedAt', '<=', getBSTISOString(endISO))
       );
       const oldDocs = await getDocs(oldQuery);
       
@@ -165,7 +165,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       assigneeIds: [task.assigneeId],
       order: task.order || 1,
       isEveryday: task.isEveryday || false,
-      scheduledDate: format(parseISO(task.assignedAt), 'yyyy-MM-dd')
+      scheduledDate: formatBST(parseISO(task.assignedAt), 'yyyy-MM-dd')
     });
     setShowAssignModal(true);
   };
@@ -179,7 +179,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     try {
       const now = new Date();
       const scheduledDateTime = new Date(newTask.scheduledDate);
-      if (format(scheduledDateTime, 'yyyy-MM-dd') !== format(now, 'yyyy-MM-dd')) {
+      if (formatBST(scheduledDateTime, 'yyyy-MM-dd') !== formatBST(now, 'yyyy-MM-dd')) {
         scheduledDateTime.setHours(9, 0, 0, 0);
       }
 
@@ -192,10 +192,10 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
           description: newTask.description || '',
           assigneeId: effectiveAssigneeIds[0],
           assigneeName: selectedUser.displayName || 'Unknown',
-          assignedAt: newTask.isEveryday ? (editingTask.assignedAt || now.toISOString()) : scheduledDateTime.toISOString(),
+          assignedAt: newTask.isEveryday ? (editingTask.assignedAt || getBSTISOString(now)) : getBSTISOString(scheduledDateTime),
           order: newTask.order || 0,
           isEveryday: newTask.isEveryday || false,
-          updatedAt: now.toISOString(),
+          updatedAt: getBSTISOString(now),
           history: newHistory
         });
         
@@ -226,7 +226,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
             assigneeId: uid,
             assigneeName: selectedUser.displayName || 'Unknown',
             status: 'pending',
-            assignedAt: newTask.isEveryday ? now.toISOString() : scheduledDateTime.toISOString(),
+            assignedAt: newTask.isEveryday ? getBSTISOString(now) : getBSTISOString(scheduledDateTime),
             createdBy: auth.currentUser?.uid || 'system',
             order: newTask.order || 0,
             isEveryday: newTask.isEveryday || false,
@@ -261,7 +261,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
         assigneeIds: [], 
         order: (newTask.order || 0) + 1,
         isEveryday: false,
-        scheduledDate: format(new Date(), 'yyyy-MM-dd')
+        scheduledDate: formatBST(new Date(), 'yyyy-MM-dd')
       });
       setEditingTask(null);
       setShowAssignModal(false);
@@ -274,12 +274,14 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
   const handleApproveTask = async (task: TeamTask) => {
     try {
+      const now = new Date();
       const newHistory = [...(task.history || []), createHistoryEntry('approved')];
       await updateDoc(doc(db, 'tasks', task.id), cleanObject({
         isApproved: true,
         isRejected: false,
         approvedBy: auth.currentUser?.uid || 'admin',
-        approvedAt: new Date().toISOString(),
+        approvedAt: getBSTISOString(now),
+        updatedAt: getBSTISOString(now),
         history: newHistory
       }));
       // Notify Agent
@@ -298,12 +300,14 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   const handleRejectTask = async (task: TeamTask) => {
     if (!window.confirm("Are you sure you want to reject this task?")) return;
     try {
+      const now = new Date();
       const newHistory = [...(task.history || []), createHistoryEntry('rejected')];
       await updateDoc(doc(db, 'tasks', task.id), cleanObject({
         isRejected: true,
         isApproved: false,
         rejectedBy: auth.currentUser?.uid || 'admin',
-        rejectedAt: new Date().toISOString(),
+        rejectedAt: getBSTISOString(now),
+        updatedAt: getBSTISOString(now),
         history: newHistory
       }));
     } catch (error) {
@@ -313,10 +317,12 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
   const handleStartTask = async (task: TeamTask) => {
     try {
+      const now = new Date();
       const newHistory = [...(task.history || []), createHistoryEntry('in-progress')];
       await updateDoc(doc(db, 'tasks', task.id), cleanObject({
         status: 'in-progress',
-        startedAt: new Date().toISOString(),
+        startedAt: getBSTISOString(now),
+        updatedAt: getBSTISOString(now),
         history: newHistory
       }));
     } catch (error) {
@@ -326,10 +332,12 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
   const handlePauseTask = async (task: TeamTask) => {
     try {
+      const now = new Date();
       const newHistory = [...(task.history || []), createHistoryEntry('paused')];
       await updateDoc(doc(db, 'tasks', task.id), cleanObject({
         status: 'paused',
-        lastPausedAt: new Date().toISOString(),
+        lastPausedAt: getBSTISOString(now),
+        updatedAt: getBSTISOString(now),
         history: newHistory
       }));
     } catch (error) {
@@ -346,8 +354,9 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
       await updateDoc(doc(db, 'tasks', task.id), cleanObject({
         status: 'in-progress',
-        resumedAt: now.toISOString(),
+        resumedAt: getBSTISOString(now),
         totalPauseMinutes: totalPause,
+        updatedAt: getBSTISOString(now),
         history: newHistory
       }));
     } catch (error) {
@@ -365,8 +374,9 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     try {
       await updateDoc(doc(db, 'tasks', task.id), cleanObject({
         status: 'completed',
-        completedAt: now.toISOString(),
+        completedAt: getBSTISOString(now),
         durationMinutes: effectiveDuration,
+        updatedAt: getBSTISOString(now),
         history: newHistory
       }));
 
@@ -400,18 +410,18 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
   const filteredTasks = useMemo(() => {
     let list = [];
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const yesterdayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+    const todayStr = formatBST(new Date(), 'yyyy-MM-dd');
+    const yesterdayStr = formatBST(subDays(new Date(), 1), 'yyyy-MM-dd');
 
     if (isAdmin) {
       list = tasks.filter(t => {
         if (t.isEveryday) return true;
-        const taskDate = format(parseISO(t.assignedAt), 'yyyy-MM-dd');
+        const taskDate = formatBST(parseISO(t.assignedAt), 'yyyy-MM-dd');
         
         if (boardDateRange === 'today') return taskDate === todayStr;
         if (boardDateRange === 'yesterday') return taskDate === yesterdayStr;
         if (boardDateRange === '30days') {
-          const thirtyDaysAgo = format(subDays(new Date(), 30), 'yyyy-MM-dd');
+          const thirtyDaysAgo = formatBST(subDays(new Date(), 30), 'yyyy-MM-dd');
           return taskDate >= thirtyDaysAgo;
         }
         if (boardDateRange === 'custom') return taskDate >= boardCustomStart && taskDate <= boardCustomEnd;
@@ -442,17 +452,17 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
   // Analytics Calculations
   const [statsDateRange, setStatsDateRange] = useState<'today' | 'yesterday' | '30days' | 'custom'>('30days');
-  const [customStatsStart, setCustomStatsStart] = useState(format(subDays(new Date(), 7), 'yyyy-MM-dd'));
-  const [customStatsEnd, setCustomStatsEnd] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [customStatsStart, setCustomStatsStart] = useState(formatBST(subDays(new Date(), 7), 'yyyy-MM-dd'));
+  const [customStatsEnd, setCustomStatsEnd] = useState(formatBST(new Date(), 'yyyy-MM-dd'));
 
   const analyticsData = useMemo(() => {
     const currentUid = auth.currentUser?.uid;
     const now = new Date();
-    const todayStr = format(now, 'yyyy-MM-dd');
-    const yesterdayStr = format(subDays(now, 1), 'yyyy-MM-dd');
+    const todayStr = formatBST(now, 'yyyy-MM-dd');
+    const yesterdayStr = formatBST(subDays(now, 1), 'yyyy-MM-dd');
 
     const filteredForStats = tasks.filter(t => {
-      const taskDate = format(parseISO(t.assignedAt), 'yyyy-MM-dd');
+      const taskDate = formatBST(parseISO(t.assignedAt), 'yyyy-MM-dd');
       
       // Date filtering
       let dateMatch = true;
@@ -488,7 +498,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
         stats.completedTasks.push({
           title: task.title,
           duration: task.durationMinutes || 0,
-          date: format(parseISO(task.completedAt || task.assignedAt), 'MMM dd, HH:mm')
+          date: formatBST(parseISO(task.completedAt || task.assignedAt), 'MMM dd, HH:mm')
         });
         userStatsMap.set(task.assigneeId, stats);
       }
@@ -623,7 +633,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                 assigneeIds: isAdmin ? [] : [(auth.currentUser?.uid || '')],
                 order: 1,
                 isEveryday: false,
-                scheduledDate: format(new Date(), 'yyyy-MM-dd')
+                scheduledDate: formatBST(new Date(), 'yyyy-MM-dd')
               });
               setShowAssignModal(true);
             }}
@@ -743,7 +753,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                       <div className="flex items-center gap-2">
                         <div className="flex flex-col items-end">
                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
-                            {format(parseISO(task.assignedAt), 'MMM dd')}
+                            {formatBST(task.isEveryday ? new Date() : parseISO(task.assignedAt), 'MMM dd')}
                           </span>
                         </div>
                         {isAdmin && (
@@ -815,7 +825,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                             </button>
                           </div>
                         )}
-                        {(task.status === 'pending' || task.status === 'paused') && !isAdmin && (
+                        {(task.status === 'pending' || task.status === 'paused') && (task.assigneeId === auth.currentUser?.uid || isAdmin) && (
                           <button 
                             onClick={() => task.status === 'paused' ? handleResumeTask(task) : handleStartTask(task)}
                             className="bg-blue-600 text-white px-5 py-3 rounded-2xl hover:bg-blue-700 transition-all shadow-[0_8px_20px_-6px_rgba(37,99,235,0.4)] flex items-center gap-2 text-[10px] font-black uppercase tracking-widest active:scale-95"
@@ -824,7 +834,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                             {task.status === 'paused' ? 'Resume System' : 'Initiate Work'}
                           </button>
                         )}
-                        {task.status === 'in-progress' && !isAdmin && (
+                        {task.status === 'in-progress' && (task.assigneeId === auth.currentUser?.uid || isAdmin) && (
                           <div className="flex items-center gap-2">
                              <button 
                               onClick={() => handlePauseTask(task)}
@@ -863,13 +873,13 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                         {task.startedAt && (
                           <div className="text-[8px] font-black text-slate-400/80 uppercase flex items-center gap-1.5 tracking-widest">
                             <Clock size={10} className="text-blue-500/50" /> 
-                            Started: <span className="text-slate-500 dark:text-slate-300 font-bold">{format(parseISO(task.startedAt), 'hh:mm:ss a')}</span>
+                            Started: <span className="text-slate-500 dark:text-slate-300 font-bold">{formatBST(parseISO(task.startedAt), 'hh:mm:ss a')}</span>
                           </div>
                         )}
                         {task.completedAt && (
                           <div className="text-[8px] font-black text-emerald-500/80 uppercase flex items-center gap-1.5 tracking-widest">
                             <CheckCircle2 size={10} className="text-emerald-500/50" /> 
-                            Finished: <span className="text-emerald-600 dark:text-emerald-400 font-bold">{format(parseISO(task.completedAt), 'hh:mm:ss a')}</span>
+                            Finished: <span className="text-emerald-600 dark:text-emerald-400 font-bold">{formatBST(parseISO(task.completedAt), 'hh:mm:ss a')}</span>
                           </div>
                         )}
                       </div>
@@ -1154,7 +1164,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                                             <div className="flex flex-col">
                                               <div className="flex items-center gap-2">
                                                 <span className="text-[9px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-widest">{h.status.replace('-', ' ')}</span>
-                                                <span className="text-[7px] font-bold text-slate-300 dark:text-slate-600 uppercase italic">{format(parseISO(h.timestamp), 'HH:mm:ss')}</span>
+                                                <span className="text-[7px] font-bold text-slate-300 dark:text-slate-600 uppercase italic">{formatBST(parseISO(h.timestamp), 'HH:mm:ss')}</span>
                                               </div>
                                               <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">By {h.performerName} {h.note ? `• ${h.note}` : ''}</p>
                                             </div>
@@ -1300,7 +1310,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                           setNewTask({ 
                             ...newTask, 
                             isEveryday: isDaily,
-                            scheduledDate: isDaily ? format(new Date(), 'yyyy-MM-dd') : newTask.scheduledDate
+                            scheduledDate: isDaily ? formatBST(new Date(), 'yyyy-MM-dd') : newTask.scheduledDate
                           });
                         }}
                         className="hidden"

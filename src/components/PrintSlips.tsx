@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Barcode from 'react-barcode';
 import html2pdf from 'html2pdf.js';
 import { DataRow, SiteSettings } from '../types';
+import { formatBST } from '../lib/utils';
 
 interface PrintSlipsProps {
   data: DataRow[];
@@ -190,7 +191,7 @@ export function PrintSlips({ data, settings, onBack }: PrintSlipsProps) {
 
                   {/* Right Barcode */}
                   <div className="flex flex-col items-end w-1/3">
-                    <span style={{ color: '#6b7280' }} className="text-[7px] font-bold uppercase tracking-widest">{new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })}</span>
+                    <span style={{ color: '#6b7280' }} className="text-[7px] font-bold uppercase tracking-widest">{formatBST(new Date(), 'MMM dd, yyyy')}</span>
                     <div className="mt-0.5 transform scale-75 origin-right translate-x-2">
                       <Barcode 
                         value={row.MerchantOrderId || row.id.substring(0, 8)} 

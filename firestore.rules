@@ -23,7 +23,7 @@ service cloud.firestore {
       return isSignedIn() && (
         request.auth.token.email.lower() == 'khantaousi@gmail.com' ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin')
       );
     }
 
@@ -36,11 +36,21 @@ service cloud.firestore {
     }
 
     function isValidTask(data) {
-      return data.title is string && data.title.size() <= 200 &&
-             data.assigneeId is string &&
-             data.assignedAt is string &&
-             data.status in ['pending', 'in-progress', 'completed', 'paused'] &&
-             (!('history' in data) || data.history is list);
+      return data.get('title', '') is string && data.get('title', '').size() <= 200 &&
+             data.get('assigneeId', '') is string &&
+             data.get('assignedAt', '') is string &&
+             data.get('status', 'pending') in ['pending', 'in-progress', 'completed', 'paused'] &&
+             (!('history' in data) || data.history is list) &&
+             (!('startedAt' in data) || data.startedAt is string) &&
+             (!('completedAt' in data) || data.completedAt is string) &&
+             (!('updatedAt' in data) || data.updatedAt is string) &&
+             (!('isApproved' in data) || data.isApproved is bool) &&
+             (!('isRejected' in data) || data.isRejected is bool) &&
+             (!('approvedAt' in data) || data.approvedAt is string) &&
+             (!('rejectedAt' in data) || data.rejectedAt is string) &&
+             (!('approvedBy' in data) || data.approvedBy is string) &&
+             (!('rejectedBy' in data) || data.rejectedBy is string) &&
+             (!('isSelfAssigned' in data) || data.isSelfAssigned is bool);
     }
 
     // 1. Products Library
@@ -76,7 +86,7 @@ service cloud.firestore {
           incoming().isApproved == false
         )
       );
-      allow update: if isSignedIn() && (isOwner(resource.data.assigneeId) || isAdmin()) && (
+      allow update: if isSignedIn() && (isOwner(resource.data.get('assigneeId', '')) || isAdmin()) && (
         // Validation helper for types
         isValidTask(incoming()) && (
           // Admin can change anything
@@ -88,8 +98,8 @@ service cloud.firestore {
               'totalPauseMinutes', 'lastPausedAt', 'resumedAt', 'updatedAt',
               'history'
             ]) &&
-            incoming().assigneeId == existing().assigneeId &&
-            incoming().isSelfAssigned == existing().isSelfAssigned
+            incoming().get('assigneeId', '') == existing().get('assigneeId', '') &&
+            incoming().get('isSelfAssigned', false) == existing().get('isSelfAssigned', false)
           )
         )
       );

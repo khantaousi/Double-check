@@ -2,6 +2,7 @@ import React from 'react';
 import { Package, Download, Search, Database, Store, Layers } from 'lucide-react';
 import { DataRow } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
+import { formatBST } from '../lib/utils';
 
 interface ProductStats {
   name: string;
@@ -125,7 +126,7 @@ export function ProductTracker({ data }: ProductTrackerProps) {
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `product_tracking_${viewMode}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `product_tracking_${viewMode}_${formatBST(new Date(), 'yyyy-MM-dd')}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();

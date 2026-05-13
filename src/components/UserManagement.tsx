@@ -7,7 +7,7 @@ import { getInitials, getAvatarColor } from '../lib/avatar';
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/errors';
-import { cleanObject } from '../lib/utils';
+import { cleanObject, getBSTISOString } from '../lib/utils';
 
 interface UserManagementProps {
   users: UserProfile[];
@@ -91,7 +91,7 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
         role,
         permissions,
         displayName: customDisplayName, 
-        createdAt: new Date().toISOString(),
+        createdAt: getBSTISOString(),
         isActive: true
       };
       

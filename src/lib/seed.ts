@@ -1,7 +1,7 @@
 import { db, authReady } from './firebase';
 import { collection, writeBatch, doc, getDocs, setDoc, getDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './errors';
-import { cleanObject } from './utils';
+import { cleanObject, getBSTISOString } from './utils';
 
 const initialProducts = [
   { name: "Mehedi Mix 120gm", price: 350 },
@@ -48,7 +48,7 @@ export async function seedProducts() {
         const newDoc = doc(productsCol);
         batch.set(newDoc, cleanObject({
           ...p,
-          updatedAt: new Date().toISOString()
+          updatedAt: getBSTISOString()
         }));
       });
       try {

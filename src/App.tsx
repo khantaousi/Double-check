@@ -29,9 +29,9 @@ import { db, auth, logInWithEmail, signOut, signInWithGoogle } from './lib/fireb
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, setDoc, getDoc, writeBatch, where } from 'firebase/firestore';
 import { seedProducts } from './lib/seed';
 import { handleFirestoreError, OperationType } from './lib/errors';
-import { cleanObject } from './lib/utils';
+import { cleanObject, getBSTISOString, formatBST } from './lib/utils';
 
-import { format, subDays, parseISO } from 'date-fns';
+import { subDays, parseISO } from 'date-fns';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { getInitials, getAvatarColor } from './lib/avatar';
 import { PrintSlips } from './components/PrintSlips';
@@ -137,8 +137,8 @@ export default function App() {
               role: isMasterAdmin ? 'admin' : 'user',
               displayName: u.displayName || u.email!.split('@')[0],
               photoURL: u.photoURL || '',
-              createdAt: new Date().toISOString(),
-              lastSeen: new Date().toISOString(),
+              createdAt: getBSTISOString(),
+              lastSeen: getBSTISOString(),
               isOnline: true,
               isActive: true,
               permissions: isMasterAdmin ? {
@@ -164,11 +164,11 @@ export default function App() {
             const updatedProfile = { 
               ...profileData, 
               isOnline: true, 
-              lastSeen: new Date().toISOString() 
+              lastSeen: getBSTISOString() 
             };
             await updateDoc(userRef, cleanObject({ 
               isOnline: true, 
-              lastSeen: new Date().toISOString() 
+              lastSeen: getBSTISOString() 
             }));
             setUserProfile({ id: userSnap.id, ...updatedProfile });
           }
@@ -177,7 +177,7 @@ export default function App() {
           heartbeat = setInterval(() => {
             if (auth.currentUser) {
               updateDoc(userRef, cleanObject({ 
-                lastSeen: new Date().toISOString(),
+                lastSeen: getBSTISOString(),
                 isOnline: true 
               })).catch(console.error);
             }
@@ -190,7 +190,7 @@ export default function App() {
               
               // SECURITY: Immediate forced logout if account deactivated
               if (profile.isActive === false && u.email !== 'khantaousi@gmail.com') {
-                updateDoc(userRef, cleanObject({ isOnline: false, lastSeen: new Date().toISOString() })).catch(console.error);
+                updateDoc(userRef, cleanObject({ isOnline: false, lastSeen: getBSTISOString() })).catch(console.error);
                 signOut();
                 setAuthError('Your account has been deactivated by an administrator.');
                 setLoginMode('staff');
@@ -488,7 +488,7 @@ export default function App() {
         price,
         wholesalePrice: wholesalePrice ?? null,
         wholesaleThreshold: wholesaleThreshold ?? null,
-        updatedAt: new Date().toISOString()
+        updatedAt: getBSTISOString()
       }));
       alert('Product added successfully!');
     } catch (error) {
@@ -514,7 +514,7 @@ export default function App() {
           price: Number(p.price) || 0,
           wholesalePrice: p.wholesalePrice ? Number(p.wholesalePrice) : null,
           wholesaleThreshold: p.wholesaleThreshold ? Number(p.wholesaleThreshold) : null,
-          updatedAt: new Date().toISOString()
+          updatedAt: getBSTISOString()
         }));
         count++;
       }
@@ -560,7 +560,7 @@ export default function App() {
         price,
         wholesalePrice: wholesalePrice ?? null,
         wholesaleThreshold: wholesaleThreshold ?? null,
-        updatedAt: new Date().toISOString()
+        updatedAt: getBSTISOString()
       }));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `products/${id}`);
@@ -887,7 +887,7 @@ export default function App() {
                               >
                                 <p className="text-[10px] font-black text-slate-800 dark:text-white uppercase mb-1">{n.title}</p>
                                 <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 leading-tight mb-2">{n.message}</p>
-                                <span className="text-[8px] font-bold text-slate-300 dark:text-slate-600 uppercase italic">{format(parseISO(n.createdAt), 'MMM dd, HH:mm')}</span>
+                                <span className="text-[8px] font-bold text-slate-300 dark:text-slate-600 uppercase italic">{formatBST(parseISO(n.createdAt), 'MMM dd, HH:mm')}</span>
                                 {!n.isRead && <div className="absolute top-5 right-5 w-1.5 h-1.5 bg-blue-600 rounded-full" />}
                               </div>
                             ))
@@ -1416,7 +1416,7 @@ export default function App() {
                   onClick={async () => {
                     if (user) {
                       try {
-                        await updateDoc(doc(db, 'users', user.uid), cleanObject({ isOnline: false, lastSeen: new Date().toISOString() }));
+                        await updateDoc(doc(db, 'users', user.uid), cleanObject({ isOnline: false, lastSeen: getBSTISOString() }));
                       } catch (e) {
                         console.error("Offline sync error:", e);
                       }

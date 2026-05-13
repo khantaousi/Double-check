@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { DataRow } from '../types';
+import { formatBST } from './utils';
 
 export async function generateStyledExcel(data: DataRow[]) {
   const workbook = new ExcelJS.Workbook();
@@ -64,5 +65,5 @@ export async function generateStyledExcel(data: DataRow[]) {
 
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  saveAs(blob, `Validation_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+  saveAs(blob, `Validation_Report_${formatBST(new Date(), 'yyyy-MM-dd')}.xlsx`);
 }
