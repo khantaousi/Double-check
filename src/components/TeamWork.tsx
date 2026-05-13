@@ -537,17 +537,22 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 mb-12 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md p-8 rounded-[3rem] border border-white/20 dark:border-slate-800"
+        className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 mb-12 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-10 rounded-[3.5rem] border border-white/40 dark:border-slate-800 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.08)] relative overflow-hidden"
       >
-        <div className="flex items-center gap-6">
-          <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-800 rounded-3xl flex items-center justify-center text-white shadow-[0_12px_24px_-8px_rgba(37,99,235,0.6)]">
-            <Layout className="w-8 h-8" strokeWidth={2.5} />
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+        
+        <div className="flex items-center gap-8 relative z-10">
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-14 h-20 bg-gradient-to-b from-blue-500 to-blue-700 rounded-[2.5rem] flex items-center justify-center text-white shadow-[0_20px_40px_-10px_rgba(37,99,235,0.4)] border border-white/10 relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <Layout className="w-7 h-7 relative z-10 drop-shadow-md" strokeWidth={2.5} />
+            </div>
           </div>
           <div>
-            <h2 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter leading-none mb-2">Team Work</h2>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none opacity-70">
+            <h2 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none mb-3">Team Work</h2>
+            <div className="flex items-center gap-3">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.5)] animate-pulse" />
+              <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] leading-none opacity-80">
                 {isAdmin ? 'Operational Command & Analytics' : 'Active Duty & Mission Parameters'}
               </p>
             </div>
@@ -715,60 +720,61 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                     key={task.id}
                     whileHover={{ y: -8, scale: 1.01 }}
                     transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                    className={`p-7 rounded-[2.5rem] border transition-all relative overflow-hidden group cursor-pointer ${
+                    className={`p-8 rounded-[3rem] border transition-all relative overflow-hidden group cursor-pointer ${
                       task.status === 'completed' 
-                        ? 'bg-slate-50/40 dark:bg-slate-800/20 shadow-inner dark:shadow-none border-slate-100 dark:border-slate-800/50 grayscale-[0.3] opacity-70' 
-                        : 'bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-slate-100 dark:border-slate-800 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.06)] dark:shadow-none hover:shadow-[0_40px_70px_-20px_rgba(37,99,235,0.12)] hover:border-blue-300/30 dark:hover:border-blue-700/30'
+                        ? 'bg-slate-50/60 dark:bg-slate-800/20 shadow-inner dark:shadow-none border-slate-100 dark:border-slate-800/50 grayscale-[0.2] opacity-80' 
+                        : 'bg-white dark:bg-slate-900 border-slate-200/50 dark:border-slate-800 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.06)] dark:shadow-none hover:shadow-[0_48px_80px_-24px_rgba(37,99,235,0.15)] hover:border-blue-300 dark:hover:border-blue-700'
                     }`}
                   >
-                    <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none group-hover:opacity-10 transition-opacity">
-                      <Layout size={80} className="text-blue-600 rotate-12" />
+                    <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none group-hover:opacity-10 transition-opacity">
+                      <Layout size={90} className="text-blue-600 rotate-12" />
                     </div>
 
-                    <div className="flex justify-between items-start mb-5 relative z-10">
-                      <div className="flex flex-col gap-1.5">
-                        <div className={`px-3 py-1.5 rounded-2xl text-[9px] font-black uppercase tracking-[0.1em] flex items-center gap-2 w-fit shadow-sm border ${
+                    <div className="flex justify-between items-start mb-8 relative z-10">
+                      <div className="flex flex-col gap-2.5">
+                        <div className={`px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-[0.15em] flex items-center gap-2.5 w-fit shadow-sm border whitespace-nowrap ${
                           task.isRejected ? 'bg-red-50 text-red-600 border-red-100' :
                           task.status === 'completed' ? (task.isApproved ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-100') : 
                           task.status === 'in-progress' ? 'bg-blue-50 text-blue-600 border-blue-100' : 
                           task.status === 'paused' ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-indigo-50 text-indigo-600 border-indigo-100'
                         }`}>
-                          <div className={`w-1.5 h-1.5 rounded-full ${
-                            task.isRejected ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' :
-                            task.status === 'completed' ? (task.isApproved ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-400') : 
-                            task.status === 'in-progress' ? 'bg-blue-500 shadow-[0_0_8px_rgba(37,99,235,0.5)] animate-pulse' : 
-                            task.status === 'paused' ? 'bg-slate-400' : 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]'
+                          <div className={`w-2 h-2 rounded-full ${
+                            task.isRejected ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.6)]' :
+                            task.status === 'completed' ? (task.isApproved ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-slate-400') : 
+                            task.status === 'in-progress' ? 'bg-blue-500 shadow-[0_0_10px_rgba(37,99,235,0.5)] animate-pulse' : 
+                            task.status === 'paused' ? 'bg-slate-400' : 'bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]'
                           }`} />
-                          {task.isRejected ? 'Rejected Access' : 
-                           task.status === 'completed' ? (task.isApproved ? 'Verified & Complete' : 'Submission Pending') : 
-                           task.status.replace('-', ' ')}
-                          {task.isEveryday && <span className="ml-1 opacity-60 font-medium">| DAILY</span>}
+                          <span>
+                            {task.isRejected ? 'Access Denied' : 
+                             task.status === 'completed' ? (task.isApproved ? 'Verified / Cleared' : 'Awaiting Review') : 
+                             task.status.replace('-', ' ')}
+                          </span>
+                          {task.isEveryday && <span className="ml-1 px-2 py-0.5 bg-black/5 dark:bg-white/10 rounded-lg text-[8px] font-black text-slate-500">DAILY</span>}
                         </div>
                         {task.order !== undefined && (
-                          <div className="text-[9px] font-black text-slate-400/60 uppercase tracking-widest pl-1">
-                            L-Priority: <span className="text-slate-800 dark:text-slate-200">{task.order}</span>
+                          <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 opacity-80 flex items-center gap-2">
+                             <div className="w-1 h-1 rounded-full bg-slate-300" />
+                             PRTY-LVL: <span className="text-slate-900 dark:text-slate-200">{task.order}</span>
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="flex flex-col items-end">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
-                            {formatBST(task.isEveryday ? new Date() : parseISO(task.assignedAt), 'MMM dd')}
-                          </span>
+                      <div className="flex flex-col items-end gap-3">
+                        <div className="text-[10px] font-black text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-800 uppercase tracking-widest leading-none shadow-sm">
+                          {formatBST(task.isEveryday ? new Date() : parseISO(task.assignedAt), 'MMM dd')}
                         </div>
                         {isAdmin && (
-                          <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/50 p-1 rounded-xl border border-slate-100 dark:border-slate-800">
+                          <div className="flex items-center gap-1 bg-white dark:bg-slate-800 shadow-sm p-1 rounded-xl border border-slate-100 dark:border-slate-700/50">
                             <button 
                               onClick={() => handleOpenEditModal(task)}
-                              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all"
+                              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-lg transition-all"
                               title="Edit Task"
                             >
                               <Edit size={12} />
                             </button>
-                            <div className="w-px h-3 bg-slate-200 dark:bg-slate-700" />
+                            <div className="w-px h-3 bg-slate-100 dark:bg-slate-700 mx-0.5" />
                             <button 
                               onClick={() => handleDeleteTask(task.id)}
-                              className="p-2 text-slate-400 hover:text-red-500 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all"
+                              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-slate-700 rounded-lg transition-all"
                               title="Delete Task"
                             >
                               <Trash2 size={12} />
@@ -791,36 +797,36 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                       )}
                     </div>
 
-                    <div className="flex items-center justify-between pt-6 border-t border-slate-50 dark:border-slate-800 relative z-10">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-[12px] font-black text-white uppercase shadow-lg shadow-blue-500/20">
+                    <div className="flex items-center justify-between pt-8 border-t border-slate-100 dark:border-slate-800/50 relative z-10">
+                      <div className="flex items-center gap-4">
+                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-[12px] font-black text-white uppercase shadow-lg shadow-blue-500/20 border border-white/20">
                           {task.assigneeName.charAt(0)}
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-[10px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight leading-none mb-0.5">
+                          <span className="text-[11px] font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight leading-none mb-1">
                             {task.assigneeName}
                           </span>
-                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest opacity-60">
-                            ID: {task.assigneeId.slice(0, 5)}
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest opacity-70">
+                            UNIT: {task.assigneeId.slice(0, 6)}
                           </span>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         {isAdmin && task.status === 'completed' && !task.isApproved && !task.isRejected && (
                           <div className="flex items-center gap-2">
                             <button 
                               onClick={() => handleApproveTask(task)}
-                              className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-1.5 active:scale-95"
+                              className="bg-emerald-600 text-white min-w-[90px] h-11 px-4 rounded-2xl text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-[0_12px_24px_-8px_rgba(16,185,129,0.5)] flex items-center justify-center gap-2 active:scale-95"
                             >
-                              <CheckCheck size={12} />
+                              <CheckCheck size={14} />
                               Verify
                             </button>
                             <button 
                               onClick={() => handleRejectTask(task)}
-                              className="bg-white dark:bg-slate-800 text-red-500 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-50 dark:hover:bg-red-900/10 transition-all border border-red-100 dark:border-red-900/30 flex items-center gap-1.5 active:scale-95"
+                              className="bg-white dark:bg-slate-800 text-red-500 min-w-[90px] h-11 px-4 rounded-2xl text-[10px] font-black uppercase tracking-wider hover:bg-red-50 dark:hover:bg-red-900/10 transition-all border border-red-100 dark:border-red-900/30 flex items-center justify-center gap-2 active:scale-95"
                             >
-                              <X size={12} />
+                              <X size={14} />
                               Reject
                             </button>
                           </div>
@@ -828,25 +834,25 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                         {(task.status === 'pending' || task.status === 'paused') && (task.assigneeId === auth.currentUser?.uid || isAdmin) && (
                           <button 
                             onClick={() => task.status === 'paused' ? handleResumeTask(task) : handleStartTask(task)}
-                            className="bg-blue-600 text-white px-5 py-3 rounded-2xl hover:bg-blue-700 transition-all shadow-[0_8px_20px_-6px_rgba(37,99,235,0.4)] flex items-center gap-2 text-[10px] font-black uppercase tracking-widest active:scale-95"
+                            className="bg-blue-600 text-white min-w-[140px] h-11 px-6 rounded-2xl hover:bg-blue-700 transition-all shadow-[0_12px_24px_-8px_rgba(37,99,235,0.5)] flex items-center justify-center gap-2.5 text-[10px] font-black uppercase tracking-wider active:scale-95"
                           >
                             <Play size={14} fill="currentColor" />
-                            {task.status === 'paused' ? 'Resume System' : 'Initiate Work'}
+                            {task.status === 'paused' ? 'Resume Ops' : 'Initiate Unit'}
                           </button>
                         )}
                         {task.status === 'in-progress' && (task.assigneeId === auth.currentUser?.uid || isAdmin) && (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-3">
                              <button 
                               onClick={() => handlePauseTask(task)}
-                              className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 h-10 px-4 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-100 dark:border-slate-800 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"
+                              className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 min-w-[90px] h-11 px-4 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-800 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-wider"
                               title="Pause Task"
                             >
-                              <Pause size={12} fill="currentColor" />
+                              <Pause size={14} fill="currentColor" />
                               Hold
                             </button>
                             <button 
                               onClick={() => handleCompleteTask(task)}
-                              className="bg-emerald-600 text-white h-10 px-5 rounded-2xl hover:bg-emerald-700 transition-all shadow-[0_8px_20px_-6px_rgba(16,185,129,0.4)] flex items-center gap-2 text-[10px] font-black uppercase tracking-widest active:scale-95"
+                              className="bg-emerald-600 text-white min-w-[120px] h-11 px-5 rounded-2xl hover:bg-emerald-700 transition-all shadow-[0_12px_24px_-8px_rgba(16,185,129,0.5)] flex items-center justify-center gap-2.5 text-[10px] font-black uppercase tracking-wider active:scale-95"
                               title="Submit Task"
                             >
                               <CheckCircle2 size={16} />
@@ -855,13 +861,13 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                           </div>
                         )}
                         {task.status === 'completed' && (
-                          <div className="flex flex-col items-end">
-                            <div className="text-[11px] font-black text-emerald-600 flex items-center gap-1 leading-none">
-                              <Timer size={10} className="opacity-70" />
+                          <div className="flex flex-col items-end gap-1 px-2">
+                            <div className="text-[12px] font-black text-emerald-600 flex items-center gap-1.5 leading-none">
+                              <Timer size={12} className="opacity-70" />
                               {task.durationMinutes}m
                             </div>
-                            <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-0.5 opacity-60">
-                              Active Dev
+                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest opacity-60">
+                              ACTIVE TIME
                             </div>
                           </div>
                         )}
