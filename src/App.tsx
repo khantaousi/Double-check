@@ -846,9 +846,17 @@ export default function App() {
                     setShowNotifications(!showNotifications);
                     if (!showNotifications) markAllAsRead();
                   }}
-                  className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-slate-200 dark:border-slate-700 active:scale-95 relative"
+                  className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-slate-200 dark:border-slate-700 active:scale-95 relative group"
                 >
-                  <Bell size={18} />
+                  <motion.div
+                    whileHover={{ 
+                      rotate: [0, -20, 20, -20, 20, 0],
+                      transition: { duration: 0.5, ease: "easeInOut", repeat: Infinity }
+                    }}
+                    style={{ originY: 0.2 }}
+                  >
+                    <Bell size={18} />
+                  </motion.div>
                   {notifications.filter(n => !n.isRead).length > 0 && (
                     <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 border-2 border-white dark:border-slate-900 rounded-full" />
                   )}
