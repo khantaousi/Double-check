@@ -39,7 +39,8 @@ service cloud.firestore {
       return data.title is string && data.title.size() <= 200 &&
              data.assigneeId is string &&
              data.assignedAt is string &&
-             data.status in ['pending', 'in-progress', 'completed', 'paused'];
+             data.status in ['pending', 'in-progress', 'completed', 'paused'] &&
+             (!('history' in data) || data.history is list);
     }
 
     // 1. Products Library
@@ -66,25 +67,56 @@ service cloud.firestore {
 
     // 4. Tasks
     match /tasks/{taskId} {
-      allow list: if isSignedIn();
+      allow list: if isSignedIn() && (resource.data.assigneeId == request.auth.uid || isAdmin());
       allow get: if isSignedIn() && (isOwner(resource.data.assigneeId) || isAdmin());
-      allow create: if isSignedIn() && isValidTask(incoming());
+      allow create: if isSignedIn() && isValidTask(incoming()) && (
+        isAdmin() || (
+          incoming().assigneeId == request.auth.uid &&
+          incoming().isSelfAssigned == true &&
+          incoming().isApproved == false
+        )
+      );
       allow update: if isSignedIn() && (isOwner(resource.data.assigneeId) || isAdmin()) && (
         // Validation helper for types
         isValidTask(incoming()) && (
           // Admin can change anything
           isAdmin() ||
-          // User can change status and timing fields
-          incoming().diff(existing()).affectedKeys().hasOnly([
-            'status', 'startedAt', 'completedAt', 'durationMinutes', 
-            'totalPauseMinutes', 'lastPausedAt', 'resumedAt', 'updatedAt'
-          ])
+          // User can change status and timing fields + history
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'startedAt', 'completedAt', 'durationMinutes', 
+              'totalPauseMinutes', 'lastPausedAt', 'resumedAt', 'updatedAt',
+              'history'
+            ]) &&
+            incoming().assigneeId == existing().assigneeId &&
+            incoming().isSelfAssigned == existing().isSelfAssigned
+          )
         )
       );
       allow delete: if isAdmin();
     }
     
-    // 5. Connection Test
+    // 5. Notifications
+    function isValidNotification(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() <= 200 &&
+             data.message is string && data.message.size() <= 1000 &&
+             data.type in ['task_assigned', 'task_approved', 'task_needs_approval', 'system'] &&
+             data.isRead is bool &&
+             data.createdAt is string;
+    }
+
+    match /notifications/{notificationId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidNotification(incoming());
+      allow update: if isSignedIn() && isOwner(existing().userId) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['isRead']) &&
+                    incoming().userId == existing().userId;
+      allow delete: if isSignedIn() && isOwner(existing().userId);
+    }
+
+    // 6. Connection Test
     match /test/connection {
       allow read: if true;
     }

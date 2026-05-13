@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { DataRow, ValidationRule, ProductPrice, DEFAULT_RULES, DeliverySettings as IDeliverySettings, DEFAULT_DELIVERY_SETTINGS, UserProfile, GiftRule, SiteSettings, DEFAULT_SITE_SETTINGS } from './types';
+import { AppNotification, DataRow, TaskHistoryEntry, ValidationRule, ProductPrice, DEFAULT_RULES, DeliverySettings as IDeliverySettings, DEFAULT_DELIVERY_SETTINGS, UserProfile, GiftRule, SiteSettings, DEFAULT_SITE_SETTINGS } from './types';
 import { processData, calculateRow } from './lib/processor';
 import { RuleEditor } from './components/RuleEditor';
 import { GiftRuleEditor } from './components/GiftRuleEditor';
@@ -23,12 +23,13 @@ import { FileUpload } from './components/FileUpload';
 import { DataTable } from './components/DataTable';
 import { UserManagement } from './components/UserManagement';
 import WelcomeScreen from './components/WelcomeScreen';
-import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout } from 'lucide-react';
+import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, auth, logInWithEmail, signOut, signInWithGoogle } from './lib/firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, setDoc, getDoc, writeBatch, where } from 'firebase/firestore';
 import { seedProducts } from './lib/seed';
 import { handleFirestoreError, OperationType } from './lib/errors';
+import { format, subDays, parseISO } from 'date-fns';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { getInitials, getAvatarColor } from './lib/avatar';
 import { PrintSlips } from './components/PrintSlips';
@@ -67,6 +68,8 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [pendingTasksCount, setPendingTasksCount] = useState(0);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const isAdmin = userProfile?.role === 'admin' || user?.email === 'khantaousi@gmail.com';
 
@@ -292,10 +295,40 @@ export default function App() {
       }
     }, (error) => {
       console.error("Pending tasks count error:", error);
+      handleFirestoreError(error, OperationType.LIST, 'tasks');
     });
 
     return () => unsubscribeTasks();
   }, [user, userProfile, isAdmin]);
+
+  useEffect(() => {
+    if (!user) {
+      setNotifications([]);
+      return;
+    }
+    const q = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    );
+    const unsubscribeNotif = onSnapshot(q, (snapshot) => {
+      setNotifications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AppNotification[]);
+    }, (error) => {
+      console.error("Notifications snapshot error:", error);
+      handleFirestoreError(error, OperationType.LIST, 'notifications');
+    });
+    return () => unsubscribeNotif();
+  }, [user]);
+
+  const markAllAsRead = async () => {
+    const unread = notifications.filter(n => !n.isRead);
+    if (unread.length === 0) return;
+    const batch = writeBatch(db);
+    unread.forEach(n => {
+      if (n.id) batch.update(doc(db, 'notifications', n.id), { isRead: true });
+    });
+    await batch.commit();
+  };
 
   useEffect(() => {
     if (!user) {
@@ -803,6 +836,67 @@ export default function App() {
             >
               {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
+
+            {user && (
+              <div className="relative">
+                <button 
+                  onClick={() => {
+                    setShowNotifications(!showNotifications);
+                    if (!showNotifications) markAllAsRead();
+                  }}
+                  className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-slate-200 dark:border-slate-700 active:scale-95 relative"
+                >
+                  <Bell size={18} />
+                  {notifications.filter(n => !n.isRead).length > 0 && (
+                    <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 border-2 border-white dark:border-slate-900 rounded-full" />
+                  )}
+                </button>
+                
+                <AnimatePresence>
+                  {showNotifications && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        className="absolute right-0 mt-3 w-80 bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] z-50 overflow-hidden"
+                      >
+                        <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Notifications</span>
+                          <button onClick={markAllAsRead} className="text-[9px] font-black text-blue-600 uppercase hover:underline">Mark all read</button>
+                        </div>
+                        <div className="max-h-[400px] overflow-y-auto no-scrollbar">
+                          {notifications.length === 0 ? (
+                            <div className="p-10 text-center">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase italic">No alerts</p>
+                            </div>
+                          ) : (
+                            notifications.map((n, i) => (
+                              <div 
+                                key={n.id || i} 
+                                onClick={() => {
+                                  if (n.taskId) {
+                                    setActiveTab('team');
+                                    setShowNotifications(false);
+                                  }
+                                }}
+                                className={`p-5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border-b last:border-0 border-slate-100 dark:border-slate-800 relative ${!n.isRead ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''}`}
+                              >
+                                <p className="text-[10px] font-black text-slate-800 dark:text-white uppercase mb-1">{n.title}</p>
+                                <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 leading-tight mb-2">{n.message}</p>
+                                <span className="text-[8px] font-bold text-slate-300 dark:text-slate-600 uppercase italic">{format(parseISO(n.createdAt), 'MMM dd, HH:mm')}</span>
+                                {!n.isRead && <div className="absolute top-5 right-5 w-1.5 h-1.5 bg-blue-600 rounded-full" />}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
 
             {user ? (
               <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-1.5 px-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300">

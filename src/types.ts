@@ -76,6 +76,25 @@ export interface DataRow {
   notes?: string[];
 }
 
+export interface TaskHistoryEntry {
+  status: TeamTask['status'] | 'approved' | 'rejected' | 'created';
+  timestamp: string;
+  performerId: string;
+  performerName: string;
+  note?: string;
+}
+
+export interface AppNotification {
+  id?: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'task_assigned' | 'task_approved' | 'task_needs_approval' | 'system';
+  isRead: boolean;
+  createdAt: string;
+  taskId?: string;
+}
+
 export interface TeamTask {
   id: string;
   title: string;
@@ -100,6 +119,7 @@ export interface TeamTask {
   approvedAt?: string;
   rejectedBy?: string;
   rejectedAt?: string;
+  history?: TaskHistoryEntry[];
 }
 
 export interface DeliverySettings {

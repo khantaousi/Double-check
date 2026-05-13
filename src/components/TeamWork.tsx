@@ -3,9 +3,10 @@ import { UserProfile, TeamTask } from '../types';
 import { db, auth } from '../lib/firebase';
 import { collection, addDoc, query, where, onSnapshot, updateDoc, doc, deleteDoc, orderBy, getDocs, writeBatch } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/errors';
-import { CheckCircle2, Clock, Plus, UserPlus, Trash2, Calendar, Layout, User, Play, Pause, BarChart3, TrendingUp, Timer, Database, Edit, CheckCheck, X } from 'lucide-react';
+import { CheckCircle2, Clock, Plus, UserPlus, Trash2, Calendar, Layout, User, Play, Pause, BarChart3, TrendingUp, Timer, Database, Edit, CheckCheck, X, Bell, ChevronDown, ChevronUp, History } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, differenceInMinutes, parseISO, subDays } from 'date-fns';
+import { TaskHistoryEntry, AppNotification } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 interface TeamWorkProps {
@@ -32,7 +33,55 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   const [editingTask, setEditingTask] = useState<TeamTask | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<'all' | TeamTask['status']>('all');
+  const [selectedReportAgentId, setSelectedReportAgentId] = useState<string>('all');
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const isAdmin = userProfile.role === 'admin';
+
+  useEffect(() => {
+    if (!auth.currentUser?.uid) return;
+    const q = query(
+      collection(db, 'notifications'),
+      where('userId', '==', auth.currentUser.uid),
+      orderBy('createdAt', 'desc')
+    );
+    return onSnapshot(q, (snapshot) => {
+      setNotifications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AppNotification[]);
+    }, (error) => {
+      console.error("TeamWork notifications error:", error);
+      handleFirestoreError(error, OperationType.LIST, 'notifications');
+    });
+  }, []);
+
+  const sendNotification = async (notif: Omit<AppNotification, 'id' | 'isRead' | 'createdAt'>) => {
+    try {
+      await addDoc(collection(db, 'notifications'), {
+        ...notif,
+        isRead: false,
+        createdAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error sending notification:", error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    const unread = notifications.filter(n => !n.isRead);
+    if (unread.length === 0) return;
+    const batch = writeBatch(db);
+    unread.forEach(n => {
+      if (n.id) batch.update(doc(db, 'notifications', n.id), { isRead: true });
+    });
+    await batch.commit();
+  };
+
+  const createHistoryEntry = (status: TaskHistoryEntry['status'], note?: string): TaskHistoryEntry => ({
+    status,
+    timestamp: new Date().toISOString(),
+    performerId: auth.currentUser?.uid || 'system',
+    performerName: userProfile.displayName || 'System',
+    note
+  });
 
   useEffect(() => {
     // Current user context
@@ -61,6 +110,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       setTasks(taskList);
     }, (error) => {
       console.error("Task subscription error:", error);
+      handleFirestoreError(error, OperationType.LIST, 'tasks');
     });
 
     return () => unsubscribe();
@@ -135,6 +185,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       if (editingTask) {
         // Edit is always single task
         const selectedUser = allUsers.find(u => u.id === effectiveAssigneeIds[0]) || userProfile;
+        const newHistory = [...(editingTask.history || []), createHistoryEntry('created', 'Task Protocol Updated')];
         const taskData = {
           title: newTask.title,
           description: newTask.description,
@@ -143,11 +194,21 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
           assignedAt: newTask.isEveryday ? (editingTask.assignedAt || now.toISOString()) : scheduledDateTime.toISOString(),
           order: newTask.order,
           isEveryday: newTask.isEveryday || false,
-          updatedAt: now.toISOString()
+          updatedAt: now.toISOString(),
+          history: newHistory
         };
         
         try {
           await updateDoc(doc(db, 'tasks', editingTask.id), taskData);
+          if (editingTask.assigneeId !== effectiveAssigneeIds[0]) {
+            sendNotification({
+              userId: effectiveAssigneeIds[0],
+              title: 'New Task Protocol',
+              message: `You have been assigned a new protocol: ${newTask.title}`,
+              type: 'task_assigned',
+              taskId: editingTask.id
+            });
+          }
         } catch (error) {
           handleFirestoreError(error, OperationType.UPDATE, `tasks/${editingTask.id}`);
         }
@@ -157,6 +218,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
         
         effectiveAssigneeIds.forEach(uid => {
           const selectedUser = allUsers.find(u => u.id === uid) || userProfile;
+          const taskId = doc(collection(db, 'tasks')).id;
           const taskData: any = {
             title: newTask.title,
             description: newTask.description,
@@ -167,6 +229,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
             createdBy: auth.currentUser?.uid,
             order: newTask.order,
             isEveryday: newTask.isEveryday || false,
+            history: [createHistoryEntry('created')]
           };
 
           if (!isAdmin) {
@@ -174,8 +237,18 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
             taskData.isApproved = false;
           }
 
-          const newDocRef = doc(collection(db, 'tasks'));
-          batch.set(newDocRef, taskData);
+          batch.set(doc(db, 'tasks', taskId), taskData);
+
+          // Notifications
+          if (isAdmin) {
+            sendNotification({
+              userId: uid,
+              title: 'New Unit Assignment',
+              message: `New mission protocol assigned: ${newTask.title}`,
+              type: 'task_assigned',
+              taskId: taskId
+            });
+          }
         });
 
         await batch.commit();
@@ -198,52 +271,68 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     }
   };
 
-  const handleApproveTask = async (taskId: string) => {
+  const handleApproveTask = async (task: TeamTask) => {
     try {
-      await updateDoc(doc(db, 'tasks', taskId), {
+      const newHistory = [...(task.history || []), createHistoryEntry('approved')];
+      await updateDoc(doc(db, 'tasks', task.id), {
         isApproved: true,
         isRejected: false,
         approvedBy: auth.currentUser?.uid,
-        approvedAt: new Date().toISOString()
+        approvedAt: new Date().toISOString(),
+        history: newHistory
+      });
+      // Notify Agent
+      sendNotification({
+        userId: task.assigneeId,
+        title: 'Task Verified',
+        message: `Your protocol "${task.title}" has been verified and approved.`,
+        type: 'task_approved',
+        taskId: task.id
       });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `tasks/${taskId}`);
+      handleFirestoreError(error, OperationType.UPDATE, `tasks/${task.id}`);
     }
   };
 
-  const handleRejectTask = async (taskId: string) => {
+  const handleRejectTask = async (task: TeamTask) => {
     if (!window.confirm("Are you sure you want to reject this task?")) return;
     try {
-      await updateDoc(doc(db, 'tasks', taskId), {
+      const newHistory = [...(task.history || []), createHistoryEntry('rejected')];
+      await updateDoc(doc(db, 'tasks', task.id), {
         isRejected: true,
         isApproved: false,
         rejectedBy: auth.currentUser?.uid,
-        rejectedAt: new Date().toISOString()
+        rejectedAt: new Date().toISOString(),
+        history: newHistory
       });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `tasks/${taskId}`);
+      handleFirestoreError(error, OperationType.UPDATE, `tasks/${task.id}`);
     }
   };
 
-  const handleStartTask = async (taskId: string) => {
+  const handleStartTask = async (task: TeamTask) => {
     try {
-      await updateDoc(doc(db, 'tasks', taskId), {
+      const newHistory = [...(task.history || []), createHistoryEntry('in-progress')];
+      await updateDoc(doc(db, 'tasks', task.id), {
         status: 'in-progress',
-        startedAt: new Date().toISOString()
+        startedAt: new Date().toISOString(),
+        history: newHistory
       });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `tasks/${taskId}`);
+      handleFirestoreError(error, OperationType.UPDATE, `tasks/${task.id}`);
     }
   };
 
-  const handlePauseTask = async (taskId: string) => {
+  const handlePauseTask = async (task: TeamTask) => {
     try {
-      await updateDoc(doc(db, 'tasks', taskId), {
+      const newHistory = [...(task.history || []), createHistoryEntry('paused')];
+      await updateDoc(doc(db, 'tasks', task.id), {
         status: 'paused',
-        lastPausedAt: new Date().toISOString()
+        lastPausedAt: new Date().toISOString(),
+        history: newHistory
       });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `tasks/${taskId}`);
+      handleFirestoreError(error, OperationType.UPDATE, `tasks/${task.id}`);
     }
   };
 
@@ -252,11 +341,13 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       const now = new Date();
       const pauseDuration = task.lastPausedAt ? differenceInMinutes(now, parseISO(task.lastPausedAt)) : 0;
       const totalPause = (task.totalPauseMinutes || 0) + pauseDuration;
+      const newHistory = [...(task.history || []), createHistoryEntry('in-progress', `Resumed after ${pauseDuration}m pause`)];
 
       await updateDoc(doc(db, 'tasks', task.id), {
         status: 'in-progress',
         resumedAt: now.toISOString(),
-        totalPauseMinutes: totalPause
+        totalPauseMinutes: totalPause,
+        history: newHistory
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `tasks/${task.id}`);
@@ -268,13 +359,28 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     const startTimeStr = task.startedAt || task.assignedAt;
     const rawDuration = differenceInMinutes(now, parseISO(startTimeStr));
     const effectiveDuration = Math.max(0, rawDuration - (task.totalPauseMinutes || 0));
+    const newHistory = [...(task.history || []), createHistoryEntry('completed')];
 
     try {
       await updateDoc(doc(db, 'tasks', task.id), {
         status: 'completed',
         completedAt: now.toISOString(),
-        durationMinutes: effectiveDuration
+        durationMinutes: effectiveDuration,
+        history: newHistory
       });
+
+      // Notify Admins
+      if (task.isSelfAssigned) {
+        allUsers.filter(u => u.role === 'admin').forEach(admin => {
+          sendNotification({
+            userId: admin.id!,
+            title: 'Critical: Approval Required',
+            message: `User ${task.assigneeName} completed self-assigned task: ${task.title}`,
+            type: 'task_needs_approval',
+            taskId: task.id
+          });
+        });
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `tasks/${task.id}`);
     }
@@ -344,16 +450,23 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
     const filteredForStats = tasks.filter(t => {
       const taskDate = format(parseISO(t.assignedAt), 'yyyy-MM-dd');
-      if (statsDateRange === 'today') return taskDate === todayStr;
-      if (statsDateRange === 'yesterday') return taskDate === yesterdayStr;
-      if (statsDateRange === '30days') return true; 
-      if (statsDateRange === 'custom') {
-        return taskDate >= customStatsStart && taskDate <= customStatsEnd;
+      
+      // Date filtering
+      let dateMatch = true;
+      if (statsDateRange === 'today') dateMatch = taskDate === todayStr;
+      else if (statsDateRange === 'yesterday') dateMatch = taskDate === yesterdayStr;
+      else if (statsDateRange === '30days') dateMatch = true; 
+      else if (statsDateRange === 'custom') {
+        dateMatch = taskDate >= customStatsStart && taskDate <= customStatsEnd;
       }
-      return true;
+
+      // Agent filtering
+      const agentMatch = selectedReportAgentId === 'all' || t.assigneeId === selectedReportAgentId;
+
+      return dateMatch && agentMatch;
     });
 
-    const userStatsMap = new Map<string, { name: string, completed: number, avgMinutes: number, totalMinutes: number, totalPause: number, taskIds: string[] }>();
+    const userStatsMap = new Map<string, { name: string, completed: number, avgMinutes: number, totalMinutes: number, totalPause: number, taskIds: string[], completedTasks: { title: string, duration: number, date: string }[] }>();
     
     filteredForStats.forEach(task => {
       // Only count completed tasks
@@ -363,18 +476,23 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                         task.isApproved === true;
 
       if (isCountable) {
-        const stats = userStatsMap.get(task.assigneeId) || { name: task.assigneeName, completed: 0, avgMinutes: 0, totalMinutes: 0, totalPause: 0, taskIds: [] };
+        const stats = userStatsMap.get(task.assigneeId) || { name: task.assigneeName, completed: 0, avgMinutes: 0, totalMinutes: 0, totalPause: 0, taskIds: [], completedTasks: [] };
         stats.completed += 1;
         stats.totalMinutes += task.durationMinutes;
         stats.totalPause += (task.totalPauseMinutes || 0);
         stats.avgMinutes = Math.round(stats.totalMinutes / stats.completed);
         stats.taskIds.push(task.id);
+        stats.completedTasks.push({
+          title: task.title,
+          duration: task.durationMinutes || 0,
+          date: format(parseISO(task.completedAt || task.assignedAt), 'MMM dd, HH:mm')
+        });
         userStatsMap.set(task.assigneeId, stats);
       }
     });
 
     return Array.from(userStatsMap.values()).sort((a, b) => b.completed - a.completed);
-  }, [tasks, isAdmin, statsDateRange, customStatsStart, customStatsEnd]);
+  }, [tasks, isAdmin, statsDateRange, customStatsStart, customStatsEnd, selectedReportAgentId]);
 
   const handleDeleteUserTasks = async (taskIds: string[], userName: string) => {
     if (!isAdmin) return;
@@ -679,14 +797,14 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                         {isAdmin && task.status === 'completed' && !task.isApproved && !task.isRejected && (
                           <div className="flex items-center gap-2">
                             <button 
-                              onClick={() => handleApproveTask(task.id)}
+                              onClick={() => handleApproveTask(task)}
                               className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-1.5 active:scale-95"
                             >
                               <CheckCheck size={12} />
                               Verify
                             </button>
                             <button 
-                              onClick={() => handleRejectTask(task.id)}
+                              onClick={() => handleRejectTask(task)}
                               className="bg-white dark:bg-slate-800 text-red-500 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-50 dark:hover:bg-red-900/10 transition-all border border-red-100 dark:border-red-900/30 flex items-center gap-1.5 active:scale-95"
                             >
                               <X size={12} />
@@ -696,7 +814,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                         )}
                         {(task.status === 'pending' || task.status === 'paused') && !isAdmin && (
                           <button 
-                            onClick={() => task.status === 'paused' ? handleResumeTask(task) : handleStartTask(task.id)}
+                            onClick={() => task.status === 'paused' ? handleResumeTask(task) : handleStartTask(task)}
                             className="bg-blue-600 text-white px-5 py-3 rounded-2xl hover:bg-blue-700 transition-all shadow-[0_8px_20px_-6px_rgba(37,99,235,0.4)] flex items-center gap-2 text-[10px] font-black uppercase tracking-widest active:scale-95"
                           >
                             <Play size={14} fill="currentColor" />
@@ -706,7 +824,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                         {task.status === 'in-progress' && !isAdmin && (
                           <div className="flex items-center gap-2">
                              <button 
-                              onClick={() => handlePauseTask(task.id)}
+                              onClick={() => handlePauseTask(task)}
                               className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 h-10 px-4 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-100 dark:border-slate-800 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"
                               title="Pause Task"
                             >
@@ -767,34 +885,70 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
             className="space-y-6"
           >
             {/* Report Filters */}
-            <div className="flex flex-wrap items-center gap-4 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm">
-              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-                {(['today', 'yesterday', '30days', 'custom'] as const).map(range => (
-                  <button 
-                    key={range}
-                    onClick={() => setStatsDateRange(range)}
-                    className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${statsDateRange === range ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500'}`}
-                  >
-                    {range === '30days' ? 'Last 30 Days' : range}
-                  </button>
-                ))}
+            <div className="flex flex-wrap items-center gap-6 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl -mr-10 -mt-10" />
+              
+              <div className="flex flex-col gap-2">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 opacity-60">Time Horizon</span>
+                <div className="flex bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20 dark:border-slate-700/30">
+                  {(['today', 'yesterday', '30days', 'custom'] as const).map(range => (
+                    <button 
+                      key={range}
+                      onClick={() => setStatsDateRange(range)}
+                      className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all whitespace-nowrap tracking-widest ${statsDateRange === range ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                    >
+                      {range === '30days' ? 'Aggregate' : range}
+                    </button>
+                  ))}
+                </div>
               </div>
 
+              {isAdmin && (
+                <div className="flex flex-col gap-2 min-w-[200px]">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 opacity-60">Agent Filter</span>
+                  <div className="relative group">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-focus-within:text-blue-500 transition-colors" size={14} />
+                    <select 
+                      value={selectedReportAgentId}
+                      onChange={(e) => setSelectedReportAgentId(e.target.value)}
+                      className="w-full bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm pl-11 pr-10 py-3 rounded-2xl border border-white/20 dark:border-slate-700/30 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 outline-none focus:ring-4 focus:ring-blue-500/10 appearance-none cursor-pointer hover:bg-white dark:hover:bg-slate-700 transition-all"
+                    >
+                      <option value="all" className="font-black">All Personnel</option>
+                      {assignableUsers.map(u => (
+                        <option key={u.id} value={u.id} className="font-black">{u.displayName}</option>
+                      ))}
+                    </select>
+                    {selectedReportAgentId !== 'all' && (
+                      <button 
+                        onClick={() => setSelectedReportAgentId('all')}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500 transition-colors p-1"
+                        title="Clear Filter"
+                      >
+                        <X size={12} strokeWidth={3} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {statsDateRange === 'custom' && (
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="date" 
-                    value={customStatsStart}
-                    onChange={(e) => setCustomStatsStart(e.target.value)}
-                    className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2 px-4 text-[10px] font-bold outline-none"
-                  />
-                  <span className="text-slate-400 font-bold text-[10px]">TO</span>
-                  <input 
-                    type="date" 
-                    value={customStatsEnd}
-                    onChange={(e) => setCustomStatsEnd(e.target.value)}
-                    className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2 px-4 text-[10px] font-bold outline-none"
-                  />
+                <div className="flex flex-col gap-2">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 opacity-60">Custom Parameters</span>
+                  <div className="flex items-center gap-3 bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20 dark:border-slate-700/30">
+                    <input 
+                      type="date" 
+                      value={customStatsStart}
+                      onChange={(e) => setCustomStatsStart(e.target.value)}
+                      className="bg-white/80 dark:bg-slate-900/80 border-none rounded-xl py-2 px-4 text-[9px] font-black outline-none w-32"
+                    />
+                    <span className="text-slate-400 font-black text-[9px] uppercase tracking-widest opacity-50">to</span>
+                    <input 
+                      type="date" 
+                      value={customStatsEnd}
+                      onChange={(e) => setCustomStatsEnd(e.target.value)}
+                      className="bg-white/80 dark:bg-slate-900/80 border-none rounded-xl py-2 px-4 text-[9px] font-black outline-none w-32"
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -906,39 +1060,111 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                   <TrendingUp className="text-green-600" size={18} />
                   {isAdmin ? 'Team Rankings' : 'Personal Rank'}
                 </h3>
-                <div className="space-y-6">
+                <div className="space-y-8">
                   {(analyticsData || []).map((staff, idx) => (
-                    <div key={staff.name} className="flex items-center justify-between group">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black ${
-                          idx === 0 ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-                        }`}>
-                          {idx + 1}
+                    <div key={staff.name} className="flex flex-col gap-4 group bg-slate-50/50 dark:bg-slate-800/20 p-5 rounded-3xl border border-transparent hover:border-slate-100 dark:hover:border-slate-800 transition-all">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black ${
+                            idx === 0 ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                          }`}>
+                            {idx + 1}
+                          </div>
+                          <div>
+                            <p className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-tighter">{staff.name}</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase">{staff.completed} Tasks Executed</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-tighter">{staff.name}</p>
-                          <p className="text-[9px] font-bold text-slate-400 uppercase">{staff.completed} Tasks</p>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-xs font-black text-slate-400 dark:text-slate-500">{staff.totalPause}m</p>
+                            <p className="text-[8px] font-bold text-slate-300 dark:text-slate-600 uppercase italic">PAUSE</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-black text-blue-600">{staff.avgMinutes}m</p>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase italic">AVG TIME</p>
+                          </div>
+                          {isAdmin && staff.taskIds.length > 0 && (
+                            <button 
+                              onClick={() => handleDeleteUserTasks(staff.taskIds, staff.name)}
+                              className="p-2 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                              title={`Clear ${staff.completed} report tasks`}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <p className="text-xs font-black text-slate-400 dark:text-slate-500">{staff.totalPause}m</p>
-                          <p className="text-[8px] font-bold text-slate-300 dark:text-slate-600 uppercase italic">PAUSE</p>
+
+                        {/* Completed Tasks List */}
+                        <div className="mt-2 space-y-3 pl-11">
+                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Work History & Status Log</p>
+                          {staff.completedTasks.map((t, tIdx) => {
+                            const originalTask = tasks.find(task => task.title === t.title && task.assigneeName === staff.name);
+                            const isHistoryExpanded = expandedHistoryId === `${staff.name}-${tIdx}`;
+                            
+                            return (
+                              <div key={tIdx} className="flex flex-col gap-2 py-2 border-l-2 border-slate-100 dark:border-slate-800 pl-4 bg-white/30 dark:bg-slate-900/30 rounded-r-2xl">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase leading-tight truncate">
+                                      {t.title}
+                                    </span>
+                                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
+                                      {t.date}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-[9px] font-black text-blue-500/80 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-md whitespace-nowrap">
+                                      {t.duration}m
+                                    </span>
+                                    {originalTask?.history && (
+                                      <button 
+                                        onClick={() => setExpandedHistoryId(isHistoryExpanded ? null : `${staff.name}-${tIdx}`)}
+                                        className="p-1 text-slate-400 hover:text-blue-500 transition-colors"
+                                      >
+                                        {isHistoryExpanded ? <ChevronUp size={14} /> : <History size={14} />}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Expanded History Log */}
+                                <AnimatePresence>
+                                  {isHistoryExpanded && originalTask?.history && (
+                                    <motion.div 
+                                      initial={{ height: 0, opacity: 0 }}
+                                      animate={{ height: 'auto', opacity: 1 }}
+                                      exit={{ height: 0, opacity: 0 }}
+                                      className="overflow-hidden"
+                                    >
+                                      <div className="space-y-3 pt-3 mt-3 border-t border-slate-100 dark:border-slate-800">
+                                        {originalTask.history.map((h, i) => (
+                                          <div key={i} className="flex items-start gap-3">
+                                            <div className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${
+                                              h.status === 'completed' ? 'bg-emerald-500' :
+                                              h.status === 'in-progress' ? 'bg-blue-500' :
+                                              h.status === 'paused' ? 'bg-slate-400' :
+                                              h.status === 'approved' ? 'bg-emerald-600' :
+                                              h.status === 'rejected' ? 'bg-red-500' : 'bg-indigo-500'
+                                            }`} />
+                                            <div className="flex flex-col">
+                                              <div className="flex items-center gap-2">
+                                                <span className="text-[9px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-widest">{h.status.replace('-', ' ')}</span>
+                                                <span className="text-[7px] font-bold text-slate-300 dark:text-slate-600 uppercase italic">{format(parseISO(h.timestamp), 'HH:mm:ss')}</span>
+                                              </div>
+                                              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">By {h.performerName} {h.note ? `• ${h.note}` : ''}</p>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                            );
+                          })}
                         </div>
-                        <div className="text-right">
-                          <p className="text-xs font-black text-blue-600">{staff.avgMinutes}m</p>
-                          <p className="text-[8px] font-bold text-slate-400 uppercase italic">AVG TIME</p>
-                        </div>
-                        {isAdmin && staff.taskIds.length > 0 && (
-                          <button 
-                            onClick={() => handleDeleteUserTasks(staff.taskIds, staff.name)}
-                            className="p-2 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                            title={`Clear ${staff.completed} report tasks`}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
-                      </div>
                     </div>
                   ))}
                   {(!analyticsData || analyticsData.length === 0) && (
