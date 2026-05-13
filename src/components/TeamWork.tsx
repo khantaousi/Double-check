@@ -4,11 +4,12 @@ import { db, auth } from '../lib/firebase';
 import { collection, addDoc, query, where, onSnapshot, updateDoc, doc, deleteDoc, orderBy, getDocs, writeBatch } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/errors';
 import { cleanObject, getBSTISOString, formatBST } from '../lib/utils';
-import { CheckCircle2, Clock, Plus, UserPlus, Trash2, Calendar, Layout, User, Play, Pause, BarChart3, TrendingUp, Timer, Database, Edit, CheckCheck, X, Bell, ChevronDown, ChevronUp, History } from 'lucide-react';
+import { CheckCircle2, Clock, Plus, UserPlus, Trash2, Calendar, Layout, User, Play, Pause, BarChart3, TrendingUp, Timer, Database, Edit, CheckCheck, X, Bell, ChevronDown, ChevronUp, History, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, differenceInMinutes, parseISO, subDays } from 'date-fns';
 import { TaskHistoryEntry, AppNotification } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { generateRankingsExcel } from '../lib/excel';
 
 interface TeamWorkProps {
   userProfile: UserProfile;
@@ -1075,10 +1076,22 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
               </div>
 
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-10">
-                <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 mb-8 uppercase tracking-widest flex items-center gap-3">
-                  <TrendingUp className="text-green-600" size={18} />
-                  {isAdmin ? 'Team Rankings' : 'Personal Rank'}
-                </h3>
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest flex items-center gap-3">
+                    <TrendingUp className="text-green-600" size={18} />
+                    {isAdmin ? 'Team Rankings' : 'Personal Rank'}
+                  </h3>
+                  {isAdmin && analyticsData && analyticsData.length > 0 && (
+                    <button 
+                      onClick={() => generateRankingsExcel(analyticsData)}
+                      className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest shadow-sm"
+                      title="Download Ranking Report"
+                    >
+                      <Download size={14} />
+                      Excel Report
+                    </button>
+                  )}
+                </div>
                 <div className="space-y-8">
                   {(analyticsData || []).map((staff, idx) => (
                     <div key={staff.name} className="flex flex-col gap-4 group bg-slate-50/50 dark:bg-slate-800/20 p-5 rounded-3xl border border-transparent hover:border-slate-100 dark:hover:border-slate-800 transition-all">

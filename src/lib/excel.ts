@@ -67,3 +67,48 @@ export async function generateStyledExcel(data: DataRow[]) {
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   saveAs(blob, `Validation_Report_${formatBST(new Date(), 'yyyy-MM-dd')}.xlsx`);
 }
+
+export async function generateRankingsExcel(data: any[]) {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Team Rankings');
+
+  // Define columns
+  worksheet.columns = [
+    { header: 'Rank', key: 'rank', width: 8 },
+    { header: 'Staff Name', key: 'name', width: 25 },
+    { header: 'Work History (Protocol & Timestamp)', key: 'workHistory', width: 60 },
+    { header: 'Completed', key: 'completed', width: 12 },
+    { header: 'Total Pause (m)', key: 'totalPause', width: 15 },
+    { header: 'Avg Time (m)', key: 'avgMinutes', width: 15 },
+  ];
+
+  // Header styling
+  worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  worksheet.getRow(1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF2563EB' } // matching blue-600
+  };
+
+  // Add data
+  data.forEach((item, index) => {
+    const workHistory = item.completedTasks?.map((t: any) => `- ${t.title} [${t.date}]`).join('\n') || '';
+    
+    const row = worksheet.addRow({
+      rank: index + 1,
+      name: item.name,
+      workHistory: workHistory,
+      completed: item.completed,
+      totalPause: item.totalPause,
+      avgMinutes: item.avgMinutes
+    });
+
+    // Enable text wrapping for work history and alignment
+    row.getCell('workHistory').alignment = { wrapText: true, vertical: 'top' };
+    row.alignment = { vertical: 'top' };
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  saveAs(blob, `Team_Rankings_${formatBST(new Date(), 'yyyy-MM-dd')}.xlsx`);
+}
