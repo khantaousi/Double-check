@@ -35,6 +35,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   const [editingTask, setEditingTask] = useState<TeamTask | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<'all' | TeamTask['status']>('all');
+  const [selectedBoardAgentId, setSelectedBoardAgentId] = useState<string>('all');
   const [selectedReportAgentId, setSelectedReportAgentId] = useState<string>('all');
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -121,6 +122,8 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   const [purgeStartDate, setPurgeStartDate] = useState(formatBST(subDays(new Date(), 90), 'yyyy-MM-dd'));
   const [purgeEndDate, setPurgeEndDate] = useState(formatBST(subDays(new Date(), 30), 'yyyy-MM-dd'));
   const [isPurging, setIsPurging] = useState(false);
+  const [editIsApproved, setEditIsApproved] = useState(false);
+  const [editIsRejected, setEditIsRejected] = useState(false);
 
   const handlePurgeTasks = async () => {
     if (!isAdmin) return;
@@ -160,6 +163,8 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
   const handleOpenEditModal = (task: TeamTask) => {
     setEditingTask(task);
+    setEditIsApproved(task.isApproved || false);
+    setEditIsRejected(task.isRejected || false);
     setNewTask({
       title: task.title,
       description: task.description || '',
@@ -196,9 +201,22 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
           assignedAt: newTask.isEveryday ? (editingTask.assignedAt || getBSTISOString(now)) : getBSTISOString(scheduledDateTime),
           order: newTask.order || 0,
           isEveryday: newTask.isEveryday || false,
+          isApproved: isAdmin && editingTask.status === 'completed' ? editIsApproved : editingTask.isApproved,
+          isRejected: isAdmin && editingTask.status === 'completed' ? editIsRejected : editingTask.isRejected,
           updatedAt: getBSTISOString(now),
           history: newHistory
         });
+
+        if (isAdmin && editingTask.status === 'completed') {
+          if (editIsApproved && !editingTask.isApproved) {
+            taskData.approvedAt = getBSTISOString(now);
+            taskData.approvedBy = userProfile.name;
+          }
+          if (editIsRejected && !editingTask.isRejected) {
+            taskData.rejectedAt = getBSTISOString(now);
+            taskData.rejectedBy = userProfile.name;
+          }
+        }
         
         try {
           await updateDoc(doc(db, 'tasks', editingTask.id), cleanObject(taskData));
@@ -409,6 +427,63 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     }
   };
 
+  // Maintenance: Reset daily tasks for a new day and archive completions
+  useEffect(() => {
+    if (!isAdmin || tasks.length === 0) return;
+    
+    const maintenance = async () => {
+      const todayStr = formatBST(new Date(), 'yyyy-MM-dd');
+      
+      const outdatedDailyTasks = tasks.filter(t => 
+        t.isEveryday && 
+        t.status === 'completed' && 
+        t.completedAt && 
+        formatBST(parseISO(t.completedAt), 'yyyy-MM-dd') !== todayStr
+      );
+
+      if (outdatedDailyTasks.length === 0) return;
+
+      const batch = writeBatch(db);
+      for (const task of outdatedDailyTasks) {
+        // Create an archive entry for the report
+        const archiveId = doc(collection(db, 'tasks')).id;
+        const archiveData = {
+          ...task,
+          id: archiveId,
+          isEveryday: false, 
+          isHistorySnapshot: true,
+          status: 'completed',
+          updatedAt: getBSTISOString()
+        };
+        batch.set(doc(db, 'tasks', archiveId), cleanObject(archiveData));
+
+        // Reset the master everyday task
+        batch.update(doc(db, 'tasks', task.id), cleanObject({
+          status: 'pending',
+          startedAt: null,
+          completedAt: null,
+          durationMinutes: null,
+          totalPauseMinutes: 0,
+          lastPausedAt: null,
+          resumedAt: null,
+          isApproved: false,
+          isRejected: false,
+          assignedAt: getBSTISOString(),
+          history: [createHistoryEntry('created', 'Automated Daily Cycle Reset')]
+        }));
+      }
+      
+      try {
+        await batch.commit();
+      } catch (err) {
+        console.error("Maintenance failed:", err);
+        handleFirestoreError(err, OperationType.WRITE, 'tasks/batch-maintenance');
+      }
+    };
+
+    maintenance();
+  }, [tasks, isAdmin]);
+
   const filteredTasks = useMemo(() => {
     let list = [];
     const todayStr = formatBST(new Date(), 'yyyy-MM-dd');
@@ -416,6 +491,11 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
     if (isAdmin) {
       list = tasks.filter(t => {
+        if (t.isHistorySnapshot) return false;
+        
+        // Agent filtering (Overview)
+        if (selectedBoardAgentId !== 'all' && t.assigneeId !== selectedBoardAgentId) return false;
+
         if (t.isEveryday) return true;
         const taskDate = formatBST(parseISO(t.assignedAt), 'yyyy-MM-dd');
         
@@ -432,8 +512,10 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       // Users see their tasks for today, pending tasks from past, or everyday tasks
       // UNTIL they are approved by admin. Once approved, they disappear.
       list = tasks.filter(t => 
-        t.isEveryday ||
-        (t.status !== 'completed' || !t.isApproved)
+        !t.isHistorySnapshot && (
+          t.isEveryday ||
+          (t.status !== 'completed' || !t.isApproved)
+        )
       );
     }
 
@@ -442,14 +524,27 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       list = list.filter(t => t.status === statusFilter);
     }
 
-    // Sort by order asc, then by assignedAt desc
+    // Sort by status priority first (In-Progress > Pending/Paused > Completed)
+    // Then by order asc, then by assignedAt desc
+    const statusPriority: Record<string, number> = {
+      'in-progress': 1,
+      'pending': 2,
+      'paused': 2,
+      'completed': 3
+    };
+
     return list.sort((a, b) => {
+      const weightA = statusPriority[a.status] || 99;
+      const weightB = statusPriority[b.status] || 99;
+      
+      if (weightA !== weightB) return weightA - weightB;
+
       const orderA = a.order ?? 999;
       const orderB = b.order ?? 999;
       if (orderA !== orderB) return orderA - orderB;
       return new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime();
     });
-  }, [tasks, isAdmin, boardDateRange, boardCustomStart, boardCustomEnd, statusFilter]);
+  }, [tasks, isAdmin, boardDateRange, boardCustomStart, boardCustomEnd, statusFilter, selectedBoardAgentId]);
 
   // Analytics Calculations
   const [statsDateRange, setStatsDateRange] = useState<'today' | 'yesterday' | '30days' | 'custom'>('30days');
@@ -589,6 +684,27 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
               </button>
             ))}
           </div>
+          
+          {isAdmin && view === 'list' && (
+            <div className="flex bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20 dark:border-slate-700/30">
+              <div className="relative group min-w-[160px]">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-focus-within:text-blue-500 transition-colors" size={12} />
+                <select 
+                  value={selectedBoardAgentId}
+                  onChange={(e) => setSelectedBoardAgentId(e.target.value)}
+                  className="w-full bg-transparent pl-8 pr-8 py-2 text-[9px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 outline-none appearance-none cursor-pointer"
+                >
+                  <option value="all">All Personnel</option>
+                  {assignableUsers.map(u => (
+                    <option key={u.id} value={u.id}>{u.displayName}</option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                  <ChevronDown size={10} />
+                </div>
+              </div>
+            </div>
+          )}
 
           {isAdmin && view === 'list' && (
             <div className="flex items-center gap-3">
@@ -822,15 +938,17 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                         {isAdmin && task.status === 'completed' && !task.isApproved && !task.isRejected && (
                           <div className="flex items-center gap-2">
                             <button 
-                              onClick={() => handleApproveTask(task)}
-                              className="bg-emerald-600 text-white min-w-[90px] h-11 px-4 rounded-2xl text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-[0_12px_24px_-8px_rgba(16,185,129,0.5)] flex items-center justify-center gap-2 active:scale-95"
+                              onClick={(e) => { e.stopPropagation(); handleApproveTask(task); }}
+                              className="bg-emerald-600 text-white min-w-[90px] h-11 px-4 rounded-2xl text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-[0_12px_24px_-8px_rgba(16,185,129,0.5)] flex items-center justify-center gap-2 active:scale-95 border border-emerald-500"
+                              title="Verify Task"
                             >
                               <CheckCheck size={14} />
                               Verify
                             </button>
                             <button 
-                              onClick={() => handleRejectTask(task)}
+                              onClick={(e) => { e.stopPropagation(); handleRejectTask(task); }}
                               className="bg-white dark:bg-slate-800 text-red-500 min-w-[90px] h-11 px-4 rounded-2xl text-[10px] font-black uppercase tracking-wider hover:bg-red-50 dark:hover:bg-red-900/10 transition-all border border-red-100 dark:border-red-900/30 flex items-center justify-center gap-2 active:scale-95"
+                              title="Reject Task"
                             >
                               <X size={14} />
                               Reject
@@ -1347,6 +1465,42 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                       <span className="text-[10px] font-black text-slate-800 dark:text-slate-300 uppercase tracking-[0.15em]">Daily Cycle</span>
                     </label>
                   </div>
+
+                  {isAdmin && editingTask?.status === 'completed' && (
+                    <div className="md:col-span-2 pt-6 border-t border-slate-100 dark:border-slate-800 space-y-4">
+                      <div className="flex items-center justify-between p-4 bg-emerald-50/50 dark:bg-emerald-900/10 rounded-[1.5rem] border border-emerald-100/50 dark:border-emerald-900/20">
+                        <div className="flex items-center gap-3">
+                          <CheckCheck className="text-emerald-600" size={18} />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-800 dark:text-emerald-400">Verified & Approved</span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={editIsApproved}
+                          onChange={(e) => {
+                            setEditIsApproved(e.target.checked);
+                            if (e.target.checked) setEditIsRejected(false);
+                          }}
+                          className="w-6 h-6 rounded-lg border-emerald-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 bg-red-50/50 dark:bg-red-900/10 rounded-[1.5rem] border border-red-100/50 dark:border-red-900/20">
+                        <div className="flex items-center gap-3">
+                          <X className="text-red-600" size={18} />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-red-800 dark:text-red-400">Rejected & Denied</span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={editIsRejected}
+                          onChange={(e) => {
+                            setEditIsRejected(e.target.checked);
+                            if (e.target.checked) setEditIsApproved(false);
+                          }}
+                          className="w-6 h-6 rounded-lg border-red-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">

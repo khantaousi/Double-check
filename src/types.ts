@@ -113,6 +113,7 @@ export interface TeamTask {
   order?: number;
   isEveryday?: boolean;
   isSelfAssigned?: boolean;
+  isHistorySnapshot?: boolean;
   isApproved?: boolean;
   isRejected?: boolean;
   approvedBy?: string;

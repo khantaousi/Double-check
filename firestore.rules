@@ -21,7 +21,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.token.email.lower() == 'khantaousi@gmail.com' ||
+        (request.auth.token.get('email', '').lower() == 'khantaousi@gmail.com') ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin')
       );
@@ -36,21 +36,27 @@ service cloud.firestore {
     }
 
     function isValidTask(data) {
-      return data.get('title', '') is string && data.get('title', '').size() <= 200 &&
+      return data.get('title', '') is string && data.get('title', '').size() <= 1000 &&
              data.get('assigneeId', '') is string &&
+             data.get('assigneeName', '') is string &&
              data.get('assignedAt', '') is string &&
              data.get('status', 'pending') in ['pending', 'in-progress', 'completed', 'paused'] &&
              (!('history' in data) || data.history is list) &&
-             (!('startedAt' in data) || data.startedAt is string) &&
-             (!('completedAt' in data) || data.completedAt is string) &&
-             (!('updatedAt' in data) || data.updatedAt is string) &&
+             (!('startedAt' in data) || data.startedAt is string || data.startedAt == null) &&
+             (!('completedAt' in data) || data.completedAt is string || data.completedAt == null) &&
+             (!('updatedAt' in data) || data.updatedAt is string || data.updatedAt == null) &&
+             (!('durationMinutes' in data) || data.durationMinutes is number || data.durationMinutes == null) &&
+             (!('totalPauseMinutes' in data) || data.totalPauseMinutes is number || data.totalPauseMinutes == null) &&
+             (!('lastPausedAt' in data) || data.lastPausedAt is string || data.lastPausedAt == null) &&
+             (!('resumedAt' in data) || data.resumedAt is string || data.resumedAt == null) &&
              (!('isApproved' in data) || data.isApproved is bool) &&
              (!('isRejected' in data) || data.isRejected is bool) &&
-             (!('approvedAt' in data) || data.approvedAt is string) &&
-             (!('rejectedAt' in data) || data.rejectedAt is string) &&
-             (!('approvedBy' in data) || data.approvedBy is string) &&
-             (!('rejectedBy' in data) || data.rejectedBy is string) &&
-             (!('isSelfAssigned' in data) || data.isSelfAssigned is bool);
+             (!('isEveryday' in data) || data.isEveryday is bool) &&
+             (!('isHistorySnapshot' in data) || data.isHistorySnapshot is bool) &&
+             (!('isSelfAssigned' in data) || data.isSelfAssigned is bool) &&
+             (!('order' in data) || data.order is number || data.order == null) &&
+             (!('createdBy' in data) || data.createdBy is string) &&
+             (!('description' in data) || data.description is string || data.description == null);
     }
 
     // 1. Products Library
