@@ -1201,9 +1201,9 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
               </motion.div>
             </div>
 
-            {/* Performance Chart */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-10">
+            {/* Performance Chart & Rankings */}
+            <div className="flex flex-col gap-8">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-10">
                 <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 mb-8 uppercase tracking-widest flex items-center gap-3">
                   <BarChart3 className="text-blue-600" size={18} />
                   {isAdmin ? 'Efficiency Comparison By Staff' : 'Personal Performance Overview'}
@@ -1232,7 +1232,11 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                           <Cell key={`cell-${index}`} fill={index === 0 ? '#2563EB' : '#94A3B8'} />
                         ))}
                       </Bar>
-                      <Bar dataKey="avgMinutes" name="Avg Time (m)" fill="#F59E0B" radius={[8, 8, 0, 0]} />
+                      <Bar dataKey="completed" name="Work Score" radius={[8, 8, 0, 0]}>
+                        {(analyticsData || []).map((_, index) => (
+                          <Cell key={`cell-score-${index}`} fill={index === 0 ? '#10B981' : '#E2E8F0'} />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -1242,7 +1246,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                 <div className="flex items-center justify-between mb-8">
                   <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest flex items-center gap-3">
                     <TrendingUp className="text-green-600" size={18} />
-                    {isAdmin ? 'Team Rankings' : 'Personal Rank'}
+                    {isAdmin ? 'Team Performance Rankings' : 'Personal Performance Rank'}
                   </h3>
                   {isAdmin && analyticsData && analyticsData.length > 0 && (
                     <button 
@@ -1255,7 +1259,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                     </button>
                   )}
                 </div>
-                <div className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {(analyticsData || []).map((staff, idx) => (
                     <div key={`${staff.date}_${staff.assigneeId}`} className="flex flex-col gap-4 group bg-slate-50/50 dark:bg-slate-800/20 p-5 rounded-3xl border border-transparent hover:border-slate-100 dark:hover:border-slate-800 transition-all">
                       <div className="flex items-center justify-between">
