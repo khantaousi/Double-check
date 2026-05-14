@@ -959,8 +959,8 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                       )}
                     </div>
 
-                    <div className="flex items-center justify-between pt-8 border-t border-slate-100 dark:border-slate-800/50 relative z-10">
-                      <div className="flex items-center gap-4">
+                    <div className="flex flex-wrap items-center justify-between pt-8 border-t border-slate-100 dark:border-slate-800/50 relative z-10 gap-x-4 gap-y-6">
+                      <div className="flex items-center gap-4 shrink-0">
                         <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-[12px] font-black text-white uppercase shadow-lg shadow-blue-500/20 border border-white/20">
                           {task.assigneeName.charAt(0)}
                         </div>
@@ -974,9 +974,9 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-3 ml-auto">
                         {isAdmin && task.status === 'completed' && !task.isApproved && !task.isRejected && (
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <button 
                               onClick={(e) => { e.stopPropagation(); handleApproveTask(task); }}
                               className="bg-emerald-600 text-white min-w-[90px] h-11 px-4 rounded-2xl text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-[0_12px_24px_-8px_rgba(16,185,129,0.5)] flex items-center justify-center gap-2 active:scale-95 border border-emerald-500"
@@ -1005,7 +1005,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                           </button>
                         )}
                         {task.status === 'in-progress' && (task.assigneeId === auth.currentUser?.uid || isAdmin) && (
-                          <div className="flex items-center gap-3">
+                          <div className="flex flex-wrap items-center gap-3">
                              <button 
                               onClick={() => handlePauseTask(task)}
                               className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 min-w-[90px] h-11 px-4 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-800 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-wider"
