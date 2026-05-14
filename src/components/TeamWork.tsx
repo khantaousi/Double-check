@@ -761,7 +761,12 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                       </div>
                       <div className="flex flex-col items-end gap-3">
                         <div className="text-[10px] font-black text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-800 uppercase tracking-widest leading-none shadow-sm">
-                          {formatBST(task.isEveryday ? new Date() : parseISO(task.assignedAt), 'MMM dd')}
+                          {formatBST(
+                            task.status === 'completed' && task.completedAt 
+                              ? parseISO(task.completedAt) 
+                              : (task.isEveryday ? new Date() : parseISO(task.assignedAt)), 
+                            'MMM dd'
+                          )}
                         </div>
                         {isAdmin && (
                           <div className="flex items-center gap-1 bg-white dark:bg-slate-800 shadow-sm p-1 rounded-xl border border-slate-100 dark:border-slate-700/50">
