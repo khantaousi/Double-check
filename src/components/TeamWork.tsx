@@ -491,12 +491,27 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
     if (isAdmin) {
       list = tasks.filter(t => {
-        if (t.isHistorySnapshot) return false;
-        
         // Agent filtering (Overview)
         if (selectedBoardAgentId !== 'all' && t.assigneeId !== selectedBoardAgentId) return false;
 
+        // If it's a history snapshot, we check its completion date
+        if (t.isHistorySnapshot) {
+          if (!t.completedAt) return false;
+          const compDate = formatBST(parseISO(t.completedAt), 'yyyy-MM-dd');
+
+          if (boardDateRange === 'today') return compDate === todayStr;
+          if (boardDateRange === 'yesterday') return compDate === yesterdayStr;
+          if (boardDateRange === '30days') {
+            const thirtyDaysAgo = formatBST(subDays(new Date(), 30), 'yyyy-MM-dd');
+            return compDate >= thirtyDaysAgo;
+          }
+          if (boardDateRange === 'custom') return compDate >= boardCustomStart && compDate <= boardCustomEnd;
+          return false;
+        }
+        
+        // Regular tasks (Everyday or assigned in range)
         if (t.isEveryday) return true;
+        
         const taskDate = formatBST(parseISO(t.assignedAt), 'yyyy-MM-dd');
         
         if (boardDateRange === 'today') return taskDate === todayStr;
@@ -509,14 +524,22 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
         return false;
       });
     } else {
-      // Users see their tasks for today, pending tasks from past, or everyday tasks
-      // UNTIL they are approved by admin. Once approved, they disappear.
-      list = tasks.filter(t => 
-        !t.isHistorySnapshot && (
-          t.isEveryday ||
-          (t.status !== 'completed' || !t.isApproved)
-        )
-      );
+      // Users see:
+      // 1. Their current everyday tasks (reset or in-progress)
+      // 2. Tasks not yet approved
+      // 3. Their completed history snapshots for today (to see progress)
+      list = tasks.filter(t => {
+        if (t.assigneeId !== userProfile.id) return false;
+
+        if (t.isHistorySnapshot) {
+          if (!t.completedAt) return false;
+          const compDate = formatBST(parseISO(t.completedAt), 'yyyy-MM-dd');
+          // Show today's archives to the user so they know they finished it
+          return compDate === todayStr;
+        }
+
+        return t.isEveryday || (t.status !== 'completed' || !t.isApproved);
+      });
     }
 
     // Filter by status if not 'all'
