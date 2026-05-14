@@ -74,7 +74,7 @@ export async function generateRankingsExcel(data: any[]) {
 
   // Define columns
   worksheet.columns = [
-    { header: 'Rank', key: 'rank', width: 8 },
+    { header: 'Date', key: 'date', width: 15 },
     { header: 'Staff Name', key: 'name', width: 25 },
     { header: 'Work History (Protocol & Timestamp)', key: 'workHistory', width: 60 },
     { header: 'Completed', key: 'completed', width: 12 },
@@ -91,11 +91,11 @@ export async function generateRankingsExcel(data: any[]) {
   };
 
   // Add data
-  data.forEach((item, index) => {
+  data.forEach((item) => {
     const workHistory = item.completedTasks?.map((t: any) => `- ${t.title} [${t.date}]`).join('\n') || '';
     
     const row = worksheet.addRow({
-      rank: index + 1,
+      date: item.date,
       name: item.name,
       workHistory: workHistory,
       completed: item.completed,
@@ -110,5 +110,5 @@ export async function generateRankingsExcel(data: any[]) {
 
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  saveAs(blob, `Team_Rankings_${formatBST(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  saveAs(blob, `Team_Performance_Report_${formatBST(new Date(), 'yyyy-MM-dd')}.xlsx`);
 }

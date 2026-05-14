@@ -598,7 +598,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       return dateMatch && agentMatch;
     });
 
-    const userStatsMap = new Map<string, { name: string, completed: number, avgMinutes: number, totalMinutes: number, totalPause: number, taskIds: string[], completedTasks: { title: string, duration: number, date: string }[] }>();
+    const statsMap = new Map<string, { date: string, name: string, assigneeId: string, completed: number, avgMinutes: number, totalMinutes: number, totalPause: number, taskIds: string[], completedTasks: { title: string, duration: number, date: string }[] }>();
     
     filteredForStats.forEach(task => {
       // Only count completed tasks
@@ -608,9 +608,22 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                         task.isApproved === true;
 
       if (isCountable) {
-        const stats = userStatsMap.get(task.assigneeId) || { name: task.assigneeName, completed: 0, avgMinutes: 0, totalMinutes: 0, totalPause: 0, taskIds: [], completedTasks: [] };
+        const compDate = formatBST(parseISO(task.completedAt || task.assignedAt), 'yyyy-MM-dd');
+        const key = `${compDate}_${task.assigneeId}`;
+        
+        const stats = statsMap.get(key) || { 
+          date: compDate, 
+          name: task.assigneeName, 
+          assigneeId: task.assigneeId,
+          completed: 0, 
+          avgMinutes: 0, 
+          totalMinutes: 0, 
+          totalPause: 0, 
+          taskIds: [], 
+          completedTasks: [] 
+        };
         stats.completed += 1;
-        stats.totalMinutes += task.durationMinutes;
+        stats.totalMinutes += (task.durationMinutes || 0);
         stats.totalPause += (task.totalPauseMinutes || 0);
         stats.avgMinutes = Math.round(stats.totalMinutes / stats.completed);
         stats.taskIds.push(task.id);
@@ -619,11 +632,15 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
           duration: task.durationMinutes || 0,
           date: formatBST(parseISO(task.completedAt || task.assignedAt), 'MMM dd, HH:mm')
         });
-        userStatsMap.set(task.assigneeId, stats);
+        statsMap.set(key, stats);
       }
     });
 
-    return Array.from(userStatsMap.values()).sort((a, b) => b.completed - a.completed);
+    return Array.from(statsMap.values()).sort((a, b) => {
+      // Sort by date DESC, then by completed DESC
+      if (b.date !== a.date) return b.date.localeCompare(a.date);
+      return b.completed - a.completed;
+    });
   }, [tasks, isAdmin, statsDateRange, customStatsStart, customStatsEnd, selectedReportAgentId]);
 
   const handleDeleteUserTasks = async (taskIds: string[], userName: string) => {
@@ -1240,13 +1257,16 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                 </div>
                 <div className="space-y-8">
                   {(analyticsData || []).map((staff, idx) => (
-                    <div key={staff.name} className="flex flex-col gap-4 group bg-slate-50/50 dark:bg-slate-800/20 p-5 rounded-3xl border border-transparent hover:border-slate-100 dark:hover:border-slate-800 transition-all">
+                    <div key={`${staff.date}_${staff.assigneeId}`} className="flex flex-col gap-4 group bg-slate-50/50 dark:bg-slate-800/20 p-5 rounded-3xl border border-transparent hover:border-slate-100 dark:hover:border-slate-800 transition-all">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black ${
-                            idx === 0 ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-                          }`}>
-                            {idx + 1}
+                          <div className="flex flex-col items-center">
+                            <span className="text-[8px] font-black text-blue-600 uppercase tracking-tighter mb-1">{staff.date}</span>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black ${
+                              idx === 0 ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                            }`}>
+                              {idx + 1}
+                            </div>
                           </div>
                           <div>
                             <p className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-tighter">{staff.name}</p>
@@ -1279,7 +1299,8 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                           <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Work History & Status Log</p>
                           {staff.completedTasks.map((t, tIdx) => {
                             const originalTask = tasks.find(task => task.title === t.title && task.assigneeName === staff.name);
-                            const isHistoryExpanded = expandedHistoryId === `${staff.name}-${tIdx}`;
+                            const historyKey = `${staff.date}-${staff.assigneeId}-${tIdx}`;
+                            const isHistoryExpanded = expandedHistoryId === historyKey;
                             
                             return (
                               <div key={tIdx} className="flex flex-col gap-2 py-2 border-l-2 border-slate-100 dark:border-slate-800 pl-4 bg-white/30 dark:bg-slate-900/30 rounded-r-2xl">
@@ -1298,7 +1319,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                                     </span>
                                     {originalTask?.history && (
                                       <button 
-                                        onClick={() => setExpandedHistoryId(isHistoryExpanded ? null : `${staff.name}-${tIdx}`)}
+                                        onClick={() => setExpandedHistoryId(isHistoryExpanded ? null : historyKey)}
                                         className="p-1 text-slate-400 hover:text-blue-500 transition-colors"
                                       >
                                         {isHistoryExpanded ? <ChevronUp size={14} /> : <History size={14} />}
