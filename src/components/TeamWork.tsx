@@ -34,7 +34,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingTask, setEditingTask] = useState<TeamTask | null>(null);
 
-  const [statusFilter, setStatusFilter] = useState<'all' | TeamTask['status']>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | TeamTask['status'] | 'needs-verification'>('all');
   const [selectedBoardAgentId, setSelectedBoardAgentId] = useState<string>('all');
   const [selectedReportAgentId, setSelectedReportAgentId] = useState<string>('all');
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
@@ -543,7 +543,9 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     }
 
     // Filter by status if not 'all'
-    if (statusFilter !== 'all') {
+    if (statusFilter === 'needs-verification') {
+      list = list.filter(t => t.status === 'completed' && !t.isApproved && !t.isRejected);
+    } else if (statusFilter !== 'all') {
       list = list.filter(t => t.status === statusFilter);
     }
 
@@ -723,6 +725,19 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                 {status.replace('-', ' ')}
               </button>
             ))}
+            {isAdmin && (
+              <button
+                onClick={() => setStatusFilter('needs-verification')}
+                className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 relative ${
+                  statusFilter === 'needs-verification' ? 'bg-white dark:bg-slate-700 shadow-[0_4px_12px_rgba(0,0,0,0.05)] text-red-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                Verification
+                {tasks.filter(t => t.status === 'completed' && !t.isApproved && !t.isRejected).length > 0 && (
+                  <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                )}
+              </button>
+            )}
           </div>
           
           {isAdmin && view === 'list' && (
