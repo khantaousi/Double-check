@@ -76,10 +76,12 @@ export async function generateRankingsExcel(data: any[]) {
   worksheet.columns = [
     { header: 'Date', key: 'date', width: 15 },
     { header: 'Staff Name', key: 'name', width: 25 },
-    { header: 'Work History (Protocol & Timestamp)', key: 'workHistory', width: 60 },
-    { header: 'Completed', key: 'completed', width: 12 },
-    { header: 'Total Pause (m)', key: 'totalPause', width: 15 },
-    { header: 'Avg Time (m)', key: 'avgMinutes', width: 15 },
+    { header: 'Protocol Name', key: 'title', width: 35 },
+    { header: 'Start Time', key: 'startedAt', width: 15 },
+    { header: 'End Time', key: 'completedAt', width: 15 },
+    { header: 'Work Duration (m)', key: 'duration', width: 18 },
+    { header: 'Daily Total Pause (m)', key: 'totalPause', width: 22 },
+    { header: 'Daily Avg Time (m)', key: 'avgMinutes', width: 20 },
   ];
 
   // Header styling
@@ -90,22 +92,32 @@ export async function generateRankingsExcel(data: any[]) {
     fgColor: { argb: 'FF2563EB' } // matching blue-600
   };
 
-  // Add data
+  // Add data rows - one row per completed task
   data.forEach((item) => {
-    const workHistory = item.completedTasks?.map((t: any) => `- ${t.title} [${t.date}]`).join('\n') || '';
-    
-    const row = worksheet.addRow({
-      date: item.date,
-      name: item.name,
-      workHistory: workHistory,
-      completed: item.completed,
-      totalPause: item.totalPause,
-      avgMinutes: item.avgMinutes
-    });
-
-    // Enable text wrapping for work history and alignment
-    row.getCell('workHistory').alignment = { wrapText: true, vertical: 'top' };
-    row.alignment = { vertical: 'top' };
+    if (item.completedTasks && item.completedTasks.length > 0) {
+      item.completedTasks.forEach((task: any) => {
+        const row = worksheet.addRow({
+          date: item.date,
+          name: item.name,
+          title: task.title,
+          startedAt: task.startedAt,
+          completedAt: task.completedAt,
+          duration: task.duration,
+          totalPause: item.totalPause,
+          avgMinutes: item.avgMinutes
+        });
+        row.alignment = { vertical: 'middle', horizontal: 'left' };
+      });
+    } else {
+      // Fallback for an item with no tasks (though analytics filters these out)
+      const row = worksheet.addRow({
+        date: item.date,
+        name: item.name,
+        totalPause: item.totalPause,
+        avgMinutes: item.avgMinutes
+      });
+      row.alignment = { vertical: 'middle', horizontal: 'left' };
+    }
   });
 
   const buffer = await workbook.xlsx.writeBuffer();

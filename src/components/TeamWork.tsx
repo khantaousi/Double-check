@@ -600,7 +600,23 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       return dateMatch && agentMatch;
     });
 
-    const statsMap = new Map<string, { date: string, name: string, assigneeId: string, completed: number, avgMinutes: number, totalMinutes: number, totalPause: number, taskIds: string[], completedTasks: { title: string, duration: number, date: string }[] }>();
+    const statsMap = new Map<string, { 
+      date: string, 
+      name: string, 
+      assigneeId: string, 
+      completed: number, 
+      avgMinutes: number, 
+      totalMinutes: number, 
+      totalPause: number, 
+      taskIds: string[], 
+      completedTasks: { 
+        title: string, 
+        duration: number, 
+        date: string,
+        startedAt: string,
+        completedAt: string
+      }[] 
+    }>();
     
     filteredForStats.forEach(task => {
       // Only count completed tasks
@@ -632,7 +648,9 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
         stats.completedTasks.push({
           title: task.title,
           duration: task.durationMinutes || 0,
-          date: formatBST(parseISO(task.completedAt || task.assignedAt), 'MMM dd, HH:mm')
+          date: formatBST(parseISO(task.completedAt || task.assignedAt), 'MMM dd, HH:mm'),
+          startedAt: task.startedAt ? formatBST(parseISO(task.startedAt), 'HH:mm:ss') : 'N/A',
+          completedAt: task.completedAt ? formatBST(parseISO(task.completedAt), 'HH:mm:ss') : 'N/A'
         });
         statsMap.set(key, stats);
       }
