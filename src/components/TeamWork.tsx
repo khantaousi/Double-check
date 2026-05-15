@@ -1412,47 +1412,47 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-lg bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-[3rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.2)] flex flex-col overflow-hidden border border-white/20 dark:border-slate-800"
+              className="relative w-full max-w-lg bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-[2.5rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.2)] flex flex-col max-h-[90vh] overflow-y-auto border border-white/20 dark:border-slate-800 no-scrollbar"
             >
-              <div className="p-12 pb-6 flex justify-between items-start">
+              <div className="p-8 pb-4 flex justify-between items-start">
                 <div>
-                  <h3 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-2 leading-none">
-                    {editingTask ? 'Edit Profile' : isAdmin ? 'Assign Unit' : 'New Protocol'}
+                  <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-1 leading-none">
+                    {editingTask ? 'Edit Task' : isAdmin ? 'Assign Task' : 'New Task'}
                   </h3>
-                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] opacity-60">
-                    {editingTask ? 'Updating intelligence parameters' : 'Personnel task management & authorization'}
+                  <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.2em] opacity-60">
+                    {editingTask ? 'Adjusting parameters' : 'Strategic allocation'}
                   </p>
                 </div>
                 <button 
                   onClick={() => setShowAssignModal(false)}
-                  className="p-3 bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-800 dark:hover:text-white rounded-2xl transition-all active:scale-90"
+                  className="p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-800 dark:hover:text-white rounded-xl transition-all active:scale-90"
                 >
-                  <X size={20} strokeWidth={3} />
+                  <X size={18} strokeWidth={3} />
                 </button>
               </div>
 
-              <form onSubmit={handleAssignTask} className="p-12 pt-6 space-y-8">
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Task Designation</label>
+              <form onSubmit={handleAssignTask} className="p-8 pt-2 space-y-5">
+                <div className="space-y-1.5">
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest px-2">Task Designation</label>
                   <input 
                     required
                     type="text" 
                     placeholder="Brief description of work..."
                     value={newTask.title}
                     onChange={e => setNewTask({ ...newTask, title: e.target.value })}
-                    className="w-full bg-slate-100/50 dark:bg-slate-800/50 border-2 border-transparent focus:border-blue-500/20 rounded-2xl py-5 px-7 text-sm font-bold focus:bg-white dark:focus:bg-slate-800 transition-all outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                    className="w-full bg-slate-100/50 dark:bg-slate-800/50 border-2 border-transparent focus:border-blue-500/20 rounded-xl py-3.5 px-6 text-sm font-bold focus:bg-white dark:focus:bg-slate-800 transition-all outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600"
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {isAdmin && (
-                    <div className="md:col-span-2 space-y-2">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Deployment Target</label>
-                      <div className="grid grid-cols-2 gap-3 max-h-56 overflow-y-auto p-5 bg-slate-100/50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-800 no-scrollbar">
+                    <div className="md:col-span-2 space-y-1.5">
+                      <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest px-2">Deployment Target</label>
+                      <div className="grid grid-cols-2 gap-2.5 max-h-44 overflow-y-auto p-4 bg-slate-100/50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 no-scrollbar">
                         {assignableUsers.map(u => (
-                          <label key={u.id} className={`flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer border-2 ${
+                          <label key={u.id} className={`flex items-center gap-3 p-2.5 rounded-xl transition-all cursor-pointer border-2 ${
                             newTask.assigneeIds.includes(u.id || '') 
-                            ? 'bg-white dark:bg-slate-700 border-blue-500/30 ring-4 ring-blue-500/5 shadow-sm' 
+                            ? 'bg-white dark:bg-slate-700 border-blue-500/20 ring-4 ring-blue-500/5 shadow-sm' 
                             : 'bg-transparent border-transparent hover:bg-white/50 dark:hover:bg-slate-700/50'
                           }`}>
                             <div className="relative">
@@ -1492,19 +1492,19 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                     </div>
                   )}
                   
-                  <div className={`space-y-2 ${newTask.isEveryday ? 'opacity-30 pointer-events-none' : ''}`}>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Launch Date</label>
+                  <div className={`space-y-1.5 ${newTask.isEveryday ? 'opacity-30 pointer-events-none' : ''}`}>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest px-2">Launch Date</label>
                     <input 
                       type="date" 
                       disabled={newTask.isEveryday}
                       value={newTask.scheduledDate}
                       onChange={e => setNewTask({ ...newTask, scheduledDate: e.target.value })}
-                      className="w-full bg-slate-100/50 dark:bg-slate-800/50 border-2 border-transparent focus:border-blue-500/20 rounded-2xl py-4 px-6 text-xs font-bold outline-none"
+                      className="w-full bg-slate-100/50 dark:bg-slate-800/50 border-2 border-transparent focus:border-blue-500/20 rounded-xl py-3.5 px-6 text-xs font-bold outline-none"
                     />
                   </div>
                   
                   <div className="flex flex-col justify-end">
-                    <label className={`flex items-center gap-4 p-4 rounded-2xl cursor-pointer transition-all border-2 h-[52px] ${
+                    <label className={`flex items-center gap-4 p-3.5 rounded-xl cursor-pointer transition-all border-2 h-[48px] ${
                       newTask.isEveryday ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-900/30' : 'bg-slate-100/50 dark:bg-slate-800/50 border-transparent'
                     }`}>
                       <input 
@@ -1525,83 +1525,91 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                       }`}>
                         {newTask.isEveryday && <CheckCheck size={12} className="text-white" strokeWidth={4} />}
                       </div>
-                      <span className="text-[10px] font-black text-slate-800 dark:text-slate-300 uppercase tracking-[0.15em]">Daily Cycle</span>
+                      <span className="text-[9px] font-black text-slate-800 dark:text-slate-300 uppercase tracking-widest">Daily Cycle</span>
                     </label>
                   </div>
 
                   {isAdmin && editingTask?.status === 'completed' && (
-                    <div className="md:col-span-2 pt-6 border-t border-slate-100 dark:border-slate-800 space-y-4">
-                      <div className="flex items-center justify-between p-4 bg-emerald-50/50 dark:bg-emerald-900/10 rounded-[1.5rem] border border-emerald-100/50 dark:border-emerald-900/20">
-                        <div className="flex items-center gap-3">
-                          <CheckCheck className="text-emerald-600" size={18} />
-                          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-800 dark:text-emerald-400">Verified & Approved</span>
+                    <div className="md:col-span-2 pt-4 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-3">
+                      <div 
+                        onClick={() => {
+                          setEditIsApproved(!editIsApproved);
+                          if (!editIsApproved) setEditIsRejected(false);
+                        }}
+                        className={`flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer ${
+                          editIsApproved 
+                          ? 'bg-emerald-500 text-white border-emerald-400 shadow-lg shadow-emerald-500/20' 
+                          : 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100/50 dark:border-emerald-900/20 text-emerald-600'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <CheckCheck size={16} />
+                          <span className="text-[9px] font-black uppercase tracking-widest">Approved</span>
                         </div>
-                        <input
-                          type="checkbox"
-                          checked={editIsApproved}
-                          onChange={(e) => {
-                            setEditIsApproved(e.target.checked);
-                            if (e.target.checked) setEditIsRejected(false);
-                          }}
-                          className="w-6 h-6 rounded-lg border-emerald-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                        />
+                        <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center ${editIsApproved ? 'bg-white border-white' : 'border-emerald-200'}`}>
+                          {editIsApproved && <CheckCheck size={12} className="text-emerald-500" strokeWidth={4} />}
+                        </div>
                       </div>
 
-                      <div className="flex items-center justify-between p-4 bg-red-50/50 dark:bg-red-900/10 rounded-[1.5rem] border border-red-100/50 dark:border-red-900/20">
-                        <div className="flex items-center gap-3">
-                          <X className="text-red-600" size={18} />
-                          <span className="text-[10px] font-black uppercase tracking-widest text-red-800 dark:text-red-400">Rejected & Denied</span>
+                      <div 
+                        onClick={() => {
+                          setEditIsRejected(!editIsRejected);
+                          if (!editIsRejected) setEditIsApproved(false);
+                        }}
+                        className={`flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer ${
+                          editIsRejected 
+                          ? 'bg-red-500 text-white border-red-400 shadow-lg shadow-red-500/20' 
+                          : 'bg-red-50/50 dark:bg-red-900/10 border-red-100/50 dark:border-red-900/20 text-red-600'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <X size={16} />
+                          <span className="text-[9px] font-black uppercase tracking-widest">Rejected</span>
                         </div>
-                        <input
-                          type="checkbox"
-                          checked={editIsRejected}
-                          onChange={(e) => {
-                            setEditIsRejected(e.target.checked);
-                            if (e.target.checked) setEditIsApproved(false);
-                          }}
-                          className="w-6 h-6 rounded-lg border-red-300 text-red-600 focus:ring-red-500 cursor-pointer"
-                        />
+                        <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center ${editIsRejected ? 'bg-white border-white' : 'border-red-200'}`}>
+                          {editIsRejected && <X size={12} className="text-red-500" strokeWidth={4} />}
+                        </div>
                       </div>
                     </div>
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Queue Priority</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                  <div className="space-y-1.5">
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest px-2">Queue Priority</label>
                     <input 
                       type="number" 
                       min="1"
                       value={newTask.order}
                       onChange={e => setNewTask({ ...newTask, order: parseInt(e.target.value) || 1 })}
-                      className="w-full bg-slate-100/50 dark:bg-slate-800/50 border-2 border-transparent focus:border-blue-500/20 rounded-2xl py-4 px-6 text-xs font-bold outline-none"
+                      className="w-full bg-slate-100/50 dark:bg-slate-800/50 border-2 border-transparent focus:border-blue-500/20 rounded-xl py-3.5 px-6 text-xs font-bold outline-none"
                     />
                   </div>
 
-                  <div className="flex gap-3">
+                  <div className="flex gap-2">
                     <button 
                       type="button"
                       onClick={() => setShowAssignModal(false)}
-                      className="flex-1 bg-slate-100 dark:bg-slate-800 h-14 text-slate-500 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all hover:bg-slate-200 dark:hover:bg-slate-700"
+                      className="flex-1 bg-slate-100 dark:bg-slate-800 h-12 text-slate-500 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all hover:bg-slate-200 dark:hover:bg-slate-700"
                     >
                       Abort
                     </button>
                     <button 
                       disabled={isSubmitting}
-                      className="flex-[2] bg-blue-600 h-14 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all hover:bg-blue-700 shadow-xl shadow-blue-500/20 disabled:opacity-50 active:scale-95"
+                      className="flex-[2] bg-blue-600 h-12 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all hover:bg-blue-700 shadow-lg shadow-blue-500/20 disabled:opacity-50 active:scale-95"
                     >
-                      {isSubmitting ? 'Syncing...' : editingTask ? 'Update Ops' : 'Authorize Deployment'}
+                      {isSubmitting ? 'Syncing...' : editingTask ? 'Update' : 'Assign'}
                     </button>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Operational Context</label>
+                <div className="space-y-1.5">
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest px-2">Operational Context</label>
                   <textarea 
                     placeholder="Specific parameters for execution..."
                     value={newTask.description}
                     onChange={e => setNewTask({ ...newTask, description: e.target.value })}
-                    className="w-full bg-slate-100/50 dark:bg-slate-800/50 border-2 border-transparent focus:border-blue-500/20 rounded-3xl py-5 px-7 text-sm font-bold focus:bg-white dark:focus:bg-slate-800 transition-all outline-none h-36 resize-none placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                    className="w-full bg-slate-100/50 dark:bg-slate-800/50 border-2 border-transparent focus:border-blue-500/20 rounded-2xl py-4 px-6 text-xs font-bold focus:bg-white dark:focus:bg-slate-800 transition-all outline-none h-28 resize-none placeholder:text-slate-300 dark:placeholder:text-slate-600"
                   />
                 </div>
               </form>
