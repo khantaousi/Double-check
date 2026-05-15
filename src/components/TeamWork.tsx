@@ -649,8 +649,8 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
           title: task.title,
           duration: task.durationMinutes || 0,
           date: formatBST(parseISO(task.completedAt || task.assignedAt), 'MMM dd, HH:mm'),
-          startedAt: task.startedAt ? formatBST(parseISO(task.startedAt), 'HH:mm:ss') : 'N/A',
-          completedAt: task.completedAt ? formatBST(parseISO(task.completedAt), 'HH:mm:ss') : 'N/A'
+          startedAt: task.startedAt ? formatBST(parseISO(task.startedAt), 'hh:mm:ss a') : 'N/A',
+          completedAt: task.completedAt ? formatBST(parseISO(task.completedAt), 'hh:mm:ss a') : 'N/A'
         });
         statsMap.set(key, stats);
       }
