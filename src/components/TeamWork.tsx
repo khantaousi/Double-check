@@ -4,7 +4,7 @@ import { db, auth } from '../lib/firebase';
 import { collection, addDoc, query, where, onSnapshot, updateDoc, doc, deleteDoc, orderBy, getDocs, writeBatch } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/errors';
 import { cleanObject, getBSTISOString, formatBST } from '../lib/utils';
-import { CheckCircle2, Clock, Plus, UserPlus, Trash2, Calendar, Layout, User, Play, Pause, BarChart3, TrendingUp, Timer, Database, Edit, CheckCheck, X, Bell, ChevronDown, ChevronUp, History, Download } from 'lucide-react';
+import { CheckCircle2, Clock, Plus, UserPlus, Trash2, Calendar, Layout, User, Play, Pause, BarChart3, TrendingUp, Timer, Database, Edit, CheckCheck, X, Bell, ChevronDown, ChevronUp, History, Download, RotateCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, differenceInMinutes, parseISO, subDays } from 'date-fns';
 import { TaskHistoryEntry, AppNotification } from '../types';
@@ -413,6 +413,36 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
           }
         });
       }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `tasks/${task.id}`);
+    }
+  };
+
+  const handleResentTask = async (task: TeamTask) => {
+    if (!window.confirm("Are you sure you want to resend this task to the user for correction?")) return;
+    try {
+      const now = new Date();
+      const newHistory = [...(task.history || []), createHistoryEntry('resent', 'Task sent back to user for correction')];
+      
+      // Revert to paused state so user can resume when ready
+      await updateDoc(doc(db, 'tasks', task.id), cleanObject({
+        status: 'paused',
+        completedAt: null,
+        durationMinutes: null,
+        isApproved: false,
+        isRejected: false,
+        lastPausedAt: getBSTISOString(now),
+        updatedAt: getBSTISOString(now),
+        history: newHistory
+      }));
+
+      sendNotification({
+        userId: task.assigneeId,
+        title: 'Task Resent',
+        message: `Your protocol "${task.title}" has been sent back for correction.`,
+        type: 'task_resent',
+        taskId: task.id
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `tasks/${task.id}`);
     }
@@ -1008,24 +1038,36 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                       </div>
 
                       <div className="flex flex-wrap items-center gap-3 ml-auto">
-                        {isAdmin && task.status === 'completed' && !task.isApproved && !task.isRejected && (
+                        {isAdmin && task.status === 'completed' && !task.isApproved && (
                           <div className="flex flex-wrap items-center gap-2">
+                            {!task.isRejected && (
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleApproveTask(task); }}
+                                className="bg-emerald-600 text-white min-w-[90px] h-11 px-4 rounded-2xl text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-[0_12px_24px_-8px_rgba(16,185,129,0.5)] flex items-center justify-center gap-2 active:scale-95 border border-emerald-500"
+                                title="Verify Task"
+                              >
+                                <CheckCheck size={14} />
+                                Verify
+                              </button>
+                            )}
                             <button 
-                              onClick={(e) => { e.stopPropagation(); handleApproveTask(task); }}
-                              className="bg-emerald-600 text-white min-w-[90px] h-11 px-4 rounded-2xl text-[10px] font-black uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-[0_12px_24px_-8px_rgba(16,185,129,0.5)] flex items-center justify-center gap-2 active:scale-95 border border-emerald-500"
-                              title="Verify Task"
+                              onClick={(e) => { e.stopPropagation(); handleResentTask(task); }}
+                              className="bg-amber-500 text-white min-w-[90px] h-11 px-4 rounded-2xl text-[10px] font-black uppercase tracking-wider hover:bg-amber-600 transition-all shadow-[0_12px_24px_-8px_rgba(245,158,11,0.5)] flex items-center justify-center gap-2 active:scale-95 border border-amber-400"
+                              title="Resent Task"
                             >
-                              <CheckCheck size={14} />
-                              Verify
+                              <RotateCcw size={14} />
+                              Resent
                             </button>
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); handleRejectTask(task); }}
-                              className="bg-white dark:bg-slate-800 text-red-500 min-w-[90px] h-11 px-4 rounded-2xl text-[10px] font-black uppercase tracking-wider hover:bg-red-50 dark:hover:bg-red-900/10 transition-all border border-red-100 dark:border-red-900/30 flex items-center justify-center gap-2 active:scale-95"
-                              title="Reject Task"
-                            >
-                              <X size={14} />
-                              Reject
-                            </button>
+                            {!task.isRejected && (
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleRejectTask(task); }}
+                                className="bg-white dark:bg-slate-800 text-red-500 min-w-[90px] h-11 px-4 rounded-2xl text-[10px] font-black uppercase tracking-wider hover:bg-red-50 dark:hover:bg-red-900/10 transition-all border border-red-100 dark:border-red-900/30 flex items-center justify-center gap-2 active:scale-95"
+                                title="Reject Task"
+                              >
+                                <X size={14} />
+                                Reject
+                              </button>
+                            )}
                           </div>
                         )}
                         {(task.status === 'pending' || task.status === 'paused') && (task.assigneeId === auth.currentUser?.uid || isAdmin) && (
@@ -1382,7 +1424,8 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                                               h.status === 'in-progress' ? 'bg-blue-500' :
                                               h.status === 'paused' ? 'bg-slate-400' :
                                               h.status === 'approved' ? 'bg-emerald-600' :
-                                              h.status === 'rejected' ? 'bg-red-500' : 'bg-indigo-500'
+                                              h.status === 'rejected' ? 'bg-red-500' : 
+                                              h.status === 'resent' ? 'bg-amber-500' : 'bg-indigo-500'
                                             }`} />
                                             <div className="flex flex-col">
                                               <div className="flex items-center gap-2">
@@ -1414,6 +1457,11 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Re-entry logic for history logging color support */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        .h-resent { background-color: #f59e0b; }
+      `}} />
 
       {/* Assign Modal */}
       <AnimatePresence>
