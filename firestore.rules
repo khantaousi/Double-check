@@ -87,9 +87,12 @@ service cloud.firestore {
       allow get: if isSignedIn() && (isOwner(resource.data.assigneeId) || isAdmin());
       allow create: if isSignedIn() && isValidTask(incoming()) && (
         isAdmin() || (
+          // User can create archive tasks for themselves
           incoming().assigneeId == request.auth.uid &&
-          incoming().isSelfAssigned == true &&
-          incoming().isApproved == false
+          (
+            (incoming().isSelfAssigned == true && incoming().isApproved == false) ||
+            (incoming().isHistorySnapshot == true)
+          )
         )
       );
       allow update: if isSignedIn() && (isOwner(resource.data.get('assigneeId', '')) || isAdmin()) && (
@@ -99,14 +102,26 @@ service cloud.firestore {
           isAdmin() ||
           // User can change status and timing fields + history
           (
+            // Regular updates (status, timing)
             incoming().diff(existing()).affectedKeys().hasOnly([
               'status', 'startedAt', 'completedAt', 'durationMinutes', 
               'totalPauseMinutes', 'lastPausedAt', 'resumedAt', 'updatedAt',
               'history'
-            ]) &&
-            incoming().get('assigneeId', '') == existing().get('assigneeId', '') &&
-            incoming().get('isSelfAssigned', false) == existing().get('isSelfAssigned', false)
-          )
+            ]) ||
+            // Maintenance reset for everyday tasks
+            (
+              existing().get('isEveryday', false) == true &&
+              incoming().diff(existing()).affectedKeys().hasOnly([
+                'status', 'startedAt', 'completedAt', 'durationMinutes', 
+                'totalPauseMinutes', 'lastPausedAt', 'resumedAt', 'updatedAt',
+                'history', 'assignedAt', 'isApproved', 'isRejected'
+              ]) &&
+              incoming().get('status', '') == 'pending' &&
+              incoming().get('isApproved', true) == false
+            )
+          ) &&
+          incoming().get('assigneeId', '') == existing().get('assigneeId', '') &&
+          incoming().get('isSelfAssigned', false) == existing().get('isSelfAssigned', false)
         )
       );
       allow delete: if isAdmin();
@@ -117,7 +132,7 @@ service cloud.firestore {
       return data.userId is string && data.userId.size() <= 128 &&
              data.title is string && data.title.size() <= 200 &&
              data.message is string && data.message.size() <= 1000 &&
-             data.type in ['task_assigned', 'task_approved', 'task_needs_approval', 'system'] &&
+             data.type in ['task_assigned', 'task_approved', 'task_needs_approval', 'task_resent', 'system'] &&
              data.isRead is bool &&
              data.createdAt is string;
     }

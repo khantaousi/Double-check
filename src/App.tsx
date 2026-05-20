@@ -26,7 +26,7 @@ import WelcomeScreen from './components/WelcomeScreen';
 import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, auth, logInWithEmail, signOut, signInWithGoogle } from './lib/firebase';
-import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, setDoc, getDoc, writeBatch, where } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, setDoc, getDoc, writeBatch, where, getDocs } from 'firebase/firestore';
 import { seedProducts } from './lib/seed';
 import { handleFirestoreError, OperationType } from './lib/errors';
 import { cleanObject, getBSTISOString, formatBST } from './lib/utils';
@@ -256,13 +256,92 @@ export default function App() {
       handleFirestoreError(error, OperationType.GET, 'config/site_settings');
     });
 
+    // Auto-Maintenance Logic (Triggered by Admin)
+    const runFrontendMaintenance = async () => {
+      if (!isAdmin) return;
+      
+      try {
+        const statusRef = doc(db, 'config', 'system_status');
+        const statusSnap = await getDoc(statusRef);
+        const todayStr = formatBST(new Date(), 'yyyy-MM-dd');
+        
+        if (!statusSnap.exists() || statusSnap.data().lastResetDate !== todayStr) {
+          console.log("Running Daily Maintenance Reset (Frontend Mode)...");
+          
+          // Find everyday tasks
+          const q = query(collection(db, 'tasks'), where('isEveryday', '==', true));
+          const tasksSnap = await getDocs(q);
+          
+          if (tasksSnap.empty) {
+            await setDoc(statusRef, { lastResetDate: todayStr }, { merge: true });
+            return;
+          }
+
+          const batch = writeBatch(db);
+          let count = 0;
+
+          for (const docSnap of tasksSnap.docs) {
+            const task = docSnap.data();
+            if (task.status !== 'completed' || !task.completedAt) continue;
+            
+            const compDate = formatBST(parseISO(task.completedAt), 'yyyy-MM-dd');
+            if (compDate !== todayStr) {
+              // Archive
+              const archiveId = doc(collection(db, 'tasks')).id;
+              batch.set(doc(db, 'tasks', archiveId), {
+                ...task,
+                id: archiveId,
+                isEveryday: false,
+                isHistorySnapshot: true,
+                status: 'completed',
+                updatedAt: getBSTISOString()
+              });
+
+              // Reset master
+              batch.update(docSnap.ref, {
+                status: 'pending',
+                startedAt: null,
+                completedAt: null,
+                durationMinutes: null,
+                totalPauseMinutes: 0,
+                lastPausedAt: null,
+                resumedAt: null,
+                isApproved: false,
+                isRejected: false,
+                assignedAt: getBSTISOString(),
+                history: [...(task.history || []), {
+                  status: 'created',
+                  timestamp: getBSTISOString(),
+                  performerId: 'system-auto',
+                  performerName: 'Browser Maintenance',
+                  note: 'Automated Daily Cycle Reset (Active Session)'
+                }]
+              });
+              count++;
+            }
+          }
+
+          if (count > 0) {
+            await batch.commit();
+            console.log(`Maintenance: Archived and reset ${count} everyday tasks.`);
+          }
+          
+          await setDoc(statusRef, { lastResetDate: todayStr }, { merge: true });
+        }
+      } catch (err) {
+        console.error("Failed to run automated maintenance:", err);
+      }
+    };
+
+    runFrontendMaintenance();
+
     return () => {
       unsubscribeRules();
       unsubscribeDelivery();
       unsubscribeGifts();
       unsubscribeSite();
     };
-  }, [user]);
+  }, [user, isAdmin]);
 
   useEffect(() => {
     if (!user || !userProfile) {
@@ -1243,18 +1322,18 @@ export default function App() {
                 </motion.div>
               )}
 
-              {activeTab === 'team' && (
-                <motion.div
-                  key="team"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.2 }}
-                  className="max-w-6xl mx-auto pt-10"
-                >
-                  <TeamWork userProfile={userProfile!} allUsers={allUsers} />
-                </motion.div>
-              )}
+                  {activeTab === 'team' && userProfile && (
+                    <motion.div
+                      key="team"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.2 }}
+                      className="max-w-6xl mx-auto pt-10"
+                    >
+                      <TeamWork userProfile={userProfile} allUsers={allUsers} />
+                    </motion.div>
+                  )}
 
               {activeTab === 'rules' && hasAccess('rules') && (
                 <motion.div

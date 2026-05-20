@@ -39,7 +39,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   const [selectedReportAgentId, setSelectedReportAgentId] = useState<string>('all');
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const isAdmin = userProfile.role === 'admin';
+  const isAdmin = userProfile?.role === 'admin';
 
   useEffect(() => {
     if (!auth.currentUser?.uid) return;
@@ -459,7 +459,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
 
   // Maintenance: Reset daily tasks for a new day and archive completions
   useEffect(() => {
-    if (!isAdmin || tasks.length === 0) return;
+    if (!tasks || tasks.length === 0) return;
     
     const maintenance = async () => {
       const todayStr = formatBST(new Date(), 'yyyy-MM-dd');
@@ -711,7 +711,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   };
 
   // Allow assignment to ALL active users
-  const assignableUsers = allUsers.filter(u => u.isActive);
+  const assignableUsers = (allUsers || []).filter(u => u.isActive);
 
   return (
     <div className="space-y-8 pb-20 relative">
@@ -1417,7 +1417,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                                       className="overflow-hidden"
                                     >
                                       <div className="space-y-3 pt-3 mt-3 border-t border-slate-100 dark:border-slate-800">
-                                        {originalTask.history.map((h, i) => (
+                                        {(originalTask.history || []).map((h, i) => (
                                           <div key={i} className="flex items-start gap-3">
                                             <div className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${
                                               h.status === 'completed' ? 'bg-emerald-500' :

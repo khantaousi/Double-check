@@ -1,6 +1,8 @@
 {
   "name": "Double Check",
-  "description": "Intelligent Excel price validation and data automation tool with Gemini-powered extraction and dynamic tiered discounting.",
+  "description": "Intelligent Excel price validation and team task automation tool with automated daily resets and backend cron services.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
