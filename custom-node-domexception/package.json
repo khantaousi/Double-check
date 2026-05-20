@@ -1,0 +1,7 @@
+{
+  "name": "node-domexception",
+  "version": "1.0.0",
+  "description": "Custom native DOMException mapping to bypass deprecated dependency warnings",
+  "main": "index.js",
+  "license": "MIT"
+}
