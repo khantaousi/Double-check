@@ -91,6 +91,28 @@ export function LiveTenureTracker({ joiningDate, createdAt, variant = 'compact' 
     return () => clearInterval(timer);
   }, [joiningDate, createdAt]);
 
+  const formatJoiningDate = (dateStr?: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const [year, month, day] = parts.map(Number);
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const monthAbbr = monthNames[month - 1] || 'Jan';
+      return `${day}-${monthAbbr}-${year}`;
+    }
+    try {
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime())) {
+        const day = d.getDate();
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthAbbr = monthNames[d.getMonth()];
+        const year = d.getFullYear();
+        return `${day}-${monthAbbr}-${year}`;
+      }
+    } catch (e) {}
+    return dateStr;
+  };
+
   if (!tenure.active) return null;
 
   if (variant === 'banner') {
@@ -109,12 +131,12 @@ export function LiveTenureTracker({ joiningDate, createdAt, variant = 'compact' 
             {joiningDate ? (
               <div className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/20 text-emerald-300 font-mono text-[8px] font-black uppercase tracking-wider">
                 <span>Joined:</span>
-                <span>{joiningDate}</span>
+                <span>{formatJoiningDate(joiningDate)}</span>
               </div>
             ) : createdAt ? (
               <div className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/20 text-emerald-300 font-mono text-[8px] font-black uppercase tracking-wider">
                 <span>Joined:</span>
-                <span>{new Date(createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                <span>{formatJoiningDate(createdAt)}</span>
               </div>
             ) : null}
           </div>

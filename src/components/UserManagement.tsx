@@ -72,6 +72,28 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
     printSlips: 'none' as 'none' | 'read' | 'write'
   });
 
+  const formatJoiningDate = (dateStr?: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const [year, month, day] = parts.map(Number);
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const monthAbbr = monthNames[month - 1] || 'Jan';
+      return `${day}-${monthAbbr}-${year}`;
+    }
+    try {
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime())) {
+        const day = d.getDate();
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthAbbr = monthNames[d.getMonth()];
+        const year = d.getFullYear();
+        return `${day}-${monthAbbr}-${year}`;
+      }
+    } catch (e) {}
+    return dateStr;
+  };
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
@@ -298,7 +320,7 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
                           )}
                           {user.joiningDate && (
                             <p className="text-[9px] font-bold text-slate-500 dark:text-slate-400">
-                              Joined: {user.joiningDate}
+                              Joined: {formatJoiningDate(user.joiningDate)}
                             </p>
                           )}
                           <div className="flex items-center gap-1 opacity-60">
