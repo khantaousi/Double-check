@@ -25,6 +25,7 @@ export interface UserProfile {
   password?: string;    // Only if using custom simple login, but let's stick to status first
   role: 'admin' | 'user';
   displayName?: string;
+  employeeId?: string;  // Employee ID for personnel
   photoURL?: string;
   createdAt: string;
   isActive: boolean;    // For activating/deactivating users

@@ -6,9 +6,10 @@ import { generateStyledExcel } from '../lib/excel';
 interface DataTableProps {
   data: DataRow[];
   onUpdatePrice: (id: string, price: number) => void;
+  canEdit?: boolean;
 }
 
-export const DataTable: React.FC<DataTableProps> = ({ data, onUpdatePrice }) => {
+export const DataTable: React.FC<DataTableProps> = ({ data, onUpdatePrice, canEdit = true }) => {
   if (data.length === 0) return null;
 
   const mismatchCount = data.filter(r => r.isMismatch || r.isDuplicate || r.isInvalid).length;
@@ -22,7 +23,7 @@ export const DataTable: React.FC<DataTableProps> = ({ data, onUpdatePrice }) => 
             Validation Results
           </h3>
           <p className="text-[11px] text-slate-500 font-medium mt-1">
-            {data.length} records • {mismatchCount} actions required • <span className="text-blue-600">Click prices to edit</span>
+            {data.length} records • {mismatchCount} actions required • {canEdit ? <span className="text-blue-600">Click prices to edit</span> : <span className="text-slate-400">Read-only view</span>}
           </p>
         </div>
         
@@ -109,7 +110,8 @@ export const DataTable: React.FC<DataTableProps> = ({ data, onUpdatePrice }) => 
                         type="number"
                         value={row.extractedBasePrice}
                         onChange={(e) => onUpdatePrice(row.id, Number(e.target.value))}
-                        className={`w-14 bg-transparent border-none focus:outline-none text-center font-black text-xs font-mono not-italic ${row.extractedBasePrice === 0 ? 'text-red-500' : 'text-blue-600 dark:text-blue-400'}`}
+                        disabled={!canEdit}
+                        className={`w-14 bg-transparent border-none focus:outline-none text-center font-black text-xs font-mono not-italic ${row.extractedBasePrice === 0 ? 'text-red-500' : 'text-blue-600 dark:text-blue-400'} disabled:opacity-85 disabled:cursor-not-allowed`}
                       />
                     </div>
                   </td>

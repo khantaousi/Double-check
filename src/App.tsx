@@ -1020,6 +1020,11 @@ export default function App() {
                       </span>
                     )}
                   </div>
+                  {userProfile?.employeeId && (
+                    <p className="text-[9px] font-black text-blue-600 dark:text-blue-400 mt-0.5 tracking-wider self-start bg-blue-500/10 dark:bg-blue-500/20 px-1 py-0.5 rounded">
+                      ID: {userProfile.employeeId}
+                    </p>
+                  )}
                 </div>
               </div>
             ) : (
@@ -1031,20 +1036,24 @@ export default function App() {
             
             {data.length > 0 && activeTab === 'dashboard' && (
               <div className="flex gap-2">
-                <button 
-                  onClick={() => setActiveTab('printSlips')}
-                  className="flex items-center gap-2 bg-slate-900 dark:bg-slate-800 text-white dark:text-slate-200 hover:bg-slate-800 dark:hover:bg-slate-700 px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-lg shadow-black/10 dark:shadow-none active:scale-95"
-                >
-                  <Printer size={16} />
-                  Print Slips
-                </button>
-                <button 
-                  onClick={handleClear}
-                  className="flex items-center gap-2 text-slate-500 hover:text-red-500 px-4 py-2 rounded-lg text-xs font-bold transition-colors"
-                >
-                  <XCircle size={16} />
-                  Reset System
-                </button>
+                {hasAccess('printSlips') && (
+                  <button 
+                    onClick={() => setActiveTab('printSlips')}
+                    className="flex items-center gap-2 bg-slate-900 dark:bg-slate-800 text-white dark:text-slate-200 hover:bg-slate-800 dark:hover:bg-slate-700 px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-lg shadow-black/10 dark:shadow-none active:scale-95"
+                  >
+                    <Printer size={16} />
+                    Print Slips
+                  </button>
+                )}
+                {canWriteToTab('dashboard') && (
+                  <button 
+                    onClick={handleClear}
+                    className="flex items-center gap-2 text-slate-500 hover:text-red-500 px-4 py-2 rounded-lg text-xs font-bold transition-colors"
+                  >
+                    <XCircle size={16} />
+                    Reset System
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1222,7 +1231,19 @@ export default function App() {
                   transition={{ duration: 0.2 }}
                   className="space-y-10"
                 >
-                  <FileUpload onDataLoaded={handleDataLoaded} isLoading={isLoading} resetTrigger={resetTrigger} />
+                  {canWriteToTab('dashboard') ? (
+                    <FileUpload onDataLoaded={handleDataLoaded} isLoading={isLoading} resetTrigger={resetTrigger} />
+                  ) : (
+                    <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl flex items-center gap-4 text-slate-500 dark:text-slate-400">
+                      <div className="p-3 bg-amber-500/10 text-amber-500 rounded-2xl">
+                        <ShieldAlert size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase tracking-tight">Read-Only Session</h4>
+                        <p className="text-xs font-bold text-slate-400 dark:text-slate-500 mt-0.5 uppercase tracking-wide">You don't have write authorization to upload or modify data records.</p>
+                      </div>
+                    </div>
+                  )}
 
                   {data.length > 0 && !isLoading && (
                     <motion.div 
@@ -1290,7 +1311,7 @@ export default function App() {
                   </AnimatePresence>
 
                   {data.length > 0 ? (
-                    <DataTable data={data} onUpdatePrice={updateRowPrice} />
+                    <DataTable data={data} onUpdatePrice={updateRowPrice} canEdit={canWriteToTab('dashboard')} />
                   ) : !isLoading && (
                     <div className="flex flex-col items-center justify-center py-40 text-center">
                       <div className="w-24 h-24 bg-slate-100 dark:bg-slate-900 rounded-full flex items-center justify-center mb-6 border border-slate-200 dark:border-slate-800 transition-colors duration-300">
@@ -1442,7 +1463,7 @@ export default function App() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="max-w-4xl mx-auto pt-10"
+                  className="max-w-[1250px] mx-auto pt-10 px-4"
                 >
                   <div className="mb-10 text-center">
                     <h2 className="text-3xl font-black text-slate-800 dark:text-slate-100 tracking-tighter mb-2">Personnel Directory</h2>
