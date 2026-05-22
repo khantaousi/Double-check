@@ -9,6 +9,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { AppNotification, DataRow, TaskHistoryEntry, ValidationRule, ProductPrice, DEFAULT_RULES, DeliverySettings as IDeliverySettings, DEFAULT_DELIVERY_SETTINGS, UserProfile, GiftRule, SiteSettings, DEFAULT_SITE_SETTINGS } from './types';
 import { processData, calculateRow } from './lib/processor';
 import { RuleEditor } from './components/RuleEditor';
@@ -24,7 +25,7 @@ import { DataTable } from './components/DataTable';
 import { UserManagement } from './components/UserManagement';
 import WelcomeScreen from './components/WelcomeScreen';
 import { LiveTenureTracker } from './components/LiveTenureTracker';
-import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X } from 'lucide-react';
+import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, auth, logInWithEmail, signOut, signInWithGoogle } from './lib/firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, setDoc, getDoc, writeBatch, where, getDocs } from 'firebase/firestore';
@@ -32,13 +33,13 @@ import { seedProducts } from './lib/seed';
 import { handleFirestoreError, OperationType } from './lib/errors';
 import { cleanObject, getBSTISOString, formatBST } from './lib/utils';
 
-import { subDays, parseISO } from 'date-fns';
+import { subDays, addDays, parseISO } from 'date-fns';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { getInitials, getAvatarColor } from './lib/avatar';
 import { PrintSlips } from './components/PrintSlips';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'rules' | 'products' | 'settings' | 'users' | 'tracker' | 'printSlips' | 'team'>('team');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'validation' | 'rules' | 'products' | 'settings' | 'users' | 'tracker' | 'printSlips' | 'team'>('dashboard');
   const [data, setData] = useState<DataRow[]>([]);
   const [rules, setRules] = useState<ValidationRule[]>(DEFAULT_RULES);
   const [delivery, setDelivery] = useState<IDeliverySettings>(DEFAULT_DELIVERY_SETTINGS);
@@ -69,7 +70,211 @@ export default function App() {
   const [hasShownWelcome, setHasShownWelcome] = useState(false);
   const [hasSeeded, setHasSeeded] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [roster, setRoster] = useState<any>(null);
+  const [isRosterUploading, setIsRosterUploading] = useState(false);
+  const [showFullRoster, setShowFullRoster] = useState(false);
+  const [rosterSearch, setRosterSearch] = useState('');
+  const [selectedRosterId, setSelectedRosterId] = useState('');
   const [pendingTasksCount, setPendingTasksCount] = useState(0);
+
+  useEffect(() => {
+    if (userProfile?.employeeId) {
+      setSelectedRosterId(userProfile.employeeId);
+    } else if (userProfile?.displayName) {
+      setSelectedRosterId(userProfile.displayName);
+    }
+  }, [userProfile]);
+
+  useEffect(() => {
+    const unsubscribeRoster = onSnapshot(doc(db, 'config', 'staff_roster'), (docSnap) => {
+      if (docSnap.exists()) {
+        setRoster(docSnap.data());
+      } else {
+        setRoster(null);
+      }
+    });
+    return () => unsubscribeRoster();
+  }, []);
+
+  const formatRosterCellValue = (val: any): string => {
+    if (val === undefined || val === null) return '';
+    
+    // If it's a number or can be parsed as a number:
+    const num = typeof val === 'number' ? val : parseFloat(String(val).trim());
+    if (!isNaN(num) && isFinite(num)) {
+      // Check if it's an Excel Date Serial (for years roughly ~2020-2040, the serial range is ~43831 to ~51139)
+      if (num >= 40000 && num <= 60000) {
+        const utc_days = Math.floor(num - 25569);
+        const date = new Date(utc_days * 86400000);
+        return formatBST(date, 'd-MMM-yy');
+      }
+      // Check if it's an Excel Time Fraction (between 0 and 1, exclusive)
+      if (num > 0 && num < 1) {
+        const totalSeconds = Math.round(num * 24 * 60 * 60);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        const displayHours = hours % 12 === 0 ? 12 : hours % 12;
+        const displayMinutes = String(minutes).padStart(2, '0');
+        return `${displayHours}:${displayMinutes} ${ampm}`;
+      }
+    }
+    
+    return String(val).trim();
+  };
+
+  const matchDateToHeader = (headerTemp: string, targetDate: Date): boolean => {
+    if (!headerTemp) return false;
+    const headerClean = headerTemp.toLowerCase().replace(/[^a-z0-9]/g, '');
+    
+    const formats = [
+      'd-MMM-yy',
+      'dd-MMM-yy',
+      'd-MMM-yyyy',
+      'dd-MMM-yyyy',
+      'yyyy-MM-dd',
+      'd/M/yyyy',
+      'dd/MM/yyyy',
+      'd-MMM',
+      'dd-MMM',
+      'd/M',
+      'dd/MM'
+    ];
+    
+    for (const fmt of formats) {
+      const formatted = formatBST(targetDate, fmt).toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (headerClean.includes(formatted) || formatted.includes(headerClean)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const handleRosterUpload = async (file: File) => {
+    try {
+      setIsRosterUploading(true);
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const fileData = e.target?.result;
+        if (!fileData) {
+          setIsRosterUploading(false);
+          return;
+        }
+        
+        let workbook;
+        if (file.name.endsWith('.csv')) {
+          const text = new TextDecoder().decode(new Uint8Array(fileData as ArrayBuffer));
+          workbook = XLSX.read(text, { type: 'string' });
+        } else {
+          const bytes = new Uint8Array(fileData as ArrayBuffer);
+          workbook = XLSX.read(bytes, { type: 'array' });
+        }
+        
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        const rawRowsArray: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        if (rawRowsArray.length === 0) {
+          alert('The uploaded file is empty.');
+          setIsRosterUploading(false);
+          return;
+        }
+
+        let headerRowIndex = -1;
+        for (let i = 0; i < rawRowsArray.length; i++) {
+          const row = rawRowsArray[i];
+          if (row && row.length >= 2) {
+            const cellA = String(row[0] || '').toLowerCase().trim();
+            const cellB = String(row[1] || '').toLowerCase().trim();
+            if (cellA.includes('id') && cellB.includes('name')) {
+              headerRowIndex = i;
+              break;
+            }
+          }
+        }
+
+        if (headerRowIndex === -1) {
+          headerRowIndex = 0;
+        }
+
+        const headers = rawRowsArray[headerRowIndex].map((h, colIdx) => 
+          colIdx >= 2 ? formatRosterCellValue(h) : String(h || '').trim()
+        );
+        
+        let subHeaders: string[] = [];
+        let dataStartRow = headerRowIndex + 1;
+        
+        if (rawRowsArray[headerRowIndex + 1]) {
+          const nextRow = rawRowsArray[headerRowIndex + 1];
+          const firstCell = String(nextRow[0] || '').trim();
+          const isNumericId = /^\d+$/.test(firstCell);
+          if (!isNumericId && firstCell.toLowerCase() !== 'id' && (nextRow[2] || nextRow[3])) {
+            subHeaders = nextRow.map((h, colIdx) => 
+              colIdx >= 2 ? formatRosterCellValue(h) : String(h || '').trim()
+            );
+            dataStartRow = headerRowIndex + 2;
+          }
+        }
+
+        const rostersRows: any[] = [];
+        for (let i = dataStartRow; i < rawRowsArray.length; i++) {
+          const row = rawRowsArray[i];
+          if (!row || row.length < 2) continue;
+          
+          const idVal = String(row[0] || '').trim();
+          const nameVal = String(row[1] || '').trim();
+          if (!idVal && !nameVal) continue;
+
+          const shifts: { [dateKey: string]: string } = {};
+          for (let j = 2; j < row.length; j++) {
+            const dateHeader = headers[j];
+            if (dateHeader) {
+              shifts[dateHeader] = formatRosterCellValue(row[j]);
+            }
+          }
+
+          rostersRows.push({
+            id: idVal,
+            name: nameVal,
+            shifts: shifts
+          });
+        }
+
+        const rosterPayload = {
+          headers: headers,
+          subHeaders: subHeaders,
+          rows: rostersRows,
+          uploadedAt: getBSTISOString(),
+          uploadedBy: userProfile?.displayName || user?.email || 'Admin'
+        };
+
+        await setDoc(doc(db, 'config', 'staff_roster'), cleanObject(rosterPayload));
+        setIsRosterUploading(false);
+        alert('Roster uploaded successfully!');
+      };
+      
+      reader.readAsArrayBuffer(file);
+    } catch (err) {
+      console.error(err);
+      setIsRosterUploading(false);
+      alert('Failed to parse and upload roster: ' + (err as Error).message);
+    }
+  };
+
+  const handleClearRoster = async () => {
+    if (confirm('Are you sure you want to remove the current roster? Users will not see their roster until a new one is uploaded.')) {
+      try {
+        await deleteDoc(doc(db, 'config', 'staff_roster'));
+        alert('Roster cleared successfully.');
+      } catch (err) {
+        console.error(err);
+        alert('Failed to delete roster: ' + (err as Error).message);
+      }
+    }
+  };
+
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -693,14 +898,16 @@ export default function App() {
   const canWriteToTab = (tab: typeof activeTab) => {
     if (user?.email === 'khantaousi@gmail.com') return true;
     if (userProfile?.role === 'admin') return true;
-    return (userProfile?.permissions?.[tab as keyof UserProfile['permissions']] || 'none') === 'write';
+    const key = tab === 'validation' ? 'dashboard' : tab;
+    return (userProfile?.permissions?.[key as keyof UserProfile['permissions']] || 'none') === 'write';
   };
 
   const hasAccess = (tab: typeof activeTab) => {
     if (user?.email === 'khantaousi@gmail.com') return true;
     if (userProfile?.role === 'admin') return true;
     if (tab === 'users') return false;
-    return (userProfile?.permissions?.[tab as keyof UserProfile['permissions']] || 'none') !== 'none';
+    const key = tab === 'validation' ? 'dashboard' : tab;
+    return (userProfile?.permissions?.[key as keyof UserProfile['permissions']] || 'none') !== 'none';
   };
 
   return (
@@ -719,7 +926,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* Left Sidebar: Navigation */}
-      <aside className={`fixed md:static inset-y-0 left-0 w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0 shadow-sm z-30 transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
+      <aside className={`fixed md:static inset-y-0 left-0 w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0 shadow-sm z-30 transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${isSidebarCollapsed ? 'md:hidden' : 'md:translate-x-0'}`}>
         <div className="p-8">
           <div className="flex items-center gap-3 mb-12">
             <div className="w-10 h-10 flex items-center justify-center overflow-hidden transition-shadow duration-300">
@@ -739,6 +946,34 @@ export default function App() {
             <div>
               <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4 pl-4">Core Workspace</p>
               <div className="space-y-1">
+                {hasAccess('dashboard') && (
+                  <button 
+                    onClick={() => { setActiveTab('dashboard'); setIsSidebarOpen(false); }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
+                      activeTab === 'dashboard' 
+                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
+                        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <LayoutDashboard size={18} />
+                    Dashboard
+                  </button>
+                )}
+
+                {hasAccess('validation') && (
+                  <button 
+                    onClick={() => { setActiveTab('validation'); setIsSidebarOpen(false); }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
+                      activeTab === 'validation' 
+                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
+                        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <Database size={18} />
+                    Validation Hub
+                  </button>
+                )}
+
                 {userProfile && (
                   <button 
                     onClick={() => { setActiveTab('team'); setIsSidebarOpen(false); }}
@@ -761,20 +996,6 @@ export default function App() {
                         {pendingTasksCount > 9 ? '9+' : pendingTasksCount}
                       </motion.span>
                     )}
-                  </button>
-                )}
-
-                {hasAccess('dashboard') && (
-                  <button 
-                    onClick={() => { setActiveTab('dashboard'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
-                      activeTab === 'dashboard' 
-                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
-                        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    <LayoutDashboard size={18} />
-                    Validation Hub
                   </button>
                 )}
 
@@ -893,10 +1114,17 @@ export default function App() {
         <header className="h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 md:px-10 shrink-0 sticky top-0 z-10 transition-colors duration-300">
           <div className="flex items-center gap-5">
             <button
-              onClick={() => setIsSidebarOpen(true)}
-              className="md:hidden p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              onClick={() => {
+                if (window.innerWidth < 768) {
+                  setIsSidebarOpen(!isSidebarOpen);
+                } else {
+                  setIsSidebarCollapsed(!isSidebarCollapsed);
+                }
+              }}
+              className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-slate-200 dark:border-slate-700 active:scale-95 cursor-pointer flex items-center justify-center shadow-sm"
+              title={isSidebarCollapsed ? "Show Menu" : "Hide Menu"}
             >
-              <LayoutDashboard size={20} />
+              <Menu size={18} />
             </button>
             <div className={`flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 transition-colors duration-300 ${data.length === 0 ? 'animate-border-green' : ''}`}>
               <span className={`w-2 h-2 rounded-full ${data.length > 0 ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
@@ -906,7 +1134,7 @@ export default function App() {
             </div>
             <div className="h-4 w-px bg-slate-200 dark:bg-slate-800" />
             <h2 className="text-slate-400 dark:text-slate-500 text-sm font-bold tracking-tight uppercase">
-              {activeTab === 'dashboard' ? 'Validation Workspace' : `Config / ${activeTab}`}
+              {activeTab === 'dashboard' ? 'Performance Dashboard' : activeTab === 'validation' ? 'Validation Hub' : `Config / ${activeTab}`}
             </h2>
           </div>
           
@@ -1035,7 +1263,7 @@ export default function App() {
               </div>
             )}
             
-            {data.length > 0 && activeTab === 'dashboard' && (
+            {data.length > 0 && activeTab === 'validation' && (
               <div className="flex gap-2">
                 {hasAccess('printSlips') && (
                   <button 
@@ -1046,7 +1274,7 @@ export default function App() {
                     Print Slips
                   </button>
                 )}
-                {canWriteToTab('dashboard') && (
+                {canWriteToTab('validation') && (
                   <button 
                     onClick={handleClear}
                     className="flex items-center gap-2 text-slate-500 hover:text-red-500 px-4 py-2 rounded-lg text-xs font-bold transition-colors"
@@ -1224,15 +1452,395 @@ export default function App() {
             ) : (
               <AnimatePresence mode="wait">
                 {activeTab === 'dashboard' && hasAccess('dashboard') && (
+                  <motion.div 
+                    key="dashboard"
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -15 }}
+                    transition={{ duration: 0.2 }}
+                    className="space-y-6 max-w-5xl mx-auto"
+                  >
+                    <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200/60 dark:border-slate-800/80 shadow-sm relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-8 opacity-5 text-slate-900 dark:text-white pointer-events-none">
+                        <LayoutDashboard size={120} />
+                      </div>
+                      <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight">
+                        Welcome Back, <span className="text-blue-600 dark:text-blue-400">{userProfile?.displayName || user?.email || 'User'}</span>
+                      </h3>
+                      <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium text-sm">
+                        Access your command center modules and tools from the left-side workspace menu.
+                      </p>
+                    </div>
+
+                    {userProfile && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                      >
+                        <LiveTenureTracker joiningDate={userProfile?.joiningDate} createdAt={userProfile?.createdAt} variant="banner" />
+                      </motion.div>
+                    )}
+
+                    {/* Duty Roster Section */}
+                    {(() => {
+                      const loggedInEmployeeId = userProfile?.employeeId?.trim();
+                      const loggedInName = userProfile?.displayName?.trim().toLowerCase();
+
+                      const userRosterRow = roster?.rows?.find((row: any) => {
+                        const idMatches = loggedInEmployeeId && row.id && String(row.id).trim() === loggedInEmployeeId;
+                        const nameMatches = loggedInName && row.name && String(row.name).trim().toLowerCase() === loggedInName;
+                        return idMatches || nameMatches;
+                      });
+
+                      const todayDate = new Date();
+                      const yesterdayDate = subDays(todayDate, 1);
+                      const tomorrowDate = addDays(todayDate, 1);
+
+                      let yesterdayShift: any = null;
+                      if (roster && roster.headers && userRosterRow) {
+                        for (let i = 2; i < roster.headers.length; i++) {
+                          const header = roster.headers[i];
+                          if (matchDateToHeader(header, yesterdayDate)) {
+                            yesterdayShift = {
+                              date: header,
+                              weekday: roster.subHeaders?.[i] || formatBST(yesterdayDate, 'EEEE'),
+                              shift: userRosterRow.shifts?.[header] || 'No Shift Assigned'
+                            };
+                            break;
+                          }
+                        }
+                      }
+
+                      let todayShift: any = null;
+                      if (roster && roster.headers && userRosterRow) {
+                        for (let i = 2; i < roster.headers.length; i++) {
+                          const header = roster.headers[i];
+                          if (matchDateToHeader(header, todayDate)) {
+                            todayShift = {
+                              date: header,
+                              weekday: roster.subHeaders?.[i] || formatBST(todayDate, 'EEEE'),
+                              shift: userRosterRow.shifts?.[header] || 'No Shift Assigned'
+                            };
+                            break;
+                          }
+                        }
+                      }
+
+                      let tomorrowShift: any = null;
+                      if (roster && roster.headers && userRosterRow) {
+                        for (let i = 2; i < roster.headers.length; i++) {
+                          const header = roster.headers[i];
+                          if (matchDateToHeader(header, tomorrowDate)) {
+                            tomorrowShift = {
+                              date: header,
+                              weekday: roster.subHeaders?.[i] || formatBST(tomorrowDate, 'EEEE'),
+                              shift: userRosterRow.shifts?.[header] || 'No Shift Assigned'
+                            };
+                            break;
+                          }
+                        }
+                      }
+
+                      const getShiftStyle = (shiftVal: string) => {
+                        const norm = String(shiftVal || '').toLowerCase().trim();
+                        if (!norm || norm === 'no shift assigned') {
+                          return 'bg-slate-50/80 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500';
+                        }
+                        if (norm.includes('off') || norm.includes('day off')) {
+                          return 'bg-amber-50/80 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/30 text-amber-600 dark:text-amber-400';
+                        }
+                        if (norm === 'cl' || norm === 'sl' || norm === 'leave' || norm.includes('absent')) {
+                          return 'bg-red-50/80 dark:bg-red-950/20 border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 font-extrabold';
+                        }
+                        return 'bg-blue-50/80 dark:bg-blue-950/20 border-blue-100 dark:border-blue-900/20 text-blue-600 dark:text-blue-400 font-bold';
+                      };
+
+                      return (
+                        <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200/60 dark:border-slate-800/80 shadow-sm space-y-6">
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center">
+                                <CalendarRange size={20} />
+                              </div>
+                              <div>
+                                <h4 className="text-lg font-black text-slate-800 dark:text-slate-100 tracking-tight">Personal Work Duty Roster</h4>
+                                <p className="text-xs text-slate-400 dark:text-slate-500">Live work shifts for today and tomorrow mapped dynamically</p>
+                              </div>
+                            </div>
+                            
+                            {/* Admin Upload / Clear Area */}
+                            {isAdmin && (
+                              <div className="flex items-center gap-2">
+                                {roster ? (
+                                  <button
+                                    onClick={handleClearRoster}
+                                    className="flex items-center gap-2 text-xs font-bold text-red-500 hover:text-red-600 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 px-4 py-2 rounded-xl transition-all cursor-pointer"
+                                  >
+                                    Clear Active Roster
+                                  </button>
+                                ) : (
+                                  <div>
+                                    <input
+                                      type="file"
+                                      accept=".xlsx,.xls,.csv"
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) handleRosterUpload(file);
+                                      }}
+                                      className="hidden"
+                                      id="dashboard-roster-upload"
+                                    />
+                                    <label
+                                      htmlFor="dashboard-roster-upload"
+                                      className="flex items-center gap-2 text-xs font-black text-blue-600 hover:text-white hover:bg-blue-600 border border-blue-200 dark:border-blue-800/60 bg-white dark:bg-slate-900 px-4 py-2 rounded-xl transition-all cursor-pointer uppercase tracking-wider"
+                                    >
+                                      <UploadCloud size={14} />
+                                      Upload Roster
+                                    </label>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {roster ? (
+                            <div className="space-y-6">
+
+                              {userRosterRow ? (
+                                <div>
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    {/* Yesterday's Duty */}
+                                    <div className={`p-6 rounded-2xl border transition-all ${getShiftStyle(yesterdayShift?.shift || '')}`}>
+                                      <div className="flex justify-between items-start mb-2">
+                                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Yesterday (গতকাল)</span>
+                                        <span className="text-xs font-bold">{yesterdayShift?.date || formatBST(yesterdayDate, 'dd-MMM-yyyy')}</span>
+                                      </div>
+                                      <h5 className="text-base font-black capitalize">{yesterdayShift?.weekday || formatBST(yesterdayDate, 'EEEE')}</h5>
+                                      <div className="mt-4 text-2xl font-black tracking-tight uppercase">
+                                        {yesterdayShift?.shift || 'No Shift Assigned'}
+                                      </div>
+                                    </div>
+
+                                    {/* Today's Duty */}
+                                    <div className={`p-6 rounded-2xl border transition-all relative overflow-hidden ${getShiftStyle(todayShift?.shift || '')}`}>
+                                      <div className="absolute top-4 right-4 flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                                      </div>
+                                      <div className="flex justify-between items-start mb-2">
+                                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Today (আজকের ডিউটি)</span>
+                                        <span className="text-xs font-bold">{todayShift?.date || formatBST(todayDate, 'dd-MMM-yyyy')}</span>
+                                      </div>
+                                      <h5 className="text-base font-black capitalize">{todayShift?.weekday || formatBST(todayDate, 'EEEE')}</h5>
+                                      <div className="mt-4 text-3xl font-black tracking-tight uppercase">
+                                        {todayShift?.shift || 'No Shift Assigned'}
+                                      </div>
+                                    </div>
+
+                                    {/* Tomorrow's Duty */}
+                                    <div className={`p-6 rounded-2xl border transition-all relative overflow-hidden ${getShiftStyle(tomorrowShift?.shift || '')}`}>
+                                      <div className="absolute top-4 right-4 flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-500"></span>
+                                      </div>
+                                      <div className="flex justify-between items-start mb-2">
+                                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Tomorrow (আগামীকাল)</span>
+                                        <span className="text-xs font-bold">{tomorrowShift?.date || formatBST(tomorrowDate, 'dd-MMM-yyyy')}</span>
+                                      </div>
+                                      <h5 className="text-base font-black capitalize">{tomorrowShift?.weekday || formatBST(tomorrowDate, 'EEEE')}</h5>
+                                      <div className="mt-4 text-2xl font-black tracking-tight uppercase">
+                                        {tomorrowShift?.shift || 'No Shift Assigned'}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Expandable full timeline row */}
+                                  <div className="mt-6">
+                                    <button
+                                      onClick={() => setShowFullRoster(!showFullRoster)}
+                                      className="w-full flex items-center justify-center gap-2 py-3 border border-slate-200 dark:border-slate-800 hover:border-blue-500/40 dark:hover:border-blue-500/30 rounded-xl text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all bg-slate-50/50 dark:bg-slate-900/40 cursor-pointer"
+                                    >
+                                      {showFullRoster ? 'Hide Full Roster Timeline' : 'View Full Roster Timeline (1-2 Weeks)'}
+                                    </button>
+
+                                    <AnimatePresence>
+                                      {showFullRoster && (
+                                        <motion.div
+                                          initial={{ opacity: 0, height: 0 }}
+                                          animate={{ opacity: 1, height: 'auto' }}
+                                          exit={{ opacity: 0, height: 0 }}
+                                          className="overflow-hidden mt-4"
+                                        >
+                                          <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/80 rounded-2xl">
+                                            <div className="text-xs font-extrabold uppercase text-slate-400 tracking-wider mb-3">Your Complete Roster Schedule Timeline:</div>
+                                            <div className="flex gap-3 overflow-x-auto pb-4 pt-1 snap-x scrollbar-thin">
+                                              {roster.headers.slice(2).map((hdr: string, idx: number) => {
+                                                const trueIdx = idx + 2;
+                                                const shiftTime = userRosterRow.shifts?.[hdr] || 'Day Off';
+                                                const isToday = matchDateToHeader(hdr, todayDate);
+                                                const isYesterday = matchDateToHeader(hdr, yesterdayDate);
+                                                const isTomorrow = matchDateToHeader(hdr, tomorrowDate);
+                                                return (
+                                                  <div 
+                                                    key={hdr} 
+                                                    className={`flex-none w-36 p-4 rounded-xl border snap-start flex flex-col justify-between ${
+                                                      isToday 
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/10' 
+                                                        : isYesterday || isTomorrow
+                                                        ? 'bg-slate-100 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700'
+                                                        : getShiftStyle(shiftTime)
+                                                    }`}
+                                                  >
+                                                    <div>
+                                                      <div className="text-[10px] font-black uppercase opacity-60">
+                                                        {hdr}
+                                                      </div>
+                                                      <div className="text-xs font-extrabold mt-0.5">
+                                                        {roster.subHeaders?.[trueIdx] || ''}
+                                                      </div>
+                                                    </div>
+                                                    <div className="text-sm font-black mt-4 uppercase truncate">
+                                                      {shiftTime}
+                                                    </div>
+                                                    {isToday && (
+                                                      <span className="self-start text-[8px] font-black bg-white/20 px-1 py-0.5 rounded uppercase mt-2">Active Today</span>
+                                                    )}
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        </motion.div>
+                                      )}
+                                    </AnimatePresence>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/30 p-8 rounded-2xl text-center space-y-3">
+                                  <AlertTriangle className="mx-auto text-amber-500 animate-pulse" size={32} />
+                                  <h5 className="font-extrabold text-amber-800 dark:text-amber-400 text-sm">No Duty Assigned (কোনো ডিউটি খুঁজে পাওয়া যায়নি)</h5>
+                                  <p className="text-xs text-amber-600 dark:text-amber-500 max-w-md mx-auto leading-relaxed">
+                                    No active duty hours were found matching your registered Employee ID on the uploaded roster.
+                                  </p>
+                                  <div className="pt-2 text-xs font-bold text-slate-500 dark:text-slate-400 space-y-1">
+                                    <div>Your system registered ID: <span className="underline font-black">{loggedInEmployeeId || 'Not Set'}</span></div>
+                                    <div>Your registered Display Name: <span className="underline font-black">{userProfile?.displayName || 'Not Set'}</span></div>
+                                    <div className="text-[10px] mt-2 opacity-80">(Admins can update Employee IDs at "User Access" tab)</div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Admin Roster Dashboard Grid */}
+                              {isAdmin && (
+                                <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+                                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                                    <div>
+                                      <h5 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">All Staff Roster List (Admin view)</h5>
+                                      <p className="text-[11px] text-slate-400 mt-0.5">Control panel database mapping for {roster.rows?.length || 0} active staff rows</p>
+                                    </div>
+                                    
+                                    <input
+                                      type="text"
+                                      placeholder="Search roster rows by name or ID..."
+                                      value={rosterSearch}
+                                      onChange={(e) => setRosterSearch(e.target.value)}
+                                      className="bg-slate-50 dark:bg-slate-100 border-none rounded-xl text-xs font-bold px-4 py-2.5 w-full md:w-72 focus:ring-2 focus:ring-blue-500/20"
+                                    />
+                                  </div>
+
+                                  <div className="overflow-x-auto border border-slate-100 dark:border-slate-800/80 rounded-2xl scrollbar-thin">
+                                    <table className="w-full text-left border-collapse">
+                                      <thead>
+                                        <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+                                          <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">ID</th>
+                                          <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Name</th>
+                                          {roster.headers.slice(2, 7).map((hdr: string) => (
+                                            <th key={hdr} className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">{hdr}</th>
+                                          ))}
+                                          {roster.headers.length > 7 && (
+                                            <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">+{roster.headers.length - 7} More Dates</th>
+                                          )}
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                                        {roster.rows
+                                          ?.filter((r: any) => {
+                                            if (!rosterSearch) return true;
+                                            const s = rosterSearch.toLowerCase();
+                                            return String(r.id || '').toLowerCase().includes(s) || String(r.name || '').toLowerCase().includes(s);
+                                          })
+                                          ?.map((r: any, idx: number) => (
+                                            <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                                              <td className="p-4 text-xs font-black text-blue-600 dark:text-blue-400">{r.id}</td>
+                                              <td className="p-4 text-xs font-bold">{r.name}</td>
+                                              {roster.headers.slice(2, 7).map((hdr: string) => (
+                                                <td key={hdr} className="p-4 text-xs font-medium text-slate-500 dark:text-slate-400 animate-fade-in">
+                                                  {r.shifts?.[hdr] || 'Day Off'}
+                                                </td>
+                                              ))}
+                                              {roster.headers.length > 7 && (
+                                                <td className="p-4 text-xs font-bold text-slate-400">...</td>
+                                              )}
+                                            </tr>
+                                          ))
+                                        }
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl p-10 text-center bg-slate-50/30 dark:bg-slate-900/10">
+                              <FileSpreadsheet className="mx-auto text-slate-300 dark:text-slate-700 mb-4" size={48} />
+                              <h5 className="font-extrabold text-slate-600 dark:text-slate-400">No Roster Schedule File Loaded</h5>
+                              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-sm mx-auto">
+                                The team operation schedule is currently unlinked. Please request your system administrator to upload the active Spreadsheet roster.
+                              </p>
+                              
+                              {/* Roster Upload for Admin in empty state */}
+                              {isAdmin && (
+                                <div className="mt-6 max-w-md mx-auto border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-2xl p-6 text-center bg-white dark:bg-slate-900 transition-colors">
+                                  <UploadCloud className="mx-auto text-blue-500 mb-3" size={32} />
+                                  <h6 className="text-xs font-black text-slate-700 dark:text-slate-300">Upload Roster spreadsheet or CSV file</h6>
+                                  <p className="text-[10px] text-slate-400 mt-1">First Row columns: ID, Name, 16-May-26, etc.</p>
+                                  
+                                  <input
+                                    type="file"
+                                    accept=".xlsx,.xls,.csv"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleRosterUpload(file);
+                                    }}
+                                    className="hidden"
+                                    id="dashboard-roster-upload-empty"
+                                  />
+                                  <label
+                                    htmlFor="dashboard-roster-upload-empty"
+                                    className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black tracking-wider uppercase cursor-pointer shadow-md shadow-blue-500/10 transition-colors"
+                                  >
+                                    Select File
+                                  </label>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </motion.div>
+                )}
+
+                {activeTab === 'validation' && hasAccess('validation') && (
                 <motion.div 
-                  key="dashboard"
+                  key="validation"
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -15 }}
                   transition={{ duration: 0.2 }}
                   className="space-y-10"
                 >
-                  {canWriteToTab('dashboard') ? (
+                  {canWriteToTab('validation') ? (
                     <FileUpload onDataLoaded={handleDataLoaded} isLoading={isLoading} resetTrigger={resetTrigger} />
                   ) : (
                     <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl flex items-center gap-4 text-slate-500 dark:text-slate-400">
@@ -1312,7 +1920,7 @@ export default function App() {
                   </AnimatePresence>
 
                   {data.length > 0 ? (
-                    <DataTable data={data} onUpdatePrice={updateRowPrice} canEdit={canWriteToTab('dashboard')} />
+                    <DataTable data={data} onUpdatePrice={updateRowPrice} canEdit={canWriteToTab('validation')} />
                   ) : !isLoading && (
                     <div className="flex flex-col items-center justify-center py-40 text-center">
                       <div className="w-24 h-24 bg-slate-100 dark:bg-slate-900 rounded-full flex items-center justify-center mb-6 border border-slate-200 dark:border-slate-800 transition-colors duration-300">
@@ -1487,7 +2095,7 @@ export default function App() {
                   transition={{ duration: 0.2 }}
                   className="w-full absolute inset-0 z-[200] bg-white min-h-screen"
                 >
-                  <PrintSlips data={data} settings={siteSettings} onBack={() => setActiveTab('dashboard')} />
+                  <PrintSlips data={data} settings={siteSettings} onBack={() => setActiveTab('validation')} />
                 </motion.div>
               )}
             </AnimatePresence>
