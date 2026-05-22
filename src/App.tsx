@@ -38,7 +38,7 @@ import { getInitials, getAvatarColor } from './lib/avatar';
 import { PrintSlips } from './components/PrintSlips';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'rules' | 'products' | 'settings' | 'users' | 'tracker' | 'printSlips' | 'team'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'rules' | 'products' | 'settings' | 'users' | 'tracker' | 'printSlips' | 'team'>('team');
   const [data, setData] = useState<DataRow[]>([]);
   const [rules, setRules] = useState<ValidationRule[]>(DEFAULT_RULES);
   const [delivery, setDelivery] = useState<IDeliverySettings>(DEFAULT_DELIVERY_SETTINGS);
