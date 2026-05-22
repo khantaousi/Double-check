@@ -23,6 +23,7 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
   const [confirmPassword, setConfirmPassword] = useState('');
   const [customDisplayName, setCustomDisplayName] = useState('');
   const [employeeId, setEmployeeId] = useState('');
+  const [joiningDate, setJoiningDate] = useState('');
   const [role, setRole] = useState<'admin' | 'user'>('user');
   const [isCreating, setIsCreating] = useState(false);
   const [now, setNow] = useState(new Date());
@@ -94,6 +95,7 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
         permissions,
         displayName: customDisplayName,
         employeeId: employeeId,
+        joiningDate: joiningDate || '',
         createdAt: getBSTISOString(),
         isActive: true
       };
@@ -106,6 +108,7 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
       setEmail('');
       setCustomDisplayName('');
       setEmployeeId('');
+      setJoiningDate('');
       setPassword('');
       setConfirmPassword('');
       alert('User created successfully.');
@@ -164,7 +167,8 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
       await updateDoc(doc(db, 'users', editTarget.id!), cleanObject({
         displayName: editTarget.displayName || '',
         permissions: editTarget.permissions,
-        employeeId: editTarget.employeeId || ''
+        employeeId: editTarget.employeeId || '',
+        joiningDate: editTarget.joiningDate || ''
       }));
       setEditTarget(null);
       alert('User updated successfully.');
@@ -290,6 +294,11 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
                           {user.employeeId && (
                             <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 tracking-wider flex items-center gap-1">
                               <span className="bg-blue-500/10 dark:bg-blue-500/20 px-1.5 py-0.5 rounded text-[9px]">ID: {user.employeeId}</span>
+                            </p>
+                          )}
+                          {user.joiningDate && (
+                            <p className="text-[9px] font-bold text-slate-500 dark:text-slate-400">
+                              Joined: {user.joiningDate}
                             </p>
                           )}
                           <div className="flex items-center gap-1 opacity-60">
@@ -490,6 +499,10 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Employee ID</label>
                   <input type="text" value={editTarget.employeeId || ''} onChange={e => setEditTarget({...editTarget, employeeId: e.target.value})} placeholder="e.g. EMP420" className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20" />
                 </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Joining Date</label>
+                  <input type="date" value={editTarget.joiningDate || ''} onChange={e => setEditTarget({...editTarget, joiningDate: e.target.value})} className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20" />
+                </div>
                 <button onClick={handleEditUserSave} className="w-full bg-blue-600 text-white rounded-2xl py-4 font-bold text-xs uppercase tracking-widest hover:bg-blue-700">Save Changes</button>
               </div>
             </motion.div>
@@ -542,6 +555,17 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
                       onChange={e => setEmployeeId(e.target.value)} 
                       placeholder="e.g. EMP420"
                       className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3.5 pl-10 pr-4 text-sm font-black focus:ring-2 focus:ring-blue-500/20" 
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Joining Date</label>
+                  <div className="relative text-slate-700 dark:text-slate-200">
+                    <input 
+                      type="date" 
+                      value={joiningDate} 
+                      onChange={e => setJoiningDate(e.target.value)} 
+                      className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3.5 px-4 text-sm font-black focus:ring-2 focus:ring-blue-500/20" 
                     />
                   </div>
                 </div>

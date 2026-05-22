@@ -10,6 +10,7 @@ import { format, differenceInMinutes, parseISO, subDays } from 'date-fns';
 import { TaskHistoryEntry, AppNotification } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { generateRankingsExcel } from '../lib/excel';
+import { LiveTenureTracker } from './LiveTenureTracker';
 
 interface TeamWorkProps {
   userProfile: UserProfile;
@@ -714,10 +715,20 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   const assignableUsers = (allUsers || []).filter(u => u.isActive);
 
   return (
-    <div className="space-y-8 pb-20 relative">
+    <div className="space-y-5 pb-20 relative">
       {/* Background Decor */}
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/5 dark:bg-blue-500/10 rounded-full blur-[120px] pointer-events-none -z-10" />
       <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none -z-10" />
+
+      {/* Live Tenure Top Banner Display (As requested in marked box) */}
+      <motion.div
+        initial={{ opacity: 0, y: -15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="-mt-3"
+      >
+        <LiveTenureTracker joiningDate={userProfile?.joiningDate} createdAt={userProfile?.createdAt} variant="banner" />
+      </motion.div>
 
       {/* Header Section */}
       <motion.div 
@@ -736,8 +747,8 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
           </div>
           <div>
             <h2 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none mb-3">Team Work</h2>
-            <div className="flex items-center gap-3">
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.5)] animate-pulse" />
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.4)] animate-pulse" />
               <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] leading-none opacity-80">
                 {isAdmin ? 'Operational Command & Analytics' : 'Active Duty & Mission Parameters'}
               </p>
