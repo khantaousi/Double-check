@@ -18,16 +18,25 @@ export function LiveTenureTracker({ joiningDate, createdAt, variant = 'compact' 
   });
 
   useEffect(() => {
-    if (!joiningDate || joiningDate.trim() === '') {
+    const hasJoining = joiningDate && joiningDate.trim() !== '';
+    const hasCreated = createdAt && createdAt.trim() !== '';
+    
+    if (!hasJoining && !hasCreated) {
       setTenure(prev => ({ ...prev, active: false }));
       return;
     }
 
     const updateTenure = () => {
       let baseDate: Date;
-      // Parse 'YYYY-MM-DD' as local time midnight
-      const [year, month, day] = joiningDate.split('-').map(Number);
-      baseDate = new Date(year, month - 1, day, 0, 0, 0);
+      const effectiveDateStr = hasJoining ? (joiningDate as string) : (createdAt as string);
+      
+      if (hasJoining && effectiveDateStr.includes('-') && effectiveDateStr.split('-').length === 3 && effectiveDateStr.length <= 10) {
+        // Parse 'YYYY-MM-DD' as local time midnight
+        const [year, month, day] = effectiveDateStr.split('-').map(Number);
+        baseDate = new Date(year, month - 1, day, 0, 0, 0);
+      } else {
+        baseDate = new Date(effectiveDateStr);
+      }
 
       const now = new Date();
       const diffMs = now.getTime() - baseDate.getTime();

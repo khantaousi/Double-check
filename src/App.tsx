@@ -25,8 +25,9 @@ import { DataTable } from './components/DataTable';
 import { UserManagement } from './components/UserManagement';
 import WelcomeScreen from './components/WelcomeScreen';
 import { LiveTenureTracker } from './components/LiveTenureTracker';
-import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search } from 'lucide-react';
+import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { toPng } from 'html-to-image';
 import { db, auth, logInWithEmail, signOut, signInWithGoogle } from './lib/firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, setDoc, getDoc, writeBatch, where, getDocs } from 'firebase/firestore';
 import { seedProducts } from './lib/seed';
@@ -73,6 +74,7 @@ export default function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [roster, setRoster] = useState<any>(null);
   const [isRosterUploading, setIsRosterUploading] = useState(false);
+  const [isCapturingRoster, setIsCapturingRoster] = useState(false);
   const [showFullRoster, setShowFullRoster] = useState(false);
   const [rosterSearch, setRosterSearch] = useState('');
   const [selectedRosterId, setSelectedRosterId] = useState('');
@@ -273,6 +275,80 @@ export default function App() {
         alert('Failed to delete roster: ' + (err as Error).message);
       }
     }
+  };
+
+  const handleDownloadRosterImage = async () => {
+    const node = document.getElementById('admin-roster-table-container');
+    if (!node) {
+      alert('Roster table element not found.');
+      return;
+    }
+
+    setIsCapturingRoster(true);
+    // Wait for the state to apply and DOM to re-render without the Actions column
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    try {
+      const tableEl = node.querySelector('table');
+      const tableWidth = tableEl ? tableEl.scrollWidth : node.scrollWidth;
+
+      const dataUrl = await toPng(node, {
+        backgroundColor: document.documentElement.classList.contains('dark') ? '#0b1329' : '#ffffff',
+        width: tableWidth + 32,
+        style: {
+          width: `${tableWidth}px`,
+          maxWidth: 'none',
+          overflow: 'visible',
+        },
+        cacheBust: true,
+      });
+
+      const link = document.createElement('a');
+      link.download = `Staff_Duty_Roster_${new Date().toISOString().split('T')[0]}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error('Failed to capture roster image:', err);
+      alert('Failed to save roster image: ' + (err as Error).message);
+    } finally {
+      setIsCapturingRoster(false);
+    }
+  };
+
+  const handleDownloadRosterTemplate = () => {
+    const today = new Date();
+    // Dynamically generate column headers for the next 7 days in the correct format (e.g. 22-MAY-26)
+    const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    const headers = ['ID', 'Name'];
+    const subHeaders = ['', ''];
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(today, i);
+      const dayStr = String(d.getDate()).padStart(2, '0');
+      const monStr = monthNames[d.getMonth()];
+      const yrStr = String(d.getFullYear()).substring(2);
+      const headerKey = `${dayStr}-${monStr}-${yrStr}`;
+      headers.push(headerKey);
+      subHeaders.push(days[d.getDay()]);
+    }
+
+    const sampleRow1 = ['2146', 'MD Ahbab Khan Taousi', '11:00 AM', '11:00 AM', '11:00 AM', '11:00 AM', 'Day Off', '11:00 AM', 'CL'];
+    const sampleRow2 = ['2152', 'Aion Ray', '10:00 AM', '10:00 AM', '10:00 AM', '10:00 AM', 'Day Off', '10:00 AM', 'Absent'];
+    const sampleRow3 = ['2171', 'Pallab karmakar', 'Day Off', '1:00 PM', '8:00 AM', '1:00 PM', 'Day Off', 'Leave', '1:00 PM'];
+
+    const aoa = [
+      headers,
+      subHeaders,
+      sampleRow1,
+      sampleRow2,
+      sampleRow3
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Roster');
+    XLSX.writeFile(wb, 'demo_staff_roster.xlsx');
   };
 
   const handleRosterCellChangeLocal = (rowIndex: number, field: string, dateHeaderKey: string | null, newValue: string) => {
@@ -1687,11 +1763,11 @@ export default function App() {
                         if (!norm || norm === 'no shift assigned') {
                           return 'bg-slate-50/80 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500';
                         }
-                        if (norm.includes('off') || norm.includes('day off')) {
+                        if (norm.includes('off') || norm.includes('day off') || norm.includes('leave') || norm.includes('leav') || norm.includes('lve')) {
                           return 'bg-amber-50/80 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/30 text-amber-600 dark:text-amber-400';
                         }
-                        if (norm === 'cl' || norm === 'sl' || norm === 'leave' || norm.includes('absent')) {
-                          return 'bg-red-50/80 dark:bg-red-950/20 border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 font-extrabold';
+                        if (norm === 'cl' || norm === 'sl' || norm.includes('absent')) {
+                          return 'bg-red-50/80 dark:bg-red-950/20 border-red-200 dark:border-red-900/30 text-red-650 dark:text-red-400 font-extrabold';
                         }
                         return 'bg-blue-50/80 dark:bg-blue-950/20 border-blue-100 dark:border-blue-900/20 text-blue-600 dark:text-blue-400 font-bold';
                       };
@@ -1713,14 +1789,30 @@ export default function App() {
                             {isAdmin && (
                               <div className="flex items-center gap-2">
                                 {roster ? (
-                                  <button
-                                    onClick={handleClearRoster}
-                                    className="flex items-center gap-2 text-xs font-bold text-red-500 hover:text-red-600 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 px-4 py-2 rounded-xl transition-all cursor-pointer"
-                                  >
-                                    Clear Active Roster
-                                  </button>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={handleDownloadRosterTemplate}
+                                      className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-350 hover:bg-slate-150 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 rounded-xl transition-all cursor-pointer uppercase tracking-wider"
+                                    >
+                                      <Download size={13} />
+                                      Demo Template
+                                    </button>
+                                    <button
+                                      onClick={handleClearRoster}
+                                      className="flex items-center gap-2 text-xs font-bold text-red-500 hover:text-red-650 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 px-3.5 py-2 rounded-xl transition-all cursor-pointer uppercase tracking-wider"
+                                    >
+                                      Clear Active Roster
+                                    </button>
+                                  </div>
                                 ) : (
-                                  <div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={handleDownloadRosterTemplate}
+                                      className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-350 hover:bg-slate-150 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 rounded-xl transition-all cursor-pointer uppercase tracking-wider"
+                                    >
+                                      <Download size={13} />
+                                      Demo Template
+                                    </button>
                                     <input
                                       type="file"
                                       accept=".xlsx,.xls,.csv"
@@ -1733,7 +1825,7 @@ export default function App() {
                                     />
                                     <label
                                       htmlFor="dashboard-roster-upload"
-                                      className="flex items-center gap-2 text-xs font-black text-blue-600 hover:text-white hover:bg-blue-600 border border-blue-200 dark:border-blue-800/60 bg-white dark:bg-slate-900 px-4 py-2 rounded-xl transition-all cursor-pointer uppercase tracking-wider"
+                                      className="flex items-center gap-2 text-xs font-black text-blue-600 hover:text-white hover:bg-blue-600 border border-blue-200 dark:border-blue-800/60 bg-white dark:bg-slate-900 px-3.5 py-2 rounded-xl transition-all cursor-pointer uppercase tracking-wider"
                                     >
                                       <UploadCloud size={14} />
                                       Upload Roster
@@ -1882,6 +1974,26 @@ export default function App() {
                                     
                                     <div className="flex flex-wrap items-center gap-3">
                                       <button
+                                        onClick={handleDownloadRosterImage}
+                                        disabled={isCapturingRoster}
+                                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 text-white rounded-xl text-xs font-black tracking-wider uppercase transition-all flex items-center gap-1.5 cursor-pointer"
+                                      >
+                                        {isCapturingRoster ? (
+                                          <>
+                                            <span className="w-3" style={{ contentVisibility: 'auto' }}>
+                                              <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                            </span>
+                                            Capturing...
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Camera size={14} />
+                                            Download Image
+                                          </>
+                                        )}
+                                      </button>
+
+                                      <button
                                         onClick={handleAddRosterRow}
                                         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black tracking-wider uppercase transition-colors"
                                       >
@@ -1898,7 +2010,7 @@ export default function App() {
                                     </div>
                                   </div>
  
-                                  <div className="overflow-x-auto border border-slate-100 dark:border-slate-800/80 rounded-2xl scrollbar-thin">
+                                  <div id="admin-roster-table-container" className="overflow-x-auto border border-slate-100 dark:border-slate-800/80 rounded-2xl scrollbar-thin bg-white dark:bg-[#0b1329] p-4">
                                     <table className="w-full text-left border-collapse">
                                       <thead>
                                         <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
@@ -1907,7 +2019,9 @@ export default function App() {
                                           {roster.headers.slice(2).map((hdr: string) => (
                                             <th key={hdr} className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider min-w-[120px]">{hdr}</th>
                                           ))}
-                                          <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Actions</th>
+                                          {!isCapturingRoster && (
+                                            <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Actions</th>
+                                          )}
                                         </tr>
                                       </thead>
                                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
@@ -1947,32 +2061,73 @@ export default function App() {
                                                   className="bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-blue-500 px-2 py-1 rounded text-xs font-bold text-slate-800 dark:text-slate-200 outline-none w-44 transition-all border border-transparent"
                                                 />
                                               </td>
-                                              {roster.headers.slice(2).map((hdr: string) => (
-                                                <td key={hdr} className="p-2 text-xs font-medium text-slate-500 dark:text-slate-400 animate-fade-in min-w-[120px]">
-                                                  <input
-                                                    type="text"
-                                                    value={r.shifts?.[hdr] || ''}
-                                                    placeholder="Day Off"
-                                                    onChange={(e) => handleRosterCellChangeLocal(idx, '', hdr, e.target.value)}
-                                                    onBlur={handleRosterCellBlurSave}
-                                                    onKeyDown={(e) => {
-                                                      if (e.key === 'Enter') {
-                                                        (e.target as HTMLInputElement).blur();
-                                                      }
-                                                    }}
-                                                    className="bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-blue-500 px-2 py-1 rounded text-xs font-bold text-slate-800 dark:text-slate-200 outline-none w-full transition-all border border-transparent"
-                                                  />
+                                              {roster.headers.slice(2).map((hdr: string) => {
+                                                const rawShift = r.shifts?.[hdr] || '';
+                                                const normShift = rawShift.trim().toLowerCase();
+                                                
+                                                let cellColors = 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30';
+                                                
+                                                if (normShift === 'cl' || normShift === 'sl' || normShift.includes('absent')) {
+                                                  cellColors = 'bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/30';
+                                                } else if (normShift.includes('off') || normShift.includes('leave') || normShift.includes('leav') || normShift.includes('lve') || !rawShift) {
+                                                  cellColors = 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30';
+                                                } else {
+                                                  if (normShift.includes('8:') || normShift.includes('8 am') || normShift.includes('8am') || normShift === '8') {
+                                                    cellColors = 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-400 border border-indigo-500/30';
+                                                  } else if (normShift.includes('9:') || normShift.includes('9 am') || normShift.includes('9am') || normShift === '9') {
+                                                    cellColors = 'bg-teal-500/15 text-teal-700 dark:text-teal-400 border border-teal-500/30';
+                                                  } else if (normShift.includes('10:') || normShift.includes('10 am') || normShift.includes('10am') || normShift === '10') {
+                                                    cellColors = 'bg-sky-500/15 text-sky-700 dark:text-sky-400 border border-sky-500/30';
+                                                  } else if (normShift.includes('11:') || normShift.includes('11 am') || normShift.includes('11am') || normShift === '11') {
+                                                    cellColors = 'bg-violet-500/15 text-violet-700 dark:text-violet-400 border border-violet-500/30';
+                                                  } else if (normShift.includes('12:') || normShift.includes('12 pm') || normShift.includes('12pm') || normShift === '12') {
+                                                    cellColors = 'bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-400 border border-fuchsia-500/30';
+                                                  } else if (normShift.includes('1:') || normShift.includes('1 pm') || normShift.includes('1pm') || normShift === '1') {
+                                                    cellColors = 'bg-purple-500/15 text-purple-700 dark:text-purple-400 border border-purple-500/30';
+                                                  } else if (normShift.includes('2:') || normShift.includes('2 pm') || normShift.includes('2pm') || normShift === '2') {
+                                                    cellColors = 'bg-slate-500/15 text-slate-700 dark:text-slate-400 border border-slate-500/30';
+                                                  } else if (normShift.includes('3:') || normShift.includes('3 pm') || normShift.includes('3pm') || normShift === '3') {
+                                                    cellColors = 'bg-orange-500/15 text-orange-700 dark:text-orange-400 border border-orange-500/30';
+                                                  } else if (normShift.includes('4:') || normShift.includes('4 pm') || normShift.includes('4pm') || normShift === '4') {
+                                                    cellColors = 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30';
+                                                  } else if (normShift.includes('5:') || normShift.includes('5 pm') || normShift.includes('5pm') || normShift === '5') {
+                                                    cellColors = 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 border border-cyan-500/30';
+                                                  } else if (normShift.includes('6:') || normShift.includes('6 pm') || normShift.includes('6pm') || normShift === '6') {
+                                                    cellColors = 'bg-lime-500/15 text-lime-700 dark:text-lime-400 border border-lime-500/30';
+                                                  } else if (normShift.includes('7:') || normShift.includes('7 pm') || normShift.includes('7pm') || normShift === '7') {
+                                                    cellColors = 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30';
+                                                  }
+                                                }
+                                                
+                                                return (
+                                                  <td key={hdr} className="p-2 text-xs font-medium animate-fade-in min-w-[120px]">
+                                                    <input
+                                                      type="text"
+                                                      value={rawShift}
+                                                      placeholder="Day Off"
+                                                      onChange={(e) => handleRosterCellChangeLocal(idx, '', hdr, e.target.value)}
+                                                      onBlur={handleRosterCellBlurSave}
+                                                      onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                          (e.target as HTMLInputElement).blur();
+                                                        }
+                                                      }}
+                                                      className={`hover:bg-opacity-80 focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-blue-500 px-2 py-1.5 rounded-lg text-xs font-black outline-none w-full transition-all ${cellColors}`}
+                                                    />
+                                                  </td>
+                                                );
+                                              })}
+                                              {!isCapturingRoster && (
+                                                <td className="p-2 text-right">
+                                                  <button
+                                                    onClick={() => handleDeleteRosterRow(idx)}
+                                                    className="p-1 px-2.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-all text-[10px] font-black uppercase tracking-wider"
+                                                    title="Delete this Row"
+                                                  >
+                                                    Remove
+                                                  </button>
                                                 </td>
-                                              ))}
-                                              <td className="p-2 text-right">
-                                                <button
-                                                  onClick={() => handleDeleteRosterRow(idx)}
-                                                  className="p-1 px-2.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-all text-[10px] font-black uppercase tracking-wider"
-                                                  title="Delete this Row"
-                                                >
-                                                  Remove
-                                                </button>
-                                              </td>
+                                              )}
                                             </tr>
                                           ))
                                         }
@@ -1990,9 +2145,20 @@ export default function App() {
                                 The team operation schedule is currently unlinked. Please request your system administrator to upload the active Spreadsheet roster.
                               </p>
                               
+                              <div className="mt-5 flex justify-center">
+                                <button
+                                  type="button"
+                                  onClick={handleDownloadRosterTemplate}
+                                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-black tracking-wider uppercase rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md"
+                                >
+                                  <Download className="w-4 h-4 text-blue-500" />
+                                  Download Demo Roster Template
+                                </button>
+                              </div>
+                              
                               {/* Roster Upload for Admin in empty state */}
                               {isAdmin && (
-                                <div className="mt-6 max-w-md mx-auto border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-2xl p-6 text-center bg-white dark:bg-slate-900 transition-colors">
+                                <div className="mt-8 max-w-md mx-auto border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-2xl p-6 text-center bg-white dark:bg-slate-900 transition-colors">
                                   <UploadCloud className="mx-auto text-blue-500 mb-3" size={32} />
                                   <h6 className="text-xs font-black text-slate-700 dark:text-slate-300">Upload Roster spreadsheet or CSV file</h6>
                                   <p className="text-[10px] text-slate-400 mt-1">First Row columns: ID, Name, 16-May-26, etc.</p>
