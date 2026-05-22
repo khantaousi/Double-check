@@ -460,50 +460,131 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   };
 
   // Maintenance: Reset daily tasks for a new day and archive completions
+  // Also auto-submits any tasks started but not completed yesterday
   useEffect(() => {
     if (!tasks || tasks.length === 0) return;
     
     const maintenance = async () => {
       const todayStr = formatBST(new Date(), 'yyyy-MM-dd');
       
-      const outdatedDailyTasks = tasks.filter(t => 
-        t.isEveryday && 
-        t.status === 'completed' && 
-        t.completedAt && 
-        formatBST(parseISO(t.completedAt), 'yyyy-MM-dd') !== todayStr
-      );
-
-      if (outdatedDailyTasks.length === 0) return;
-
       const batch = writeBatch(db);
-      for (const task of outdatedDailyTasks) {
-        // Create an archive entry for the report
-        const archiveId = doc(collection(db, 'tasks')).id;
-        const archiveData = {
-          ...task,
-          id: archiveId,
-          isEveryday: false, 
-          isHistorySnapshot: true,
-          status: 'completed',
-          updatedAt: getBSTISOString()
-        };
-        batch.set(doc(db, 'tasks', archiveId), cleanObject(archiveData));
+      let writeCount = 0;
 
-        // Reset the master everyday task
-        batch.update(doc(db, 'tasks', task.id), cleanObject({
-          status: 'pending',
-          startedAt: null,
-          completedAt: null,
-          durationMinutes: null,
-          totalPauseMinutes: 0,
-          lastPausedAt: null,
-          resumedAt: null,
-          isApproved: false,
-          isRejected: false,
-          assignedAt: getBSTISOString(),
-          history: [createHistoryEntry('created', 'Automated Daily Cycle Reset')]
-        }));
+      for (const t of tasks) {
+        if (t.isHistorySnapshot) continue;
+
+        const taskDate = formatBST(parseISO(t.assignedAt), 'yyyy-MM-dd');
+        if (taskDate === todayStr) continue;
+
+        // Case A & B: Unfinished tasks (started but not completed) or completed daily tasks from yesterday/past
+        const isUnfinished = t.status === 'in-progress' || t.status === 'paused';
+        const isCompletedDaily = t.isEveryday && t.status === 'completed';
+
+        if (isUnfinished) {
+          // Calculate auto-completed/submitted details at end of its day (23:59:59 Bangladesh Time)
+          const endOfTaskDayStr = taskDate + 'T23:59:59.999+06:00';
+          const startTimeStr = t.startedAt || t.assignedAt;
+          const rawDuration = differenceInMinutes(parseISO(endOfTaskDayStr), parseISO(startTimeStr));
+          const durationMinutes = Math.max(0, rawDuration - (t.totalPauseMinutes || 0));
+          
+          const newHistory = [...(t.history || []), {
+            status: 'completed' as const,
+            timestamp: getBSTISOString(),
+            performerId: 'system-auto',
+            performerName: 'Auto-Submit System',
+            note: 'Automated midnight auto-submit for unfinished task'
+          }];
+
+          if (t.isEveryday) {
+            // Daily task - Archive completion snap and reset master to pending for today
+            const archiveId = doc(collection(db, 'tasks')).id;
+            const archiveData = {
+              ...t,
+              id: archiveId,
+              isEveryday: false,
+              isHistorySnapshot: true,
+              status: 'completed' as const,
+              completedAt: endOfTaskDayStr,
+              durationMinutes,
+              updatedAt: getBSTISOString(),
+              history: newHistory
+            };
+            batch.set(doc(db, 'tasks', archiveId), cleanObject(archiveData));
+
+            batch.update(doc(db, 'tasks', t.id), cleanObject({
+              status: 'pending',
+              startedAt: null,
+              completedAt: null,
+              durationMinutes: null,
+              totalPauseMinutes: 0,
+              lastPausedAt: null,
+              resumedAt: null,
+              isApproved: false,
+              isRejected: false,
+              assignedAt: getBSTISOString(),
+              history: [{
+                status: 'created',
+                timestamp: getBSTISOString(),
+                performerId: 'system-auto',
+                performerName: 'Auto-Submit System',
+                note: 'Automated Daily Cycle Reset after Midnight Auto-Submit'
+              }]
+            }));
+            writeCount += 2;
+          } else {
+            // General task - Just auto-complete/submit it
+            batch.update(doc(db, 'tasks', t.id), cleanObject({
+              status: 'completed',
+              completedAt: endOfTaskDayStr,
+              durationMinutes,
+              updatedAt: getBSTISOString(),
+              history: newHistory
+            }));
+            writeCount += 1;
+          }
+        } else if (isCompletedDaily) {
+          // Archive old completed daily task and reset master
+          const archiveId = doc(collection(db, 'tasks')).id;
+          const archiveData = {
+            ...t,
+            id: archiveId,
+            isEveryday: false,
+            isHistorySnapshot: true,
+            status: 'completed' as const,
+            updatedAt: getBSTISOString()
+          };
+          batch.set(doc(db, 'tasks', archiveId), cleanObject(archiveData));
+
+          batch.update(doc(db, 'tasks', t.id), cleanObject({
+            status: 'pending',
+            startedAt: null,
+            completedAt: null,
+            durationMinutes: null,
+            totalPauseMinutes: 0,
+            lastPausedAt: null,
+            resumedAt: null,
+            isApproved: false,
+            isRejected: false,
+            assignedAt: getBSTISOString(),
+            history: [{
+              status: 'created',
+              timestamp: getBSTISOString(),
+              performerId: 'system-auto',
+              performerName: 'Auto-Submit System',
+              note: 'Automated Daily Cycle Reset'
+            }]
+          }));
+          writeCount += 2;
+        } else if (t.isEveryday && t.status === 'pending') {
+          // Case C: Update date of pending daily task so it shows on today's board
+          batch.update(doc(db, 'tasks', t.id), {
+            assignedAt: getBSTISOString()
+          });
+          writeCount += 1;
+        }
       }
+
+      if (writeCount === 0) return;
       
       try {
         await batch.commit();
@@ -720,16 +801,6 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       {/* Background Decor */}
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/5 dark:bg-blue-500/10 rounded-full blur-[120px] pointer-events-none -z-10" />
       <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none -z-10" />
-
-      {/* Live Tenure Top Banner Display (As requested in marked box) */}
-      <motion.div
-        initial={{ opacity: 0, y: -15 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="-mt-3"
-      >
-        <LiveTenureTracker joiningDate={userProfile?.joiningDate} createdAt={userProfile?.createdAt} variant="banner" />
-      </motion.div>
 
       {/* Header Section */}
       <motion.div 

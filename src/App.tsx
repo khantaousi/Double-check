@@ -10,7 +10,7 @@
 
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { AppNotification, DataRow, TaskHistoryEntry, ValidationRule, ProductPrice, DEFAULT_RULES, DeliverySettings as IDeliverySettings, DEFAULT_DELIVERY_SETTINGS, UserProfile, GiftRule, SiteSettings, DEFAULT_SITE_SETTINGS } from './types';
+import { AppNotification, DataRow, TaskHistoryEntry, ValidationRule, ProductPrice, DEFAULT_RULES, DeliverySettings as IDeliverySettings, DEFAULT_DELIVERY_SETTINGS, UserProfile, GiftRule, SiteSettings, DEFAULT_SITE_SETTINGS, TeamTask } from './types';
 import { processData, calculateRow } from './lib/processor';
 import { RuleEditor } from './components/RuleEditor';
 import { GiftRuleEditor } from './components/GiftRuleEditor';
@@ -33,7 +33,7 @@ import { seedProducts } from './lib/seed';
 import { handleFirestoreError, OperationType } from './lib/errors';
 import { cleanObject, getBSTISOString, formatBST } from './lib/utils';
 
-import { subDays, addDays, parseISO } from 'date-fns';
+import { subDays, addDays, parseISO, differenceInMinutes } from 'date-fns';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { getInitials, getAvatarColor } from './lib/avatar';
 import { PrintSlips } from './components/PrintSlips';
@@ -275,6 +275,73 @@ export default function App() {
     }
   };
 
+  const handleRosterCellChangeLocal = (rowIndex: number, field: string, dateHeaderKey: string | null, newValue: string) => {
+    if (!roster) return;
+    const updatedRows = [...roster.rows];
+    if (dateHeaderKey) {
+      updatedRows[rowIndex] = {
+        ...updatedRows[rowIndex],
+        shifts: {
+          ...updatedRows[rowIndex].shifts,
+          [dateHeaderKey]: newValue
+        }
+      };
+    } else {
+      updatedRows[rowIndex] = {
+        ...updatedRows[rowIndex],
+        [field]: newValue
+      };
+    }
+    setRoster({
+      ...roster,
+      rows: updatedRows
+    });
+  };
+
+  const handleRosterCellBlurSave = async () => {
+    if (!roster) return;
+    try {
+      await setDoc(doc(db, 'config', 'staff_roster'), cleanObject(roster));
+    } catch (err) {
+      console.error("Failed to commit roster changes:", err);
+    }
+  };
+
+  const handleAddRosterRow = async () => {
+    if (!roster) return;
+    const newRow = {
+      id: "NEW_ID",
+      name: "New Staff Name",
+      shifts: {}
+    };
+    const updatedRoster = {
+      ...roster,
+      rows: [...(roster.rows || []), newRow]
+    };
+    setRoster(updatedRoster);
+    try {
+      await setDoc(doc(db, 'config', 'staff_roster'), cleanObject(updatedRoster));
+    } catch (err) {
+      console.error("Failed to add roster row:", err);
+    }
+  };
+
+  const handleDeleteRosterRow = async (rowIndex: number) => {
+    if (!roster) return;
+    if (!window.confirm("Are you sure you want to delete this staff row from the roster?")) return;
+    const updatedRows = roster.rows.filter((_: any, idx: number) => idx !== rowIndex);
+    const updatedRoster = {
+      ...roster,
+      rows: updatedRows
+    };
+    setRoster(updatedRoster);
+    try {
+      await setDoc(doc(db, 'config', 'staff_roster'), cleanObject(updatedRoster));
+    } catch (err) {
+      console.error("Failed to delete roster row:", err);
+    }
+  };
+
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -474,8 +541,8 @@ export default function App() {
         if (!statusSnap.exists() || statusSnap.data().lastResetDate !== todayStr) {
           console.log("Running Daily Maintenance Reset (Frontend Mode)...");
           
-          // Find everyday tasks
-          const q = query(collection(db, 'tasks'), where('isEveryday', '==', true));
+          // Find all tasks to process past-day active and completed daily ones
+          const q = query(collection(db, 'tasks'));
           const tasksSnap = await getDocs(q);
           
           if (tasksSnap.empty) {
@@ -487,24 +554,92 @@ export default function App() {
           let count = 0;
 
           for (const docSnap of tasksSnap.docs) {
-            const task = docSnap.data();
-            if (task.status !== 'completed' || !task.completedAt) continue;
-            
-            const compDate = formatBST(parseISO(task.completedAt), 'yyyy-MM-dd');
-            if (compDate !== todayStr) {
-              // Archive
+            const t = docSnap.data() as TeamTask;
+            if (t.isHistorySnapshot) continue;
+
+            const taskDate = formatBST(parseISO(t.assignedAt), 'yyyy-MM-dd');
+            if (taskDate === todayStr) continue;
+
+            // Case A & B: Unfinished tasks (started but not completed) or completed daily tasks from yesterday/past
+            const isUnfinished = t.status === 'in-progress' || t.status === 'paused';
+            const isCompletedDaily = t.isEveryday && t.status === 'completed';
+
+            if (isUnfinished) {
+              // Calculate auto-completed/submitted details at end of its day (23:59:59 Bangladesh Time)
+              const endOfTaskDayStr = taskDate + 'T23:59:59.999+06:00';
+              const startTimeStr = t.startedAt || t.assignedAt;
+              const rawDuration = differenceInMinutes(parseISO(endOfTaskDayStr), parseISO(startTimeStr));
+              const durationMinutes = Math.max(0, rawDuration - (t.totalPauseMinutes || 0));
+              
+              const newHistory = [...(t.history || []), {
+                status: 'completed' as const,
+                timestamp: getBSTISOString(),
+                performerId: 'system-auto',
+                performerName: 'Auto-Submit System',
+                note: 'Automated midnight auto-submit for unfinished task'
+              }];
+
+              if (t.isEveryday) {
+                // Daily task - Archive completion snap and reset master to pending for today
+                const archiveId = doc(collection(db, 'tasks')).id;
+                const archiveData = {
+                  ...t,
+                  id: archiveId,
+                  isEveryday: false,
+                  isHistorySnapshot: true,
+                  status: 'completed' as const,
+                  completedAt: endOfTaskDayStr,
+                  durationMinutes,
+                  updatedAt: getBSTISOString(),
+                  history: newHistory
+                };
+                batch.set(doc(db, 'tasks', archiveId), cleanObject(archiveData));
+
+                batch.update(docSnap.ref, cleanObject({
+                  status: 'pending',
+                  startedAt: null,
+                  completedAt: null,
+                  durationMinutes: null,
+                  totalPauseMinutes: 0,
+                  lastPausedAt: null,
+                  resumedAt: null,
+                  isApproved: false,
+                  isRejected: false,
+                  assignedAt: getBSTISOString(),
+                  history: [{
+                    status: 'created',
+                    timestamp: getBSTISOString(),
+                    performerId: 'system-auto',
+                    performerName: 'Auto-Submit System',
+                    note: 'Automated Daily Cycle Reset after Midnight Auto-Submit'
+                  }]
+                }));
+                count += 2;
+              } else {
+                // General task - Just auto-complete/submit it
+                batch.update(docSnap.ref, cleanObject({
+                  status: 'completed',
+                  completedAt: endOfTaskDayStr,
+                  durationMinutes,
+                  updatedAt: getBSTISOString(),
+                  history: newHistory
+                }));
+                count += 1;
+              }
+            } else if (isCompletedDaily) {
+              // Archive old completed daily task and reset master
               const archiveId = doc(collection(db, 'tasks')).id;
-              batch.set(doc(db, 'tasks', archiveId), {
-                ...task,
+              const archiveData = {
+                ...t,
                 id: archiveId,
                 isEveryday: false,
                 isHistorySnapshot: true,
-                status: 'completed',
+                status: 'completed' as const,
                 updatedAt: getBSTISOString()
-              });
+              };
+              batch.set(doc(db, 'tasks', archiveId), cleanObject(archiveData));
 
-              // Reset master
-              batch.update(docSnap.ref, {
+              batch.update(docSnap.ref, cleanObject({
                 status: 'pending',
                 startedAt: null,
                 completedAt: null,
@@ -515,15 +650,21 @@ export default function App() {
                 isApproved: false,
                 isRejected: false,
                 assignedAt: getBSTISOString(),
-                history: [...(task.history || []), {
+                history: [{
                   status: 'created',
                   timestamp: getBSTISOString(),
                   performerId: 'system-auto',
-                  performerName: 'Browser Maintenance',
-                  note: 'Automated Daily Cycle Reset (Active Session)'
+                  performerName: 'Auto-Submit System',
+                  note: 'Automated Daily Cycle Reset'
                 }]
+              }));
+              count += 2;
+            } else if (t.isEveryday && t.status === 'pending') {
+              // Case C: Update date of pending daily task so it shows on today's board
+              batch.update(docSnap.ref, {
+                assignedAt: getBSTISOString()
               });
-              count++;
+              count += 1;
             }
           }
 
@@ -1736,30 +1877,37 @@ export default function App() {
                                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                                     <div>
                                       <h5 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">All Staff Roster List (Admin view)</h5>
-                                      <p className="text-[11px] text-slate-400 mt-0.5">Control panel database mapping for {roster.rows?.length || 0} active staff rows</p>
+                                      <p className="text-[11px] text-slate-400 mt-0.5">Control panel database mapping for {roster.rows?.length || 0} active staff rows. Click any cell to edit inline.</p>
                                     </div>
                                     
-                                    <input
-                                      type="text"
-                                      placeholder="Search roster rows by name or ID..."
-                                      value={rosterSearch}
-                                      onChange={(e) => setRosterSearch(e.target.value)}
-                                      className="bg-slate-50 dark:bg-slate-100 border-none rounded-xl text-xs font-bold px-4 py-2.5 w-full md:w-72 focus:ring-2 focus:ring-blue-500/20"
-                                    />
+                                    <div className="flex flex-wrap items-center gap-3">
+                                      <button
+                                        onClick={handleAddRosterRow}
+                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black tracking-wider uppercase transition-colors"
+                                      >
+                                        + Add Roster Row
+                                      </button>
+                                      
+                                      <input
+                                        type="text"
+                                        placeholder="Search roster rows by name or ID..."
+                                        value={rosterSearch}
+                                        onChange={(e) => setRosterSearch(e.target.value)}
+                                        className="bg-slate-50 dark:bg-slate-100 border-none rounded-xl text-xs font-bold px-4 py-2.5 w-full md:w-72 focus:ring-2 focus:ring-blue-500/20"
+                                      />
+                                    </div>
                                   </div>
-
+ 
                                   <div className="overflow-x-auto border border-slate-100 dark:border-slate-800/80 rounded-2xl scrollbar-thin">
                                     <table className="w-full text-left border-collapse">
                                       <thead>
                                         <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
                                           <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">ID</th>
                                           <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Name</th>
-                                          {roster.headers.slice(2, 7).map((hdr: string) => (
-                                            <th key={hdr} className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">{hdr}</th>
+                                          {roster.headers.slice(2).map((hdr: string) => (
+                                            <th key={hdr} className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider min-w-[120px]">{hdr}</th>
                                           ))}
-                                          {roster.headers.length > 7 && (
-                                            <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">+{roster.headers.length - 7} More Dates</th>
-                                          )}
+                                          <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Actions</th>
                                         </tr>
                                       </thead>
                                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
@@ -1771,16 +1919,60 @@ export default function App() {
                                           })
                                           ?.map((r: any, idx: number) => (
                                             <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
-                                              <td className="p-4 text-xs font-black text-blue-600 dark:text-blue-400">{r.id}</td>
-                                              <td className="p-4 text-xs font-bold">{r.name}</td>
-                                              {roster.headers.slice(2, 7).map((hdr: string) => (
-                                                <td key={hdr} className="p-4 text-xs font-medium text-slate-500 dark:text-slate-400 animate-fade-in">
-                                                  {r.shifts?.[hdr] || 'Day Off'}
+                                              <td className="p-2 text-xs font-black text-blue-600 dark:text-blue-400">
+                                                <input
+                                                  type="text"
+                                                  value={r.id || ''}
+                                                  onChange={(e) => handleRosterCellChangeLocal(idx, 'id', null, e.target.value)}
+                                                  onBlur={handleRosterCellBlurSave}
+                                                  onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                      (e.target as HTMLInputElement).blur();
+                                                    }
+                                                  }}
+                                                  className="bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-blue-500 px-2 py-1 rounded text-xs font-black text-blue-600 dark:text-blue-400 outline-none w-24 transition-all border border-transparent"
+                                                />
+                                              </td>
+                                              <td className="p-2 text-xs font-bold">
+                                                <input
+                                                  type="text"
+                                                  value={r.name || ''}
+                                                  onChange={(e) => handleRosterCellChangeLocal(idx, 'name', null, e.target.value)}
+                                                  onBlur={handleRosterCellBlurSave}
+                                                  onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                      (e.target as HTMLInputElement).blur();
+                                                    }
+                                                  }}
+                                                  className="bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-blue-500 px-2 py-1 rounded text-xs font-bold text-slate-800 dark:text-slate-200 outline-none w-44 transition-all border border-transparent"
+                                                />
+                                              </td>
+                                              {roster.headers.slice(2).map((hdr: string) => (
+                                                <td key={hdr} className="p-2 text-xs font-medium text-slate-500 dark:text-slate-400 animate-fade-in min-w-[120px]">
+                                                  <input
+                                                    type="text"
+                                                    value={r.shifts?.[hdr] || ''}
+                                                    placeholder="Day Off"
+                                                    onChange={(e) => handleRosterCellChangeLocal(idx, '', hdr, e.target.value)}
+                                                    onBlur={handleRosterCellBlurSave}
+                                                    onKeyDown={(e) => {
+                                                      if (e.key === 'Enter') {
+                                                        (e.target as HTMLInputElement).blur();
+                                                      }
+                                                    }}
+                                                    className="bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-blue-500 px-2 py-1 rounded text-xs font-bold text-slate-800 dark:text-slate-200 outline-none w-full transition-all border border-transparent"
+                                                  />
                                                 </td>
                                               ))}
-                                              {roster.headers.length > 7 && (
-                                                <td className="p-4 text-xs font-bold text-slate-400">...</td>
-                                              )}
+                                              <td className="p-2 text-right">
+                                                <button
+                                                  onClick={() => handleDeleteRosterRow(idx)}
+                                                  className="p-1 px-2.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-all text-[10px] font-black uppercase tracking-wider"
+                                                  title="Delete this Row"
+                                                >
+                                                  Remove
+                                                </button>
+                                              </td>
                                             </tr>
                                           ))
                                         }
