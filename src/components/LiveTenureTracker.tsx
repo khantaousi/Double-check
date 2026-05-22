@@ -127,7 +127,9 @@ export function LiveTenureTracker({ joiningDate, createdAt, variant = 'compact' 
           </div>
           <div>
             <h3 className="text-xs font-black uppercase tracking-[0.15em] text-blue-100">Live System Tenure</h3>
-            <p className="text-[9px] font-bold text-white/50 uppercase tracking-widest mt-0.5">Real-time operation duration monitor</p>
+            <p className="text-[10px] font-medium text-white/80 mt-1 leading-relaxed max-w-md">
+              Thank you for your support. Today completes your amazing {tenure.years} years, {tenure.months} months, and {tenure.days} days journey with us.
+            </p>
             {joiningDate ? (
               <div className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/20 text-emerald-300 font-mono text-[8px] font-black uppercase tracking-wider">
                 <span>Joined:</span>

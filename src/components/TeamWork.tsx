@@ -4,7 +4,7 @@ import { db, auth } from '../lib/firebase';
 import { collection, addDoc, query, where, onSnapshot, updateDoc, doc, deleteDoc, orderBy, getDocs, writeBatch } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/errors';
 import { cleanObject, getBSTISOString, formatBST } from '../lib/utils';
-import { CheckCircle2, Clock, Plus, UserPlus, Trash2, Calendar, Layout, User, Play, Pause, BarChart3, TrendingUp, Timer, Database, Edit, CheckCheck, X, Bell, ChevronDown, ChevronUp, History, Download, RotateCcw } from 'lucide-react';
+import { CheckCircle2, Clock, Plus, UserPlus, Trash2, Calendar, Layout, User, Play, Pause, BarChart3, TrendingUp, Timer, Database, Edit, CheckCheck, X, Bell, ChevronDown, ChevronUp, History, Download, RotateCcw, SlidersHorizontal } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, differenceInMinutes, parseISO, subDays } from 'date-fns';
 import { TaskHistoryEntry, AppNotification } from '../types';
@@ -21,6 +21,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   const [tasks, setTasks] = useState<TeamTask[]>([]);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [view, setView] = useState<'list' | 'report'>('list');
+  const [showFilters, setShowFilters] = useState(false);
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
@@ -772,92 +773,109 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
             </button>
           </div>
 
-          <div className="flex bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20 dark:border-slate-700/30 overflow-x-auto no-scrollbar">
-            {(['all', 'pending', 'in-progress', 'paused', 'completed'] as const).map(status => (
-              <button
-                key={status}
-                onClick={() => setStatusFilter(status)}
-                className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
-                  statusFilter === status ? 'bg-white dark:bg-slate-700 shadow-[0_4px_12px_rgba(0,0,0,0.05)] text-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                }`}
-              >
-                {status.replace('-', ' ')}
-              </button>
-            ))}
-            {isAdmin && (
-              <button
-                onClick={() => setStatusFilter('needs-verification')}
-                className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 relative ${
-                  statusFilter === 'needs-verification' ? 'bg-white dark:bg-slate-700 shadow-[0_4px_12px_rgba(0,0,0,0.05)] text-red-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                }`}
-              >
-                Verification
-                {tasks.filter(t => t.status === 'completed' && !t.isApproved && !t.isRejected).length > 0 && (
-                  <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                )}
-              </button>
-            )}
-          </div>
-          
-          {isAdmin && view === 'list' && (
-            <div className="flex bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20 dark:border-slate-700/30">
-              <div className="relative group min-w-[160px]">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-focus-within:text-blue-500 transition-colors" size={12} />
-                <select 
-                  value={selectedBoardAgentId}
-                  onChange={(e) => setSelectedBoardAgentId(e.target.value)}
-                  className="w-full bg-transparent pl-8 pr-8 py-2 text-[9px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 outline-none appearance-none cursor-pointer"
-                >
-                  <option value="all">All Personnel</option>
-                  {assignableUsers.map(u => (
-                    <option key={u.id} value={u.id}>{u.displayName}</option>
-                  ))}
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                  <ChevronDown size={10} />
-                </div>
-              </div>
-            </div>
-          )}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+              showFilters 
+                ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800/60 text-blue-600' 
+                : 'bg-slate-100/80 dark:bg-slate-800/80 border-white/10 dark:border-slate-700/30 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <SlidersHorizontal size={12} strokeWidth={2.5} />
+            <span>Filter</span>
+            {showFilters ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+          </button>
 
-          {isAdmin && view === 'list' && (
-            <div className="flex items-center gap-3">
-              <div className="flex bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20 dark:border-slate-700/30">
-                {(['today', 'yesterday', '30days', 'custom'] as const).map(range => (
+          {showFilters && (
+            <>
+              <div className="flex bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20 dark:border-slate-700/30 overflow-x-auto no-scrollbar">
+                {(['all', 'pending', 'in-progress', 'paused', 'completed'] as const).map(status => (
                   <button
-                    key={range}
-                    onClick={() => setBoardDateRange(range)}
+                    key={status}
+                    onClick={() => setStatusFilter(status)}
                     className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
-                      boardDateRange === range ? 'bg-white dark:bg-slate-700 shadow-[0_4px_12px_rgba(0,0,0,0.05)] text-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      statusFilter === status ? 'bg-white dark:bg-slate-700 shadow-[0_4px_12px_rgba(0,0,0,0.05)] text-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                     }`}
                   >
-                    {range === '30days' ? '30 Days' : range}
+                    {status.replace('-', ' ')}
                   </button>
                 ))}
+                {isAdmin && (
+                  <button
+                    onClick={() => setStatusFilter('needs-verification')}
+                    className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 relative ${
+                      statusFilter === 'needs-verification' ? 'bg-white dark:bg-slate-700 shadow-[0_4px_12px_rgba(0,0,0,0.05)] text-red-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    Verification
+                    {tasks.filter(t => t.status === 'completed' && !t.isApproved && !t.isRejected).length > 0 && (
+                      <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                    )}
+                  </button>
+                )}
               </div>
-
-              {boardDateRange === 'custom' && (
-                <motion.div 
-                  initial={{ opacity: 0, x: -10 }} 
-                  animate={{ opacity: 1, x: 0 }}
-                  className="flex items-center gap-2 bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20 dark:border-slate-700/30"
-                >
-                  <input 
-                    type="date" 
-                    value={boardCustomStart}
-                    onChange={(e) => setBoardCustomStart(e.target.value)}
-                    className="bg-white/80 dark:bg-slate-900/80 border-none rounded-xl py-2 px-4 text-[9px] font-black outline-none w-32"
-                  />
-                  <span className="text-slate-400 text-[9px] font-black uppercase tracking-widest">to</span>
-                  <input 
-                    type="date" 
-                    value={boardCustomEnd}
-                    onChange={(e) => setBoardCustomEnd(e.target.value)}
-                    className="bg-white/80 dark:bg-slate-900/80 border-none rounded-xl py-2 px-4 text-[9px] font-black outline-none w-32"
-                  />
-                </motion.div>
+              
+              {isAdmin && view === 'list' && (
+                <div className="flex bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20 dark:border-slate-700/30">
+                  <div className="relative group min-w-[160px]">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-focus-within:text-blue-500 transition-colors" size={12} />
+                    <select 
+                      value={selectedBoardAgentId}
+                      onChange={(e) => setSelectedBoardAgentId(e.target.value)}
+                      className="w-full bg-transparent pl-8 pr-8 py-2 text-[9px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 outline-none appearance-none cursor-pointer"
+                    >
+                      <option value="all">All Personnel</option>
+                      {assignableUsers.map(u => (
+                        <option key={u.id} value={u.id}>{u.displayName}</option>
+                      ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                      <ChevronDown size={10} />
+                    </div>
+                  </div>
+                </div>
               )}
-            </div>
+
+              {isAdmin && view === 'list' && (
+                <div className="flex items-center gap-3">
+                  <div className="flex bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20 dark:border-slate-700/30">
+                    {(['today', 'yesterday', '30days', 'custom'] as const).map(range => (
+                      <button
+                        key={range}
+                        onClick={() => setBoardDateRange(range)}
+                        className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                          boardDateRange === range ? 'bg-white dark:bg-slate-700 shadow-[0_4px_12px_rgba(0,0,0,0.05)] text-blue-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        {range === '30days' ? '30 Days' : range}
+                      </button>
+                    ))}
+                  </div>
+
+                  {boardDateRange === 'custom' && (
+                    <motion.div 
+                      initial={{ opacity: 0, x: -10 }} 
+                      animate={{ opacity: 1, x: 0 }}
+                      className="flex items-center gap-2 bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20 dark:border-slate-700/30"
+                    >
+                      <input 
+                        type="date" 
+                        value={boardCustomStart}
+                        onChange={(e) => setBoardCustomStart(e.target.value)}
+                        className="bg-white/80 dark:bg-slate-900/80 border-none rounded-xl py-2 px-4 text-[9px] font-black outline-none w-32"
+                      />
+                      <span className="text-slate-400 text-[9px] font-black uppercase tracking-widest">to</span>
+                      <input 
+                        type="date" 
+                        value={boardCustomEnd}
+                        onChange={(e) => setBoardCustomEnd(e.target.value)}
+                        className="bg-white/80 dark:bg-slate-900/80 border-none rounded-xl py-2 px-4 text-[9px] font-black outline-none w-32"
+                      />
+                    </motion.div>
+                  )}
+                </div>
+              )}
+            </>
           )}
 
           <button 
