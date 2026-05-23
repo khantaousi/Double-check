@@ -89,15 +89,21 @@ export default function App() {
   }, [userProfile]);
 
   useEffect(() => {
+    if (!user) {
+      setRoster(null);
+      return;
+    }
     const unsubscribeRoster = onSnapshot(doc(db, 'config', 'staff_roster'), (docSnap) => {
       if (docSnap.exists()) {
         setRoster(docSnap.data());
       } else {
         setRoster(null);
       }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'config/staff_roster');
     });
     return () => unsubscribeRoster();
-  }, []);
+  }, [user]);
 
   const formatRosterCellValue = (val: any): string => {
     if (val === undefined || val === null) return '';
