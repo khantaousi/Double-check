@@ -430,7 +430,7 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {[
-                              { key: 'dashboard', label: 'Validation Hub', desc: 'Permit entry to the core validation workspace and file upload.', icon: LayoutDashboard },
+                              { key: 'dashboard', label: 'Double Check', desc: 'Permit entry to the core validation workspace and file upload.', icon: LayoutDashboard },
                               { key: 'tracker', label: 'Product Tracking (PT)', desc: 'Consolidated view of inventory products and matching reports.', icon: Activity },
                               { key: 'rules', label: 'Logic Rules', desc: 'Define tier-based percent discount rates and automated rules.', icon: BookOpen },
                               { key: 'products', label: 'Product Library / Database', desc: 'Manage existing catalog items and comparing rules.', icon: Package },

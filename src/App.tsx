@@ -1149,17 +1149,17 @@ export default function App() {
       </AnimatePresence>
 
       {/* Left Sidebar: Navigation */}
-      <aside className={`fixed md:static inset-y-0 left-0 w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0 shadow-sm z-30 transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${isSidebarCollapsed ? 'md:hidden' : 'md:translate-x-0'}`}>
-        <div className="p-8">
-          <div className="flex items-center gap-3 mb-12">
-            <div className="w-10 h-10 flex items-center justify-center overflow-hidden transition-shadow duration-300">
+      <aside className={`fixed md:static inset-y-0 left-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0 shadow-sm z-30 transition-all duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${isSidebarCollapsed ? 'w-20 md:translate-x-0' : 'w-72 md:translate-x-0'}`}>
+        <div className={`transition-all duration-300 ${isSidebarCollapsed ? 'p-3' : 'p-8'}`}>
+          <div className={`flex items-center gap-3 mb-12 ${isSidebarCollapsed ? 'justify-center mb-6' : ''}`}>
+            <div className="w-10 h-10 flex items-center justify-center overflow-hidden transition-shadow duration-300 shrink-0">
               {siteSettings.logoUrl ? (
                 <img src={siteSettings.logoUrl} alt="Logo" className="w-full h-full object-contain" />
               ) : (
                 <Database className="text-slate-600 dark:text-slate-400" size={20} />
               )}
             </div>
-            <div>
+            <div className={isSidebarCollapsed ? 'hidden' : 'block'}>
               <h1 className="font-black text-xl tracking-tighter text-slate-800 dark:text-slate-100">{siteSettings.companyName.split(' ')[0]} <span className="text-blue-600">{siteSettings.companyName.split(' ').slice(1).join(' ')}</span></h1>
               <p className="text-[10px] font-bold uppercase text-slate-400 tracking-widest leading-none">Intelligence v1.0</p>
             </div>
@@ -1167,54 +1167,57 @@ export default function App() {
           
           <nav className="space-y-8">
             <div>
-              <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4 pl-4">Core Workspace</p>
+              <p className={`text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4 pl-4 ${isSidebarCollapsed ? 'hidden' : 'block'}`}>Core Workspace</p>
               <div className="space-y-1">
                 {hasAccess('dashboard') && (
                   <button 
                     onClick={() => { setActiveTab('dashboard'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
+                    title={isSidebarCollapsed ? "Dashboard" : undefined}
+                    className={`w-full flex items-center gap-3 rounded-xl text-xs font-bold transition-all border ${isSidebarCollapsed ? 'justify-center py-3 px-0' : 'px-4 py-3'} ${
                       activeTab === 'dashboard' 
                         ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
                         : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
                     }`}
                   >
-                    <LayoutDashboard size={18} />
-                    Dashboard
+                    <LayoutDashboard size={18} className="shrink-0" />
+                    <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Dashboard</span>
                   </button>
                 )}
 
                 {hasAccess('validation') && (
                   <button 
                     onClick={() => { setActiveTab('validation'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
+                    title={isSidebarCollapsed ? "Double Check" : undefined}
+                    className={`w-full flex items-center gap-3 rounded-xl text-xs font-bold transition-all border ${isSidebarCollapsed ? 'justify-center py-3 px-0' : 'px-4 py-3'} ${
                       activeTab === 'validation' 
                         ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
                         : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
                     }`}
                   >
-                    <Database size={18} />
-                    Validation Hub
+                    <Database size={18} className="shrink-0" />
+                    <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Double Check</span>
                   </button>
                 )}
 
                 {userProfile && (
                   <button 
                     onClick={() => { setActiveTab('team'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
+                    title={isSidebarCollapsed ? "Team Work" : undefined}
+                    className={`relative w-full flex items-center justify-between gap-3 rounded-xl text-xs font-bold transition-all border ${isSidebarCollapsed ? 'justify-center py-3 px-0' : 'px-4 py-3'} ${
                       activeTab === 'team' 
                         ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
                         : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <Layout size={18} />
-                      Team Work
+                      <Layout size={18} className="shrink-0" />
+                      <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Team Work</span>
                     </div>
                     {pendingTasksCount > 0 && (
                       <motion.span 
                         initial={{ scale: 0.5, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
-                        className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full flex items-center justify-center shadow-sm min-w-[18px] animate-pulse"
+                        className={`${isSidebarCollapsed ? 'absolute -top-1 -right-1' : ''} bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full flex items-center justify-center shadow-sm min-w-[20px] max-h-[16px] animate-pulse`}
                       >
                         {pendingTasksCount > 9 ? '9+' : pendingTasksCount}
                       </motion.span>
@@ -1225,75 +1228,80 @@ export default function App() {
                 {hasAccess('tracker') && (
                   <button 
                     onClick={() => { setActiveTab('tracker'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
+                    title={isSidebarCollapsed ? "Product Tracking (PT)" : undefined}
+                    className={`w-full flex items-center gap-3 rounded-xl text-xs font-bold transition-all border ${isSidebarCollapsed ? 'justify-center py-3 px-0' : 'px-4 py-3'} ${
                       activeTab === 'tracker' 
                         ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-900/30 shadow-sm' 
                         : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
                     }`}
                   >
-                    <Activity size={18} />
-                    Product Tracking (PT)
+                    <Activity size={18} className="shrink-0" />
+                    <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Product Tracking (PT)</span>
                   </button>
                 )}
               </div>
             </div>
 
             <div>
-              <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4 pl-4">Configuration</p>
+              <p className={`text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4 pl-4 ${isSidebarCollapsed ? 'hidden' : 'block'}`}>Configuration</p>
               <div className="space-y-1">
                 {hasAccess('rules') && (
                   <button 
                     onClick={() => { setActiveTab('rules'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
+                    title={isSidebarCollapsed ? "Logic Rules" : undefined}
+                    className={`w-full flex items-center gap-3 rounded-xl text-xs font-bold transition-all border ${isSidebarCollapsed ? 'justify-center py-3 px-0' : 'px-4 py-3'} ${
                       activeTab === 'rules' 
                         ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
                         : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
                     }`}
                   >
-                    <BookOpen size={18} />
-                    Logic Rules
+                    <BookOpen size={18} className="shrink-0" />
+                    <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Logic Rules</span>
                   </button>
                 )}
                 
                 {hasAccess('products') && (
                   <button 
                     onClick={() => { setActiveTab('products'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
+                    title={isSidebarCollapsed ? "Product Library" : undefined}
+                    className={`w-full flex items-center gap-3 rounded-xl text-xs font-bold transition-all border ${isSidebarCollapsed ? 'justify-center py-3 px-0' : 'px-4 py-3'} ${
                       activeTab === 'products' 
                         ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
                         : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
                     }`}
                   >
-                    <Package size={18} />
-                    Product Library
+                    <Package size={18} className="shrink-0" />
+                    <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Product Library</span>
                   </button>
                 )}
 
                 {hasAccess('settings') && (
                   <button 
                     onClick={() => { setActiveTab('settings'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
+                    title={isSidebarCollapsed ? "Delivery Settings" : undefined}
+                    className={`w-full flex items-center gap-3 rounded-xl text-xs font-bold transition-all border ${isSidebarCollapsed ? 'justify-center py-3 px-0' : 'px-4 py-3'} ${
                       activeTab === 'settings' 
                         ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
                         : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
                     }`}
                   >
-                    <Settings size={18} />
-                    Delivery Settings
+                    <Settings size={18} className="shrink-0" />
+                    <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Delivery Settings</span>
                   </button>
                 )}
                 
                 {isAdmin && (
                   <button 
                     onClick={() => { setActiveTab('users'); setIsSidebarOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all border ${
+                    title={isSidebarCollapsed ? "User Access" : undefined}
+                    className={`w-full flex items-center gap-3 rounded-xl text-xs font-bold transition-all border ${isSidebarCollapsed ? 'justify-center py-3 px-0' : 'px-4 py-3'} ${
                       activeTab === 'users' 
                         ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
                         : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
                     }`}
                   >
-                    <Users size={18} />
-                    User Access
+                    <Users size={18} className="shrink-0" />
+                    <span className={isSidebarCollapsed ? 'hidden' : 'block'}>User Access</span>
                   </button>
                 )}
               </div>
@@ -1305,14 +1313,15 @@ export default function App() {
           {user && (
             <button 
               onClick={() => setShowSignOutConfirm(true)}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all border border-transparent hover:border-red-100 dark:hover:border-red-900/20 shadow-sm group"
+              title={isSidebarCollapsed ? "Sign Out Session" : undefined}
+              className={`w-full flex items-center gap-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all border border-transparent hover:border-red-100 dark:hover:border-red-900/20 shadow-sm group ${isSidebarCollapsed ? 'justify-center p-3' : 'px-4 py-3'}`}
             >
-              <LogOut size={16} className="group-hover:translate-x-1 transition-transform" />
-              Sign Out Session
+              <LogOut size={16} className="group-hover:translate-x-1 transition-transform shrink-0" />
+              <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Sign Out Session</span>
             </button>
           )}
 
-          <div className="px-4">
+          <div className={`px-4 ${isSidebarCollapsed ? 'hidden' : 'block'}`}>
             <div className="flex items-center gap-2 mb-4 text-[10px] font-bold uppercase text-slate-400 tracking-widest">
               <Sparkles size={12} className="text-blue-500" />
               Created by <a href="https://md-ahbab-khan-taousi.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-[#1858ff] font-black hover:opacity-80 transition-opacity cursor-pointer">Taousi</a>
@@ -1357,7 +1366,7 @@ export default function App() {
             </div>
             <div className="h-4 w-px bg-slate-200 dark:bg-slate-800" />
             <h2 className="text-slate-400 dark:text-slate-500 text-sm font-bold tracking-tight uppercase">
-              {activeTab === 'dashboard' ? 'Performance Dashboard' : activeTab === 'validation' ? 'Validation Hub' : `Config / ${activeTab}`}
+              {activeTab === 'dashboard' ? 'Performance Dashboard' : activeTab === 'validation' ? 'Double Check' : `Config / ${activeTab}`}
             </h2>
           </div>
           
