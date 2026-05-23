@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { AppNotification, DataRow, TaskHistoryEntry, ValidationRule, ProductPrice, DEFAULT_RULES, DeliverySettings as IDeliverySettings, DEFAULT_DELIVERY_SETTINGS, UserProfile, GiftRule, SiteSettings, DEFAULT_SITE_SETTINGS, TeamTask } from './types';
 import { processData, calculateRow } from './lib/processor';
@@ -427,6 +427,118 @@ export default function App() {
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+
+  const [sessionSeconds, setSessionSeconds] = useState<number>(0);
+  const sessionBaseRef = useRef<number>(0);
+  const sessionStartRef = useRef<number>(0);
+  const currentSessionIdRef = useRef<string>("");
+  const lastSyncTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!user || !userProfile) {
+      setSessionSeconds(0);
+      return;
+    }
+
+    let active = true;
+    const userId = user.uid;
+    const todayBST = formatBST(new Date(), 'yyyy-MM-dd');
+    const docId = `${userId}_${todayBST}`;
+    currentSessionIdRef.current = docId;
+
+    const initSession = async () => {
+      const docRef = doc(db, 'sessions', docId);
+      let baseSeconds = 0;
+      try {
+        const docSnap = await getDoc(docRef);
+        const nowStr = getBSTISOString();
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          baseSeconds = data.totalDurationSeconds || 0;
+          await updateDoc(docRef, {
+            lastActive: nowStr,
+            isOnline: true
+          });
+        } else {
+          const newSession = {
+            userId: userId,
+            userEmail: user.email || '',
+            userName: userProfile.displayName || user.email?.split('@')[0] || 'User',
+            date: todayBST,
+            firstLogin: nowStr,
+            lastActive: nowStr,
+            lastLogout: '',
+            totalDurationSeconds: 0,
+            isOnline: true
+          };
+          await setDoc(docRef, cleanObject(newSession));
+        }
+      } catch (err) {
+        console.error("Error initializing session:", err);
+      }
+
+      if (!active) return;
+      sessionBaseRef.current = baseSeconds;
+      sessionStartRef.current = Date.now();
+      setSessionSeconds(baseSeconds);
+      lastSyncTimeRef.current = Date.now();
+    };
+
+    initSession();
+
+    const tickInterval = setInterval(async () => {
+      if (sessionStartRef.current === 0) return;
+      
+      const now = Date.now();
+      const elapsed = Math.floor((now - sessionStartRef.current) / 1000);
+      const totalSeconds = sessionBaseRef.current + elapsed;
+      setSessionSeconds(totalSeconds);
+
+      const currentTodayBST = formatBST(new Date(), 'yyyy-MM-dd');
+      if (currentTodayBST !== todayBST) {
+        clearInterval(tickInterval);
+        initSession();
+        return;
+      }
+
+      if (now - lastSyncTimeRef.current >= 30000) {
+        lastSyncTimeRef.current = now;
+        try {
+          const sessionDocRef = doc(db, 'sessions', currentSessionIdRef.current);
+          await updateDoc(sessionDocRef, {
+            totalDurationSeconds: totalSeconds,
+            lastActive: getBSTISOString(),
+            isOnline: true
+          });
+        } catch (err) {
+          console.error("Error syncing session duration:", err);
+        }
+      }
+    }, 1000);
+
+    return () => {
+      active = false;
+      clearInterval(tickInterval);
+      
+      if (sessionStartRef.current !== 0 && currentSessionIdRef.current) {
+        const elapsed = Math.floor((Date.now() - sessionStartRef.current) / 1000);
+        const finalSecs = sessionBaseRef.current + elapsed;
+        const refId = currentSessionIdRef.current;
+        updateDoc(doc(db, 'sessions', refId), {
+          totalDurationSeconds: finalSecs,
+          lastActive: getBSTISOString(),
+          isOnline: false
+        }).catch(console.error);
+      }
+    };
+  }, [user, userProfile?.id]);
+
+  const formatDurationHelper = (totalSecs: number) => {
+    const hours = Math.floor(totalSecs / 3600);
+    const minutes = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
+    return `${hours} hour, ${minutes} Minute, ${secs} Second`;
+  };
 
   const isAdmin = userProfile?.role === 'admin' || user?.email === 'khantaousi@gmail.com';
 
@@ -1699,7 +1811,13 @@ export default function App() {
                       <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight">
                         Welcome Back, <span className="text-blue-600 dark:text-blue-400">{userProfile?.displayName || user?.email || 'User'}</span>
                       </h3>
-                      <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium text-sm">
+                      {sessionSeconds > 0 && (
+                        <div className="mt-2 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tight">
+                          <Clock size={14} className="text-blue-500 animate-pulse shrink-0" />
+                          <span>Today Active Session: <span className="text-blue-600 dark:text-blue-400 font-extrabold">{formatDurationHelper(sessionSeconds)}</span></span>
+                        </div>
+                      )}
+                      <p className="text-slate-500 dark:text-slate-400 mt-1.5 font-medium text-sm">
                         Access your command center modules and tools from the left-side workspace menu.
                       </p>
                     </div>
@@ -2506,6 +2624,15 @@ export default function App() {
                   onClick={async () => {
                     if (user) {
                       try {
+                        const todayBST = formatBST(new Date(), 'yyyy-MM-dd');
+                        const docId = `${user.uid}_${todayBST}`;
+                        const finalSecs = sessionSeconds;
+                        await updateDoc(doc(db, 'sessions', docId), {
+                          totalDurationSeconds: finalSecs,
+                          lastActive: getBSTISOString(),
+                          lastLogout: getBSTISOString(),
+                          isOnline: false
+                        });
                         await updateDoc(doc(db, 'users', user.uid), cleanObject({ isOnline: false, lastSeen: getBSTISOString() }));
                       } catch (e) {
                         console.error("Offline sync error:", e);

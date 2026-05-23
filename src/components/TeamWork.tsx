@@ -42,6 +42,23 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const isAdmin = userProfile?.role === 'admin';
+  const [sessions, setSessions] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Session tracking subscription
+    return onSnapshot(collection(db, 'sessions'), (snapshot) => {
+      setSessions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      console.error("TeamWork sessions error:", error);
+    });
+  }, []);
+
+  const formatDurationHelper = (totalSecs: number) => {
+    const hours = Math.floor(totalSecs / 3600);
+    const minutes = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
+    return `${hours} hour, ${minutes} Minute, ${secs} Second`;
+  };
 
   useEffect(() => {
     if (!auth.currentUser?.uid) return;
@@ -1425,7 +1442,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                   </h3>
                   {isAdmin && analyticsData && analyticsData.length > 0 && (
                     <button 
-                      onClick={() => generateRankingsExcel(analyticsData)}
+                      onClick={() => generateRankingsExcel(analyticsData, sessions)}
                       className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest shadow-sm"
                       title="Download Ranking Report"
                     >
@@ -1450,6 +1467,40 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                           <div>
                             <p className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-tighter">{staff.name}</p>
                             <p className="text-[9px] font-bold text-slate-400 uppercase">{staff.completed} Tasks Executed</p>
+                            {(() => {
+                              const matchingSession = sessions.find(s => s.id === `${staff.assigneeId}_${staff.date}`);
+                              if (matchingSession) {
+                                return (
+                                  <div className="flex flex-col gap-0.5 mt-1 border-t border-slate-100 dark:border-slate-800/50 pt-1.5 min-w-[200px]">
+                                    <p className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase flex items-center gap-1">
+                                      <span className="inline-block w-1 h-1 rounded-full bg-blue-500"></span>
+                                      First Login: <span className="font-extrabold text-[#1858ff] dark:text-blue-400">{matchingSession.firstLogin ? formatBST(parseISO(matchingSession.firstLogin), 'hh:mm:ss a') : 'N/A'}</span>
+                                    </p>
+                                    <p className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase flex items-center gap-1">
+                                      <span className="inline-block w-1 h-1 rounded-full bg-red-400"></span>
+                                      Last Logout: <span className="font-extrabold text-red-500 dark:text-red-400">
+                                        {matchingSession.lastLogout 
+                                          ? formatBST(parseISO(matchingSession.lastLogout), 'hh:mm:ss a') 
+                                          : (matchingSession.lastActive 
+                                            ? `${formatBST(parseISO(matchingSession.lastActive), 'hh:mm:ss a')} (Active)`
+                                            : 'N/A'
+                                          )}
+                                      </span>
+                                    </p>
+                                    <p className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase flex items-center gap-1">
+                                      <span className="inline-block w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></span>
+                                      Active Time: <span className="font-extrabold text-emerald-600 dark:text-emerald-400">{formatDurationHelper(matchingSession.totalDurationSeconds || 0)}</span>
+                                    </p>
+                                  </div>
+                                );
+                              } else {
+                                return (
+                                  <div className="mt-1 border-t border-slate-100 dark:border-slate-800/50 pt-1.5">
+                                    <p className="text-[8px] font-bold text-slate-300 dark:text-slate-600 uppercase italic">No session recorded today</p>
+                                  </div>
+                                );
+                              }
+                            })()}
                           </div>
                         </div>
                         <div className="flex items-center gap-4">

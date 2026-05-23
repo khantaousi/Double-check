@@ -151,5 +151,13 @@ service cloud.firestore {
     match /test/connection {
       allow read: if true;
     }
+
+    // 7. User daily sessions
+    match /sessions/{sessionId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (
+        sessionId.startsWith(request.auth.uid + "_") || isAdmin()
+      );
+    }
   }
 }

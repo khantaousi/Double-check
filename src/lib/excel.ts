@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { parseISO } from 'date-fns';
 import { DataRow } from '../types';
 import { formatBST } from './utils';
 
@@ -68,7 +69,7 @@ export async function generateStyledExcel(data: DataRow[]) {
   saveAs(blob, `Validation_Report_${formatBST(new Date(), 'yyyy-MM-dd')}.xlsx`);
 }
 
-export async function generateRankingsExcel(data: any[]) {
+export async function generateRankingsExcel(data: any[], sessions: any[] = []) {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Team Rankings');
 
@@ -82,6 +83,9 @@ export async function generateRankingsExcel(data: any[]) {
     { header: 'Work Duration (m)', key: 'duration', width: 18 },
     { header: 'Daily Total Pause (m)', key: 'totalPause', width: 22 },
     { header: 'Daily Avg Time (m)', key: 'avgMinutes', width: 20 },
+    { header: 'First Login', key: 'firstLogin', width: 18 },
+    { header: 'Last Logout', key: 'lastLogout', width: 25 },
+    { header: 'Active Duration', key: 'activeDuration', width: 30 },
   ];
 
   // Header styling
@@ -94,6 +98,29 @@ export async function generateRankingsExcel(data: any[]) {
 
   // Add data rows - one row per completed task
   data.forEach((item) => {
+    // Find matching session
+    const sess = (sessions || []).find((s: any) => s.id === `${item.assigneeId}_${item.date}`);
+    let firstLoginStr = 'N/A';
+    let lastLogoutStr = 'N/A';
+    let activeDurationStr = 'N/A';
+
+    if (sess) {
+      if (sess.firstLogin) {
+        firstLoginStr = formatBST(parseISO(sess.firstLogin), 'hh:mm:ss a');
+      }
+      if (sess.lastLogout) {
+        lastLogoutStr = formatBST(parseISO(sess.lastLogout), 'hh:mm:ss a');
+      } else if (sess.lastActive) {
+        lastLogoutStr = formatBST(parseISO(sess.lastActive), 'hh:mm:ss a') + ' (Active)';
+      }
+      if (sess.totalDurationSeconds !== undefined) {
+        const h = Math.floor(sess.totalDurationSeconds / 3600);
+        const m = Math.floor((sess.totalDurationSeconds % 3600) / 60);
+        const s = sess.totalDurationSeconds % 60;
+        activeDurationStr = `${h} hour, ${m} Minute, ${s} Second`;
+      }
+    }
+
     if (item.completedTasks && item.completedTasks.length > 0) {
       item.completedTasks.forEach((task: any) => {
         const row = worksheet.addRow({
@@ -104,7 +131,10 @@ export async function generateRankingsExcel(data: any[]) {
           completedAt: task.completedAt,
           duration: task.duration,
           totalPause: item.totalPause,
-          avgMinutes: item.avgMinutes
+          avgMinutes: item.avgMinutes,
+          firstLogin: firstLoginStr,
+          lastLogout: lastLogoutStr,
+          activeDuration: activeDurationStr
         });
         row.alignment = { vertical: 'middle', horizontal: 'left' };
       });
@@ -114,7 +144,10 @@ export async function generateRankingsExcel(data: any[]) {
         date: item.date,
         name: item.name,
         totalPause: item.totalPause,
-        avgMinutes: item.avgMinutes
+        avgMinutes: item.avgMinutes,
+        firstLogin: firstLoginStr,
+        lastLogout: lastLogoutStr,
+        activeDuration: activeDurationStr
       });
       row.alignment = { vertical: 'middle', horizontal: 'left' };
     }
