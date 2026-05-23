@@ -13,12 +13,19 @@ const WelcomeScreen = ({ onComplete, userProfile, user }: {
   const name = isAdmin ? "CHIEF" : (userProfile?.displayName || user?.email?.split('@')[0] || "USER");
   const greetingText = `WELCOME ${name}`;
 
+  const onCompleteRef = React.useRef(onComplete);
   useEffect(() => {
-    const timer = setTimeout(onComplete, 3000);
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onCompleteRef.current();
+    }, 3000);
     return () => {
       clearTimeout(timer);
     };
-  }, [onComplete]);
+  }, []);
 
   return (
     <motion.div
