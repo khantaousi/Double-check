@@ -109,6 +109,11 @@ export async function seedProducts() {
       }));
     }
   } catch (error) {
-    console.error("General seed error:", error);
+    const errText = error instanceof Error ? error.message : String(error);
+    if (errText.includes('Quota limit exceeded') || errText.includes('quota')) {
+      console.warn('Seed: Quota Exceeded. Skipping log.');
+    } else {
+      console.error("General seed error:", error);
+    }
   }
 }

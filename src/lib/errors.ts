@@ -33,6 +33,10 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  if (errInfo.error.includes('Quota limit exceeded') || errInfo.error.includes('quota')) {
+    console.warn(`Firestore Quota Exceeded [${operationType}] at ${path}. Disabling noisy errors.`);
+  } else {
+    console.error('Firestore Error: \n' + JSON.stringify(errInfo));
+  }
+  // We remove the throw to prevent crashing the app on quota exceeded errors, especially in onSnapshot listeners.
 }

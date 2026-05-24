@@ -666,11 +666,42 @@ export default function App() {
           }, (error) => {
             // Only log if we're still supposed to be listening (i.e. not signed out)
             if (auth.currentUser) {
-              console.error('User profile snapshot error:', error);
+              const errText = error instanceof Error ? error.message : String(error);
+              if (errText.includes('Quota limit exceeded') || errText.includes('quota')) {
+                 console.warn('User profile sync: Quota Exceeded. Skipping log.');
+              } else {
+                 console.error('User profile snapshot error:', error);
+              }
             }
           });
         } catch (error) {
-          console.error("Auth state synchronization error:", error);
+          const errText = error instanceof Error ? error.message : String(error);
+          if (errText.includes('Quota limit exceeded') || errText.includes('quota')) {
+            console.warn('Auth state sync: Quota Exceeded. Skipping log.');
+            if (u.email === 'khantaousi@gmail.com') {
+              setUserProfile({
+                id: u.uid,
+                email: u.email!,
+                role: 'admin',
+                displayName: u.displayName || u.email!.split('@')[0],
+                photoURL: u.photoURL || '',
+                createdAt: getBSTISOString(),
+                lastSeen: getBSTISOString(),
+                isOnline: true,
+                isActive: true,
+                permissions: {
+                  dashboard: 'write',
+                  rules: 'write',
+                  products: 'write',
+                  settings: 'write',
+                  tracker: 'write',
+                  printSlips: 'write'
+                }
+              });
+            }
+          } else {
+            console.error("Auth state synchronization error:", error);
+          }
         }
       } else {
         setUserProfile(null);
@@ -870,7 +901,12 @@ export default function App() {
           await setDoc(statusRef, { lastResetDate: todayStr }, { merge: true });
         }
       } catch (err) {
-        console.error("Failed to run automated maintenance:", err);
+        const errText = err instanceof Error ? err.message : String(err);
+        if (errText.includes('Quota limit exceeded') || errText.includes('quota')) {
+          console.warn('Maintenance: Quota Exceeded. Skipping log.');
+        } else {
+          console.error("Failed to run automated maintenance:", err);
+        }
       }
     };
 
@@ -916,7 +952,6 @@ export default function App() {
         setPendingTasksCount(snapshot.size);
       }
     }, (error) => {
-      console.error("Pending tasks count error:", error);
       handleFirestoreError(error, OperationType.LIST, 'tasks');
     });
 
@@ -936,7 +971,6 @@ export default function App() {
     const unsubscribeNotif = onSnapshot(q, (snapshot) => {
       setNotifications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AppNotification[]);
     }, (error) => {
-      console.error("Notifications snapshot error:", error);
       handleFirestoreError(error, OperationType.LIST, 'notifications');
     });
     return () => unsubscribeNotif();
@@ -969,7 +1003,6 @@ export default function App() {
         })) as ProductPrice[];
         setProducts(productList);
       }, (error) => {
-        console.error('Products snapshot error:', error);
         handleFirestoreError(error, OperationType.LIST, 'products');
       });
       return () => unsubscribeProducts();

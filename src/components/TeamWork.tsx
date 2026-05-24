@@ -49,7 +49,12 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     return onSnapshot(collection(db, 'sessions'), (snapshot) => {
       setSessions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => {
-      console.error("TeamWork sessions error:", error);
+      const errText = error instanceof Error ? error.message : String(error);
+      if (errText.includes('Quota limit exceeded') || errText.includes('quota')) {
+        console.warn('TeamWork sessions: Quota Exceeded. Skipping log.');
+      } else {
+        console.error("TeamWork sessions error:", error);
+      }
     });
   }, []);
 
@@ -70,7 +75,6 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     return onSnapshot(q, (snapshot) => {
       setNotifications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AppNotification[]);
     }, (error) => {
-      console.error("TeamWork notifications error:", error);
       handleFirestoreError(error, OperationType.LIST, 'notifications');
     });
   }, []);
@@ -131,7 +135,6 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       })) as TeamTask[];
       setTasks(taskList);
     }, (error) => {
-      console.error("Task subscription error:", error);
       handleFirestoreError(error, OperationType.LIST, 'tasks');
     });
 
