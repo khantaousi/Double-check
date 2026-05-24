@@ -38,9 +38,10 @@ import { subDays, addDays, parseISO, differenceInMinutes } from 'date-fns';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { getInitials, getAvatarColor } from './lib/avatar';
 import { PrintSlips } from './components/PrintSlips';
+import { Complaints } from './components/Complaints';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'validation' | 'rules' | 'products' | 'settings' | 'users' | 'tracker' | 'printSlips' | 'team'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'validation' | 'rules' | 'products' | 'settings' | 'users' | 'tracker' | 'printSlips' | 'team' | 'complaints'>('dashboard');
   const [data, setData] = useState<DataRow[]>([]);
   const [rules, setRules] = useState<ValidationRule[]>(DEFAULT_RULES);
   const [delivery, setDelivery] = useState<IDeliverySettings>(DEFAULT_DELIVERY_SETTINGS);
@@ -57,6 +58,7 @@ export default function App() {
   const [authEmail, setAuthEmail] = useState('');
   const [authPass, setAuthPass] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
+  const [complaintsCount, setComplaintsCount] = useState(0);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [loginMode, setLoginMode] = useState<'staff' | 'select' | 'admin'>('select');
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -1010,6 +1012,16 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
+    if (user) {
+      const q = query(collection(db, 'complaints'));
+      const unsubscribeComplaints = onSnapshot(q, (snapshot) => {
+        setComplaintsCount(snapshot.docs.length);
+      }, (err) => console.warn(err));
+      return () => unsubscribeComplaints();
+    }
+  }, [user]);
+
+  useEffect(() => {
     if (userProfile?.role === 'admin') {
       const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
         const userList = snapshot.docs.map(doc => ({
@@ -1274,6 +1286,7 @@ export default function App() {
     if (user?.email === 'khantaousi@gmail.com') return true;
     if (userProfile?.role === 'admin') return true;
     if (tab === 'users') return false;
+    if (tab === 'complaints') return true;
     const key = tab === 'validation' ? 'dashboard' : tab;
     return (userProfile?.permissions?.[key as keyof UserProfile['permissions']] || 'none') !== 'none';
   };
@@ -1431,7 +1444,34 @@ export default function App() {
                     }`}
                   >
                     <Settings size={18} className="shrink-0" />
-                    <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Delivery Settings</span>
+                    <span className={isSidebarCollapsed ? "hidden" : "block"}>Delivery Settings</span>
+                  </button>
+                )}
+
+                {hasAccess('complaints') && (
+                  <button 
+                    onClick={() => { setActiveTab('complaints'); setIsSidebarOpen(false); }}
+                    title={isSidebarCollapsed ? "Feedback" : undefined}
+                    className={`relative w-full flex items-center gap-3 rounded-xl text-xs font-bold transition-all border ${isSidebarCollapsed ? 'justify-center py-3 px-0' : 'px-4 py-3'} ${
+                      activeTab === 'complaints' 
+                        ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30 shadow-sm' 
+                        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <div className="relative">
+                      <Mail size={18} className="shrink-0" />
+                      {complaintsCount > 0 && isSidebarCollapsed && (
+                        <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5 rounded-full bg-red-500 shadow ring-2 ring-white dark:ring-slate-900" />
+                      )}
+                    </div>
+                    <div className={`flex-1 flex items-center justify-between ${isSidebarCollapsed ? 'hidden' : 'flex'}`}>
+                      <span>Submit Feedback</span>
+                      {complaintsCount > 0 && (
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] text-white shadow-sm ring-2 ring-white dark:ring-slate-900">
+                          {complaintsCount}
+                        </span>
+                      )}
+                    </div>
                   </button>
                 )}
                 
@@ -1511,7 +1551,7 @@ export default function App() {
             </div>
             <div className="h-4 w-px bg-slate-200 dark:bg-slate-800" />
             <h2 className="text-slate-400 dark:text-slate-500 text-sm font-bold tracking-tight uppercase">
-              {activeTab === 'dashboard' ? 'Performance Dashboard' : activeTab === 'validation' ? 'Double Check' : `Config / ${activeTab}`}
+              {activeTab === 'dashboard' ? 'Performance Dashboard' : activeTab === 'validation' ? 'Double Check' : activeTab === 'complaints' ? 'Anonymous Feedback' : `Config / ${activeTab}`}
             </h2>
           </div>
           
@@ -2586,6 +2626,19 @@ export default function App() {
                       />
                     </div>
                   </div>
+                </motion.div>
+              )}
+
+              {activeTab === 'complaints' && hasAccess('complaints') && (
+                <motion.div
+                  key="complaints"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="max-w-3xl mx-auto pt-10"
+                >
+                  <Complaints userProfile={userProfile} user={user} />
                 </motion.div>
               )}
 

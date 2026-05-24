@@ -159,5 +159,12 @@ service cloud.firestore {
         sessionId.startsWith(request.auth.uid + "_") || isAdmin()
       );
     }
+    
+    // 8. Complaints
+    match /complaints/{complaintId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
   }
 }
