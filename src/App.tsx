@@ -59,6 +59,9 @@ export default function App() {
   const [authPass, setAuthPass] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [complaintsCount, setComplaintsCount] = useState(0);
+  const [seenComplaintsCount, setSeenComplaintsCount] = useState(() => {
+    return parseInt(localStorage.getItem('seenComplaintsCount') || '0', 10);
+  });
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [loginMode, setLoginMode] = useState<'staff' | 'select' | 'admin'>('select');
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -1022,6 +1025,13 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
+    if (activeTab === 'complaints') {
+      setSeenComplaintsCount(complaintsCount);
+      localStorage.setItem('seenComplaintsCount', complaintsCount.toString());
+    }
+  }, [activeTab, complaintsCount]);
+
+  useEffect(() => {
     if (userProfile?.role === 'admin') {
       const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
         const userList = snapshot.docs.map(doc => ({
@@ -1460,15 +1470,15 @@ export default function App() {
                   >
                     <div className="relative">
                       <Mail size={18} className="shrink-0" />
-                      {complaintsCount > 0 && isSidebarCollapsed && (
+                      {complaintsCount - seenComplaintsCount > 0 && isSidebarCollapsed && (
                         <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5 rounded-full bg-red-500 shadow ring-2 ring-white dark:ring-slate-900" />
                       )}
                     </div>
                     <div className={`flex-1 flex items-center justify-between ${isSidebarCollapsed ? 'hidden' : 'flex'}`}>
                       <span>Submit Feedback</span>
-                      {complaintsCount > 0 && (
+                      {complaintsCount - seenComplaintsCount > 0 && (
                         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] text-white shadow-sm ring-2 ring-white dark:ring-slate-900">
-                          {complaintsCount}
+                          {complaintsCount - seenComplaintsCount}
                         </span>
                       )}
                     </div>

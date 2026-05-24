@@ -8,6 +8,7 @@ export function Complaints({ userProfile, user }: { userProfile: UserProfile | n
   const [complaints, setComplaints] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [revealedIds, setRevealedIds] = useState<Record<string, boolean>>({});
 
   const isSuperAdmin = user?.email === 'khantaousi@gmail.com';
 
@@ -97,7 +98,21 @@ export function Complaints({ userProfile, user }: { userProfile: UserProfile | n
                   <span className="text-slate-400 dark:text-slate-500">{new Date(c.createdAt).toLocaleDateString()} {new Date(c.createdAt).toLocaleTimeString()}</span>
                   <div className="flex items-center gap-4">
                     {isSuperAdmin ? (
-                      <span className="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded">Hidden Identity: {c.submittedByName} ({c.submittedByEmail})</span>
+                      revealedIds[c.id] ? (
+                        <span 
+                          onClick={() => setRevealedIds(prev => ({...prev, [c.id]: false}))}
+                          className="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded cursor-pointer select-none"
+                        >
+                          Hidden Identity: {c.submittedByName} ({c.submittedByEmail})
+                        </span>
+                      ) : (
+                        <span 
+                          onClick={() => setRevealedIds(prev => ({...prev, [c.id]: true}))}
+                          className="text-slate-500 dark:text-slate-400 bg-slate-200/50 dark:bg-slate-700/50 px-2 py-1 rounded cursor-default select-none"
+                        >
+                          Anonymous User
+                        </span>
+                      )
                     ) : (
                       <span className="text-slate-500 dark:text-slate-400 bg-slate-200/50 dark:bg-slate-700/50 px-2 py-1 rounded">Anonymous User</span>
                     )}
