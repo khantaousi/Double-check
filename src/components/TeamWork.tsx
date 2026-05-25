@@ -493,7 +493,8 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       for (const t of tasks) {
         if (t.isHistorySnapshot) continue;
 
-        const taskDate = formatBST(parseISO(t.assignedAt), 'yyyy-MM-dd');
+        const baseDateStr = t.startedAt || t.assignedAt;
+        const taskDate = formatBST(parseISO(baseDateStr), 'yyyy-MM-dd');
         if (taskDate === todayStr) continue;
 
         // Case A & B: Unfinished tasks (started but not completed) or completed daily tasks from yesterday/past
@@ -615,6 +616,10 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     };
 
     maintenance();
+    
+    // Periodically run maintenance so if a user leaves the app open across midnight, tasks automatically submit.
+    const intervalId = setInterval(maintenance, 60000); // every minute
+    return () => clearInterval(intervalId);
   }, [tasks, isAdmin]);
 
   const filteredTasks = useMemo(() => {
