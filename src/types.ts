@@ -86,6 +86,16 @@ export interface TaskHistoryEntry {
   note?: string;
 }
 
+export interface AppNotice {
+  id?: string;
+  title: string;
+  message: string;
+  createdAt: string;
+  expiresAt?: string;
+  createdBy: string;
+  viewers: { userId: string; userName: string; viewedAt: string }[];
+}
+
 export interface AppNotification {
   id?: string;
   userId: string;

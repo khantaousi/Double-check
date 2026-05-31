@@ -776,7 +776,9 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
           totalMinutes: 0, 
           totalPause: 0, 
           taskIds: [], 
-          completedTasks: [] 
+          completedTasks: [],
+          firstLogin: null,
+          lastLogout: null
         };
         stats.completed += 1;
         stats.totalMinutes += (task.durationMinutes || 0);
@@ -794,9 +796,48 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       }
     });
 
+    sessions.forEach((sess: any) => {
+      const sessDate = sess.date;
+      let dateMatch = true;
+      if (statsDateRange === 'today') dateMatch = sessDate === todayStr;
+      else if (statsDateRange === 'yesterday') dateMatch = sessDate === yesterdayStr;
+      else if (statsDateRange === '30days') dateMatch = true; 
+      else if (statsDateRange === 'custom') {
+        dateMatch = sessDate >= customStatsStart && sessDate <= customStatsEnd;
+      }
+      
+      const agentMatch = selectedReportAgentId === 'all' || sess.userId === selectedReportAgentId;
+      
+      if (dateMatch && agentMatch) {
+         const key = `${sessDate}_${sess.userId}`;
+         let stats = statsMap.get(key);
+         if (!stats) {
+            stats = {
+              date: sessDate,
+              name: sess.userName || 'Unknown User',
+              assigneeId: sess.userId,
+              completed: 0,
+              avgMinutes: 0,
+              totalMinutes: 0,
+              totalPause: 0,
+              taskIds: [],
+              completedTasks: [],
+              firstLogin: sess.firstLogin || null,
+              lastLogout: sess.lastLogout || null
+            };
+            statsMap.set(key, stats);
+         } else {
+            stats.firstLogin = sess.firstLogin || stats.firstLogin;
+            stats.lastLogout = sess.lastLogout || stats.lastLogout;
+         }
+      }
+    });
+
     return Array.from(statsMap.values()).sort((a, b) => {
       // Sort by date DESC, then by completed DESC
-      if (b.date !== a.date) return b.date.localeCompare(a.date);
+      const dateA = a.date || '';
+      const dateB = b.date || '';
+      if (dateB !== dateA) return dateB.localeCompare(dateA);
       return b.completed - a.completed;
     });
   }, [tasks, isAdmin, statsDateRange, customStatsStart, customStatsEnd, selectedReportAgentId]);

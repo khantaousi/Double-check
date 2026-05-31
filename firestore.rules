@@ -166,5 +166,14 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow update, delete: if isAdmin();
     }
+
+    // 9. Notices
+    match /notices/{noticeId} {
+      allow read: if isSignedIn();
+      allow create, delete: if isAdmin();
+      allow update: if isSignedIn() && (
+        isAdmin() || incoming().diff(existing()).affectedKeys().hasOnly(['viewers'])
+      );
+    }
   }
 }

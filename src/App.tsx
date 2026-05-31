@@ -10,7 +10,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { AppNotification, DataRow, TaskHistoryEntry, ValidationRule, ProductPrice, DEFAULT_RULES, DeliverySettings as IDeliverySettings, DEFAULT_DELIVERY_SETTINGS, UserProfile, GiftRule, SiteSettings, DEFAULT_SITE_SETTINGS, TeamTask } from './types';
+import { AppNotice, AppNotification, DataRow, TaskHistoryEntry, ValidationRule, ProductPrice, DEFAULT_RULES, DeliverySettings as IDeliverySettings, DEFAULT_DELIVERY_SETTINGS, UserProfile, GiftRule, SiteSettings, DEFAULT_SITE_SETTINGS, TeamTask } from './types';
 import { processData, calculateRow } from './lib/processor';
 import { RuleEditor } from './components/RuleEditor';
 import { GiftRuleEditor } from './components/GiftRuleEditor';
@@ -23,13 +23,14 @@ import { GeneralSettings } from './components/GeneralSettings';
 import { FileUpload } from './components/FileUpload';
 import { DataTable } from './components/DataTable';
 import { UserManagement } from './components/UserManagement';
+import { NoticeBoard } from './components/NoticeBoard';
 import WelcomeScreen from './components/WelcomeScreen';
 import { LiveTenureTracker } from './components/LiveTenureTracker';
 import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toPng } from 'html-to-image';
 import { db, auth, logInWithEmail, signOut, signInWithGoogle } from './lib/firebase';
-import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, setDoc, getDoc, writeBatch, where, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, setDoc, getDoc, writeBatch, where, getDocs, arrayUnion } from 'firebase/firestore';
 import { seedProducts } from './lib/seed';
 import { handleFirestoreError, OperationType } from './lib/errors';
 import { cleanObject, getBSTISOString, formatBST } from './lib/utils';
@@ -981,15 +982,72 @@ export default function App() {
     return () => unsubscribeNotif();
   }, [user]);
 
+  const [notices, setNotices] = useState<AppNotice[]>([]);
+
+  useEffect(() => {
+    if (!user) {
+      setNotices([]);
+      return;
+    }
+    const q = query(
+      collection(db, 'notices'),
+      orderBy('createdAt', 'desc')
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const now = new Date();
+      const loadedNotices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AppNotice[];
+      const validNotices = loadedNotices.filter(n => {
+        if (!n.expiresAt) return true;
+        return new Date(n.expiresAt) > now;
+      });
+      setNotices(validNotices);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'notices'));
+    return () => unsubscribe();
+  }, [user]);
+
   const markAllAsRead = async () => {
+    // Regular notifications
     const unread = notifications.filter(n => !n.isRead);
-    if (unread.length === 0) return;
-    const batch = writeBatch(db);
-    unread.forEach(n => {
-      if (n.id) batch.update(doc(db, 'notifications', n.id), { isRead: true });
-    });
-    await batch.commit();
+    // Unread notices
+    const unreadNotices = notices.filter(n => !(n.viewers || []).find(v => v.userId === user?.uid));
+
+    if (unread.length === 0 && unreadNotices.length === 0) return;
+    
+    try {
+      const batch = writeBatch(db);
+      unread.forEach(n => {
+        if (n.id) batch.update(doc(db, 'notifications', n.id), { isRead: true });
+      });
+      
+      const nowStr = getBSTISOString();
+      for (const n of unreadNotices) {
+        if (n.id && user) {
+          const docRef = doc(db, 'notices', n.id);
+          const viewerData = { userId: user.uid, userName: userProfile?.displayName || userProfile?.loginHandle || user.email?.split('@')[0] || 'User', viewedAt: nowStr };
+          // Need to import arrayUnion from firebase/firestore
+          batch.update(docRef, { viewers: arrayUnion(viewerData) });
+        }
+      }
+      
+      await batch.commit();
+    } catch (e) {
+      console.error(e);
+    }
   };
+
+  const combinedNotifications = [
+    ...notifications,
+    ...notices.map(n => ({
+      id: `notice_${n.id}`, 
+      userId: user?.uid || '',
+      title: `📣 ${n.title}`,
+      message: n.message,
+      type: 'system',
+      createdAt: n.createdAt,
+      isRead: !!(n.viewers || []).find(v => v.userId === user?.uid),
+      isNotice: true
+    }))
+  ].sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   useEffect(() => {
     if (!user) {
@@ -1486,18 +1544,33 @@ export default function App() {
                 )}
                 
                 {isAdmin && (
-                  <button 
-                    onClick={() => { setActiveTab('users'); setIsSidebarOpen(false); }}
-                    title={isSidebarCollapsed ? "User Access" : undefined}
-                    className={`w-full flex items-center gap-3 rounded-xl text-xs font-bold transition-all border ${isSidebarCollapsed ? 'justify-center py-3 px-0' : 'px-4 py-3'} ${
-                      activeTab === 'users' 
-                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
-                        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    <Users size={18} className="shrink-0" />
-                    <span className={isSidebarCollapsed ? 'hidden' : 'block'}>User Access</span>
-                  </button>
+                  <>
+                    <button 
+                      onClick={() => { setActiveTab('notices'); setIsSidebarOpen(false); }}
+                      title={isSidebarCollapsed ? "Notices" : undefined}
+                      className={`w-full flex items-center gap-3 rounded-xl text-xs font-bold transition-all border ${isSidebarCollapsed ? 'justify-center py-3 px-0' : 'px-4 py-3'} ${
+                        activeTab === 'notices' 
+                          ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
+                          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      <Bell size={18} className="shrink-0" />
+                      <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Notices</span>
+                    </button>
+                    
+                    <button 
+                      onClick={() => { setActiveTab('users'); setIsSidebarOpen(false); }}
+                      title={isSidebarCollapsed ? "User Access" : undefined}
+                      className={`w-full flex items-center gap-3 rounded-xl text-xs font-bold transition-all border ${isSidebarCollapsed ? 'justify-center py-3 px-0' : 'px-4 py-3'} ${
+                        activeTab === 'users' 
+                          ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
+                          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      <Users size={18} className="shrink-0" />
+                      <span className={isSidebarCollapsed ? 'hidden' : 'block'}>User Access</span>
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -1592,7 +1665,7 @@ export default function App() {
                   >
                     <Bell size={18} />
                   </motion.div>
-                  {notifications.filter(n => !n.isRead).length > 0 && (
+                  {combinedNotifications.filter(n => !n.isRead).length > 0 && (
                     <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 border-2 border-white dark:border-slate-900 rounded-full" />
                   )}
                 </button>
@@ -1612,15 +1685,16 @@ export default function App() {
                           <button onClick={markAllAsRead} className="text-[9px] font-black text-blue-600 uppercase hover:underline">Mark all read</button>
                         </div>
                         <div className="max-h-[400px] overflow-y-auto no-scrollbar">
-                          {notifications.length === 0 ? (
+                          {combinedNotifications.length === 0 ? (
                             <div className="p-10 text-center">
                               <p className="text-[10px] font-bold text-slate-400 uppercase italic">No alerts</p>
                             </div>
                           ) : (
-                            notifications.map((n, i) => (
+                            combinedNotifications.map((n, i) => (
                               <div 
                                 key={n.id || i} 
                                 onClick={() => {
+                                  // @ts-ignore
                                   if (n.taskId) {
                                     setActiveTab('team');
                                     setShowNotifications(false);
@@ -2670,6 +2744,19 @@ export default function App() {
                     onUpdateRole={handleUpdateUserRole}
                     currentUserEmail={user?.email}
                   />
+                </motion.div>
+              )}
+
+              {activeTab === 'notices' && isAdmin && (
+                <motion.div
+                  key="notices"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="max-w-4xl mx-auto pt-10"
+                >
+                  <NoticeBoard notices={notices} userProfile={userProfile} />
                 </motion.div>
               )}
 
