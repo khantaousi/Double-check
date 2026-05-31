@@ -32,14 +32,16 @@ export const NoticeBoard: React.FC<NoticeBoardProps> = ({ notices, userProfile }
         expiresAt = formatBST(date, "yyyy-MM-dd'T'HH:mm:ss.SSS") + bstOffsetStr;
       }
 
-      const notice: AppNotice = {
+      const notice: any = {
         title: newNotice.title,
         message: newNotice.message,
         createdAt: getBSTISOString(),
-        expiresAt,
         createdBy: userProfile.displayName || userProfile.email || 'Admin',
         viewers: []
       };
+      if (expiresAt) {
+        notice.expiresAt = expiresAt;
+      }
       await setDoc(noticeRef, notice);
       setNewNotice({ title: '', message: '', expiryDays: '' });
       setIsCreating(false);
