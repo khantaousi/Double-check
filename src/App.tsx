@@ -1678,20 +1678,6 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-6">
-            {nextBday && (
-              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50">
-                <Gift className="text-amber-500" size={16} />
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 leading-none mb-0.5">
-                    {nextBday.daysLeft === 0 ? "Today is" : "Next Birthday"}
-                  </span>
-                  <span className="text-xs font-bold text-amber-700 dark:text-amber-300 leading-none tracking-tight">
-                    {nextBday.user.displayName || nextBday.user.email?.split('@')[0]}
-                    {nextBday.daysLeft > 0 && ` (${nextBday.daysLeft}d)`}
-                  </span>
-                </div>
-              </div>
-            )}
             <button 
               onClick={() => setIsDarkMode(!isDarkMode)}
               className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-slate-200 dark:border-slate-700 active:scale-95"
@@ -2031,6 +2017,28 @@ export default function App() {
                         Access your command center modules and tools from the left-side workspace menu.
                       </p>
                     </div>
+
+                    {nextBday && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 p-6 rounded-3xl flex items-center justify-between shadow-sm"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/40 rounded-2xl flex items-center justify-center shrink-0">
+                            <Gift className="text-amber-600 dark:text-amber-400" size={24} />
+                          </div>
+                          <div>
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-500 mb-0.5">Upcoming Birthday</h4>
+                            <p className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                              {nextBday.daysLeft === 0 
+                                ? `🎉 Today is ${nextBday.user.displayName || nextBday.user.email?.split('@')[0]}'s Birthday!` 
+                                : `Next up: ${nextBday.user.displayName || nextBday.user.email?.split('@')[0]}'s Birthday in ${nextBday.daysLeft} day${nextBday.daysLeft !== 1 ? 's' : ''}`}
+                            </p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
 
                     {userProfile && (
                       <motion.div
