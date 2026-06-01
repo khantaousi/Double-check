@@ -179,7 +179,7 @@ export default function App() {
 
   const matchDateToHeader = (headerTemp: string, targetDate: Date): boolean => {
     if (!headerTemp) return false;
-    const headerClean = headerTemp.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const headerClean = headerTemp.toLowerCase().replace(/\s+/g, '');
     
     const formats = [
       'd-MMM-yy',
@@ -196,9 +196,14 @@ export default function App() {
     ];
     
     for (const fmt of formats) {
-      const formatted = formatBST(targetDate, fmt).toLowerCase().replace(/[^a-z0-9]/g, '');
-      if (headerClean.includes(formatted) || formatted.includes(headerClean)) {
-        return true;
+      const formatted = formatBST(targetDate, fmt).toLowerCase().replace(/\s+/g, '');
+      const matchIndex = headerClean.indexOf(formatted);
+      if (matchIndex !== -1) {
+        if (matchIndex === 0) return true;
+        const charBefore = headerClean[matchIndex - 1];
+        if (!/[0-9]/.test(charBefore)) {
+          return true;
+        }
       }
     }
     return false;
@@ -1650,7 +1655,7 @@ export default function App() {
           {showWelcome && <WelcomeScreen onComplete={() => setShowWelcome(false)} userProfile={userProfile} user={user} />}
         </AnimatePresence>
         {/* Top Header Bar */}
-        <header className="h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 md:px-10 shrink-0 sticky top-0 z-10 transition-colors duration-300">
+        <header className="h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 md:px-10 shrink-0 sticky top-0 z-[100] transition-colors duration-300">
           <div className="flex items-center gap-5">
             <button
               onClick={() => {
@@ -1717,7 +1722,7 @@ export default function App() {
                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        className="absolute right-0 mt-3 w-80 bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] z-50 overflow-hidden"
+                        className="absolute right-0 mt-3 w-80 bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] z-[100] overflow-hidden"
                       >
                         <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
                           <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Notifications</span>
