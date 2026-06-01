@@ -27,6 +27,7 @@ export interface UserProfile {
   displayName?: string;
   employeeId?: string;  // Employee ID for personnel
   photoURL?: string;
+  birthday?: string; // Standard YYYY-MM-DD
   joiningDate?: string; // Standard YYYY-MM-DD custom joining date
   createdAt: string;
   isActive: boolean;    // For activating/deactivating users

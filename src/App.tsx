@@ -52,6 +52,45 @@ export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+
+  const getNextBirthday = () => {
+    if (allUsers.length === 0) return null;
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    
+    let nextBirthday: { user: UserProfile, date: Date, daysLeft: number } | null = null;
+    
+    for (const u of allUsers) {
+      if (!u.birthday) continue;
+      // birthday format is YYYY-MM-DD
+      const parts = u.birthday.split('-');
+      if (parts.length !== 3) continue;
+      const [_, month, day] = parts;
+      
+      let bdayThisYear = new Date(currentYear, parseInt(month) - 1, parseInt(day));
+      
+      // If birthday already passed this year (not today), look at next year
+      if (bdayThisYear.getTime() < now.getTime() && 
+          !(bdayThisYear.getMonth() === now.getMonth() && bdayThisYear.getDate() === now.getDate())) {
+        bdayThisYear = new Date(currentYear + 1, parseInt(month) - 1, parseInt(day));
+      }
+      
+      const diffTime = Math.abs(bdayThisYear.getTime() - now.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      // If it's today, daysLeft is 0
+      const isToday = bdayThisYear.getMonth() === now.getMonth() && bdayThisYear.getDate() === now.getDate();
+      const actualDaysLeft = isToday ? 0 : diffDays;
+
+      if (!nextBirthday || actualDaysLeft < nextBirthday.daysLeft) {
+        nextBirthday = { user: u, date: bdayThisYear, daysLeft: actualDaysLeft };
+      }
+    }
+    return nextBirthday;
+  };
+
+  const nextBday = getNextBirthday();
+
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [resetTrigger, setResetTrigger] = useState(0);
@@ -1639,6 +1678,20 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-6">
+            {nextBday && (
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50">
+                <Gift className="text-amber-500" size={16} />
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 leading-none mb-0.5">
+                    {nextBday.daysLeft === 0 ? "Today is" : "Next Birthday"}
+                  </span>
+                  <span className="text-xs font-bold text-amber-700 dark:text-amber-300 leading-none tracking-tight">
+                    {nextBday.user.displayName || nextBday.user.email?.split('@')[0]}
+                    {nextBday.daysLeft > 0 && ` (${nextBday.daysLeft}d)`}
+                  </span>
+                </div>
+              </div>
+            )}
             <button 
               onClick={() => setIsDarkMode(!isDarkMode)}
               className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-slate-200 dark:border-slate-700 active:scale-95"

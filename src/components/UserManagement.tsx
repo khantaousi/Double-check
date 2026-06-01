@@ -24,6 +24,7 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
   const [customDisplayName, setCustomDisplayName] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [joiningDate, setJoiningDate] = useState('');
+  const [birthday, setBirthday] = useState('');
   const [role, setRole] = useState<'admin' | 'user'>('user');
   const [isCreating, setIsCreating] = useState(false);
   const [now, setNow] = useState(new Date());
@@ -118,6 +119,7 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
         displayName: customDisplayName,
         employeeId: employeeId,
         joiningDate: joiningDate || '',
+        birthday: birthday || '',
         createdAt: getBSTISOString(),
         isActive: true
       };
@@ -131,6 +133,7 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
       setCustomDisplayName('');
       setEmployeeId('');
       setJoiningDate('');
+      setBirthday('');
       setPassword('');
       setConfirmPassword('');
       alert('User created successfully.');
@@ -190,7 +193,8 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
         displayName: editTarget.displayName || '',
         permissions: editTarget.permissions,
         employeeId: editTarget.employeeId || '',
-        joiningDate: editTarget.joiningDate || ''
+        joiningDate: editTarget.joiningDate || '',
+        birthday: editTarget.birthday || ''
       }));
       setEditTarget(null);
       alert('User updated successfully.');
@@ -321,6 +325,11 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
                           {user.joiningDate && (
                             <p className="text-[9px] font-bold text-slate-500 dark:text-slate-400">
                               Joined: {formatJoiningDate(user.joiningDate)}
+                            </p>
+                          )}
+                          {user.birthday && (
+                            <p className="text-[9px] font-bold text-amber-500 dark:text-amber-400">
+                              Birthday: {formatJoiningDate(user.birthday)}
                             </p>
                           )}
                           <div className="flex items-center gap-1 opacity-60">
@@ -525,6 +534,10 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Joining Date</label>
                   <input type="date" value={editTarget.joiningDate || ''} onChange={e => setEditTarget({...editTarget, joiningDate: e.target.value})} className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20" />
                 </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Birthday (YYYY-MM-DD)</label>
+                  <input type="date" value={editTarget.birthday || ''} onChange={e => setEditTarget({...editTarget, birthday: e.target.value})} className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20" />
+                </div>
                 <button onClick={handleEditUserSave} className="w-full bg-blue-600 text-white rounded-2xl py-4 font-bold text-xs uppercase tracking-widest hover:bg-blue-700">Save Changes</button>
               </div>
             </motion.div>
@@ -587,6 +600,17 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
                       type="date" 
                       value={joiningDate} 
                       onChange={e => setJoiningDate(e.target.value)} 
+                      className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3.5 px-4 text-sm font-black focus:ring-2 focus:ring-blue-500/20" 
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Birthday</label>
+                  <div className="relative text-slate-700 dark:text-slate-200">
+                    <input 
+                      type="date" 
+                      value={birthday} 
+                      onChange={e => setBirthday(e.target.value)} 
                       className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3.5 px-4 text-sm font-black focus:ring-2 focus:ring-blue-500/20" 
                     />
                   </div>
