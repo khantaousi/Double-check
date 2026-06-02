@@ -2038,7 +2038,7 @@ export default function App() {
                             <p className="text-sm font-bold text-amber-900 dark:text-amber-200">
                               {nextBday.daysLeft === 0 
                                 ? `🎉 Today is ${nextBday.user.displayName || nextBday.user.email?.split('@')[0]}'s Birthday!` 
-                                : `Next up: ${nextBday.user.displayName || nextBday.user.email?.split('@')[0]}'s Birthday in ${nextBday.daysLeft} day${nextBday.daysLeft !== 1 ? 's' : ''}`}
+                                : `Next up: ${nextBday.user.displayName || nextBday.user.email?.split('@')[0]}'s Birthday on ${formatBST(nextBday.date, 'dd MMM')} (${nextBday.daysLeft} days left)`}
                             </p>
                           </div>
                         </div>
