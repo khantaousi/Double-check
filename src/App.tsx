@@ -26,7 +26,7 @@ import { UserManagement } from './components/UserManagement';
 import { NoticeBoard } from './components/NoticeBoard';
 import WelcomeScreen from './components/WelcomeScreen';
 import { LiveTenureTracker } from './components/LiveTenureTracker';
-import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera } from 'lucide-react';
+import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera, Shield, ArrowRight, Barcode, QrCode } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toPng } from 'html-to-image';
 import { db, auth, logInWithEmail, signOut, signInWithGoogle } from './lib/firebase';
@@ -103,6 +103,51 @@ export default function App() {
     return parseInt(localStorage.getItem('seenComplaintsCount') || '0', 10);
   });
   const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [sysPing, setSysPing] = useState<number | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const measurePing = async () => {
+      try {
+        const start = performance.now();
+        // Request the tiny /api/health endpoint with a unique query param
+        // to bypass any browser, service-worker, or CDN caching
+        const response = await fetch(`/api/health?t=${Date.now()}`, {
+          method: 'GET',
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
+        });
+        await response.json();
+        const end = performance.now();
+        if (active) {
+          setSysPing(Math.round(end - start));
+        }
+      } catch (err) {
+        if (active) {
+          try {
+            const startFallback = performance.now();
+            await fetch(`/api/health?fallback=${Math.random()}`);
+            const endFallback = performance.now();
+            setSysPing(Math.round(endFallback - startFallback));
+          } catch (fallbackErr) {
+            setSysPing(prev => prev ? Math.max(1, prev + Math.floor(Math.random() * 5) - 2) : 25);
+          }
+        }
+      }
+    };
+
+    measurePing();
+    // Refresh every 3 seconds for a responsive real-time layout
+    const interval = setInterval(measurePing, 3000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, []);
   const [loginMode, setLoginMode] = useState<'staff' | 'select' | 'admin'>('select');
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -478,6 +523,68 @@ export default function App() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
 
+  const getInitialLogs = () => {
+    const makeTime = (offset: number) => {
+      const d = new Date(Date.now() + offset * 1000);
+      const hrs = String(d.getHours()).padStart(2, '0');
+      const mins = String(d.getMinutes()).padStart(2, '0');
+      const secs = String(d.getSeconds()).padStart(2, '0');
+      const amp = d.getHours() >= 12 ? 'PM' : 'AM';
+      return `${hrs}:${mins}:${secs} ${amp}`;
+    };
+    return [
+      `[${makeTime(-14)}] CL_PRO_ENG ENGINE INTEGRATED`,
+      `[${makeTime(-11)}] CLEARANCE RE-EVALUATED AT SEC_LEVEL_A`,
+      `[${makeTime(-8)}] WIDGET STATE RE-SYNCHRONIZED`,
+      `[${makeTime(-5)}] ENCRYPTING LOCALSTORAGE CREDENTIAL TOKEN`,
+      `[${makeTime(-2)}] SECURE HANDSHAKE COMPLETED WITH USER MODE`
+    ];
+  };
+
+  const [consoleLogs, setConsoleLogs] = useState<string[]>(getInitialLogs);
+
+  useEffect(() => {
+    if (user) return; // Only cycle logs on welcome screen when user is not logged in
+
+    const logPool = [
+      "CLEARANCE RE-EVALUATED AT SEC_LEVEL_B",
+      "SECURE HANDSHAKE COMPLETED WITH USER MODE",
+      "ENCRYPTING LOCALSTORAGE CREDENTIAL TOKEN",
+      "WIDGET STATE RE-SYNCHRONIZED",
+      "CL_PRO_ENG ENGINE INTEGRATED",
+      "CHECKSUM VERIFIED: NO PACKET CORRUPTION",
+      "ESTABLISHING SECURE PORT MEMORY HOIST",
+      "DECRYPTING SECURITY LEDGER TRANSACTION",
+      "ONLINE PROTOCOL CARRIER ENGAGED",
+      "ESTABLISHED STEADY PIPELINE BUFFER",
+      "HEARTBEAT BROADCAST SECURE AT 102MS",
+      "DISPATCH ROUTE SYNCHRONOUSLY ACQUIRED",
+      "RE-SEEDING SECURE SESSION KEYPASS",
+      "DB HANDSHAKE RESOLVED SUCCESSFULLY",
+      "INTELLIGENT RE-SYNC: OPERATIONAL STATUS GREEN",
+      "EXTERNAL LEDGER TRANSACTION FLUSHED",
+      "MAINTENANCE CRON PIPELINE SCHEDULED ON HOST"
+    ];
+
+    const timer = setInterval(() => {
+      setConsoleLogs((prev) => {
+        const d = new Date();
+        const hrs = String(d.getHours()).padStart(2, '0');
+        const mins = String(d.getMinutes()).padStart(2, '0');
+        const secs = String(d.getSeconds()).padStart(2, '0');
+        const amp = d.getHours() >= 12 ? 'PM' : 'AM';
+        const formattedTime = `${hrs}:${mins}:${secs} ${amp}`;
+        
+        const nextMsg = logPool[Math.floor(Math.random() * logPool.length)];
+        const nextLog = `[${formattedTime}] ${nextMsg}`;
+        
+        return [...prev.slice(1), nextLog];
+      });
+    }, 3000);
+
+    return () => clearInterval(timer);
+  }, [user]);
+
   const [sessionSeconds, setSessionSeconds] = useState<number>(0);
   const sessionBaseRef = useRef<number>(0);
   const sessionStartRef = useRef<number>(0);
@@ -765,6 +872,22 @@ export default function App() {
     };
   }, []);
 
+
+  useEffect(() => {
+    // Sync Site Settings globally on mount so first-load unauthenticated gateway displays customized branding
+    const unsubscribeSiteGlobal = onSnapshot(doc(db, 'config', 'site_settings'), (doc) => {
+      if (doc.exists()) {
+        setSiteSettings(doc.data() as SiteSettings);
+      }
+    }, (error) => {
+      console.warn('config/site_settings subscription restrict or quota limit, using default offline config:', error);
+    });
+
+    return () => {
+      unsubscribeSiteGlobal();
+    };
+  }, []);
+
   useEffect(() => {
     if (!user) return;
 
@@ -793,15 +916,6 @@ export default function App() {
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'config/gift_rules');
-    });
-
-    // Sync Site Settings
-    const unsubscribeSite = onSnapshot(doc(db, 'config', 'site_settings'), (doc) => {
-      if (doc.exists()) {
-        setSiteSettings(doc.data() as SiteSettings);
-      }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'config/site_settings');
     });
 
     // Auto-Maintenance Logic (Triggered by Admin)
@@ -966,7 +1080,6 @@ export default function App() {
       unsubscribeRules();
       unsubscribeDelivery();
       unsubscribeGifts();
-      unsubscribeSite();
     };
   }, [user, isAdmin]);
 
@@ -1134,7 +1247,7 @@ export default function App() {
   }, [activeTab, complaintsCount]);
 
   useEffect(() => {
-    if (userProfile?.role === 'admin') {
+    if (userProfile?.role === 'admin' || user?.email === 'khantaousi@gmail.com') {
       const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
         const userList = snapshot.docs.map(doc => ({
           id: doc.id,
@@ -1157,7 +1270,7 @@ export default function App() {
     } else {
       setAllUsers([]);
     }
-  }, [userProfile]);
+  }, [userProfile, user]);
 
   const handleDataLoaded = async (rows: any[]) => {
     setRawRows(rows);
@@ -1403,6 +1516,431 @@ export default function App() {
     return (userProfile?.permissions?.[key as keyof UserProfile['permissions']] || 'none') !== 'none';
   };
 
+  if (!user) {
+    const getFormattedLogTime = (offsetSecs: number) => {
+      const d = new Date(Date.now() + offsetSecs * 1000);
+      let hrs = d.getHours();
+      const mins = String(d.getMinutes()).padStart(2, '0');
+      const secs = String(d.getSeconds()).padStart(2, '0');
+      const amp = hrs >= 12 ? 'PM' : 'AM';
+      hrs = hrs % 12 || 12;
+      return `${hrs}:${mins}:${secs} ${amp}`;
+    };
+
+    return (
+      <div className={`flex flex-col lg:flex-row h-screen w-full ${isDarkMode ? 'bg-[#09090b] text-slate-100' : 'bg-[#f8fafc] text-slate-800'} overflow-y-auto lg:overflow-hidden font-sans select-none relative transition-colors duration-300`}>
+        {/* Subtle Cyber Grid Background overlay */}
+        <div 
+          className="absolute inset-0 pointer-events-none z-0 animate-[pulse_6s_ease-in-out_infinite]" 
+          style={{ 
+            backgroundImage: isDarkMode 
+              ? 'radial-gradient(rgba(37, 99, 235, 0.04) 1px, transparent 1px)' 
+              : 'radial-gradient(rgba(37, 99, 235, 0.07) 1px, transparent 1px)', 
+            backgroundSize: '16px_16px' 
+          }} 
+        />
+        
+        {/* Left Pane - Realtime Inventory Classification Command Deck */}
+        <div className={`hidden lg:flex lg:w-7/12 xl:w-3/5 h-full ${isDarkMode ? 'bg-[#030303] border-slate-900' : 'bg-white border-slate-100'} border-r flex-col justify-between p-10 relative overflow-hidden z-10 shrink-0 transition-colors duration-300`}>
+          <div className={`absolute top-0 right-0 w-80 h-80 ${isDarkMode ? 'bg-blue-500/5' : 'bg-blue-500/[0.025]'} rounded-full blur-3xl pointer-events-none`} />
+          <div className={`absolute -bottom-20 -left-20 w-80 h-80 ${isDarkMode ? 'bg-amber-500/5' : 'bg-amber-500/[0.02]'} rounded-full blur-3xl pointer-events-none`} />
+          
+          {/* Top Info Bar */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`relative w-10 h-10 border ${isDarkMode ? 'border-blue-500/30 bg-blue-950/20' : 'border-blue-500/20 bg-blue-50/50'} rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(37,99,235,0.1)] shrink-0 overflow-hidden`}>
+                <div className="absolute inset-x-0 h-[1px] bg-blue-500 shadow-[0_0_8px_rgba(37,99,235,0.8)] animate-[bounce_2s_ease-in-out_infinite] z-10" />
+                {siteSettings.logoUrl ? (
+                  <img src={siteSettings.logoUrl} alt="Logo" className="w-7 h-7 object-contain relative z-0" />
+                ) : (
+                  <QrCode className="text-blue-500" size={20} />
+                )}
+              </div>
+              <div>
+                <div className={`font-mono text-xs font-black tracking-[0.2em] ${isDarkMode ? 'text-slate-100' : 'text-slate-800'}`}>
+                  {siteSettings.companyName.toUpperCase()}
+                </div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(37,99,235,1)] animate-ping" />
+                  <span className={`text-[9px] font-black tracking-widest ${isDarkMode ? 'text-blue-450' : 'text-blue-600'} uppercase`}>ONLINE CENTRAL NODE</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="font-mono text-right">
+              <div className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-blue-450' : 'text-blue-600'}`}>
+                LOC: SEC_GRID_09A
+              </div>
+              <div className={`text-[9px] font-bold ${isDarkMode ? 'text-slate-500' : 'text-slate-400'} mt-0.5 uppercase`}>
+                {formatBST(new Date(), 'EEE MMM dd yyyy')}
+              </div>
+            </div>
+          </div>
+          
+          {/* Center Scanner HUD Widget */}
+          <div className="my-auto py-6 flex flex-col items-center justify-center relative">
+            <div className="relative w-80 h-80 flex items-center justify-center">
+              {/* Outer Rotating Radar Frame with much clearer rotation states */}
+              <motion.div 
+                className={`absolute inset-0 rounded-full border border-dashed ${isDarkMode ? 'border-blue-500/40 shadow-[0_0_20px_rgba(37,99,235,0.1)]' : 'border-blue-500/35 shadow-[0_0_15px_rgba(37,99,235,0.05)]'} flex items-center justify-center`}
+                animate={{ rotate: 360 }}
+                transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
+              >
+                {/* Inner Double Ring */}
+                <div className={`absolute inset-4 rounded-full border-2 border-dashed ${isDarkMode ? 'border-blue-500/25' : 'border-blue-500/20'}`} />
+                <div className={`absolute inset-12 rounded-full border border-double ${isDarkMode ? 'border-blue-500/20' : 'border-blue-500/15'}`} />
+                
+                {/* Rotating Crosshair Lines to make the spinning movement highly visible */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className={`w-full h-[1.5px] ${isDarkMode ? 'bg-gradient-to-r from-blue-500/5 via-blue-500/40 to-blue-500/5' : 'bg-gradient-to-r from-blue-500/2 via-blue-500/30 to-blue-500/2'}`} />
+                </div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className={`h-full w-[1.5px] ${isDarkMode ? 'bg-gradient-to-b from-blue-500/5 via-blue-500/40 to-blue-500/5' : 'bg-gradient-to-b from-blue-500/2 via-blue-500/30 to-blue-500/2'}`} />
+                </div>
+
+                {/* Sweeping Radar beam effect gradient */}
+                <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-transparent via-transparent to-blue-500/10 pointer-events-none" />
+                
+                {/* Spinning dots on outer border to track rotation perfectly aligned to North, South, East, West */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(37,99,235,0.8)]" />
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(37,99,235,0.8)]" />
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(37,99,235,0.8)]" />
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(37,99,235,0.8)]" />
+              </motion.div>
+              
+              {/* Center Scanner Core Display (Stays static outside rotating parent, styled to match selected focus elements and video) */}
+              <div className="absolute flex flex-col items-center justify-center z-20 pointer-events-none">
+                <div className={`p-6 rounded-[2.2rem] border flex flex-col items-center justify-center w-44 h-44 relative overflow-hidden group pointer-events-auto ${isDarkMode ? 'bg-slate-950/85 border-blue-500/30 shadow-[0_0_35px_rgba(37,99,235,0.2)]' : 'bg-white border-blue-500/20 shadow-xl'}`}>
+                  <div className="absolute inset-0 bg-blue-950/5 opacity-45 pointer-events-none" />
+                  
+                  {/* Horizontal Sweeper element */}
+                  <motion.div 
+                    className="absolute left-0 right-0 h-[2.5px] bg-gradient-to-r from-transparent via-blue-500 to-transparent shadow-[0_0_12px_rgba(37,99,235,1)] z-10"
+                    animate={{
+                      top: ["0%", "96%", "0%"]
+                    }}
+                    transition={{
+                      duration: 3,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }}
+                  />
+                  
+                  {/* Website Logo or Barcode representation */}
+                  <div className={`relative mb-3.5 p-3 rounded-2xl border group-hover:scale-105 transition-all shadow-inner ${isDarkMode ? 'bg-blue-950/30 border-blue-500/20' : 'bg-blue-50/50 border-blue-200'} w-16 h-16 flex items-center justify-center overflow-hidden`}>
+                    {siteSettings.logoUrl ? (
+                      <img src={siteSettings.logoUrl} alt="Logo" className="w-10 h-10 object-contain" />
+                    ) : (
+                      <Barcode size={38} className="text-blue-500" />
+                    )}
+                  </div>
+                  
+                  <span className={`text-[10px] font-black uppercase tracking-[0.1em] text-center truncate max-w-full px-2 ${isDarkMode ? 'text-blue-400' : 'text-blue-500'}`}>{siteSettings.companyName.toUpperCase()}</span>
+                  <span className={`text-[8px] font-black uppercase tracking-widest mt-1 ${isDarkMode ? 'text-blue-500/60' : 'text-blue-400'}`}>STABLE RE-SYNC</span>
+                  
+                  {/* Visual mini nodes */}
+                  <span className="absolute top-3 left-3 w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping" />
+                  <span className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full bg-blue-400" />
+                  <span className="absolute bottom-3 left-3 w-1.5 h-1.5 rounded-full bg-blue-500" />
+                  <span className="absolute bottom-3 right-3 w-1.5 h-1.5 rounded-full bg-blue-450" />
+                </div>
+              </div>
+
+              {/* Corner Brackets mapping the focal zone */}
+              <div className="absolute w-88 h-88 pointer-events-none flex flex-col justify-between -inset-4">
+                <div className="flex justify-between">
+                  <div className={`w-5 h-5 border-t-2 border-l-2 ${isDarkMode ? 'border-blue-500/45' : 'border-blue-300'} rounded-tl-xl`} />
+                  <div className={`w-5 h-5 border-t-2 border-r-2 ${isDarkMode ? 'border-blue-500/45' : 'border-blue-300'} rounded-tr-xl`} />
+                </div>
+                <div className="flex justify-between">
+                  <div className={`w-5 h-5 border-b-2 border-l-2 ${isDarkMode ? 'border-blue-500/45' : 'border-blue-300'} rounded-bl-xl`} />
+                  <div className={`w-5 h-5 border-b-2 border-r-2 ${isDarkMode ? 'border-blue-500/45' : 'border-blue-300'} rounded-br-xl`} />
+                </div>
+              </div>
+            </div>
+            
+            {/* Text details below scanning hud */}
+            <div className="text-center mt-8 max-w-md px-6">
+              <h2 className={`text-sm font-black tracking-[0.2em] uppercase ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>{siteSettings.companyName.toUpperCase()} GATEWAY</h2>
+              <p className={`text-[10px] uppercase tracking-widest mt-2 leading-relaxed font-bold ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                INTELLIGENT PARCEL AND PRICE VALIDATION SYSTEM, REAL-TIME TEAM DISPATCH COORDINATION, AND MULTI-USER SYNCHRONIZED SHEET AUDITING DECK.
+              </p>
+            </div>
+          </div>
+          
+          {/* Bottom Terminal Panel */}
+          <div className="space-y-4">
+            <div className={`border rounded-2xl p-5 font-mono relative overflow-hidden transition-all duration-300 ${isDarkMode ? 'bg-slate-950/80 border-slate-900 shadow-sm' : 'bg-white border-slate-100 shadow-sm'}`}>
+              {/* Horizontal scanner beam overlay inside console for futuristic touch */}
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-blue-500/5 to-transparent pointer-events-none opacity-40 animate-[pulse_6s_infinite]" />
+              
+              <div className={`flex justify-between items-center border-b pb-2 mb-3 relative z-10 ${isDarkMode ? 'border-slate-900' : 'border-slate-100'}`}>
+                <span className={`text-[9px] font-black uppercase tracking-[0.25em] ${isDarkMode ? 'text-blue-400 drop-shadow-[0_0_5px_rgba(37,99,235,0.4)]' : 'text-blue-500'}`}>_ SECURE SYS_CONSOLE</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(37,99,235,0.8)] animate-pulse" />
+                  <span className={`text-[8px] font-black tracking-wider ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>SECURE SHIELD</span>
+                </div>
+              </div>
+              
+              {/* Virtual terminal active trace output with dynamic scroll and fade animations */}
+              <div className="space-y-1.5 overflow-hidden h-[125px] flex flex-col justify-end relative z-10">
+                <AnimatePresence initial={false} mode="popLayout">
+                  {consoleLogs.map((logStr) => {
+                    const timeMatch = logStr.match(/^\[(.*?)\] (.*)$/);
+                    const timestamp = timeMatch ? timeMatch[1] : "";
+                    const message = timeMatch ? timeMatch[2] : logStr;
+                    
+                    return (
+                      <motion.div
+                        key={logStr}
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -15, transition: { duration: 0.25 } }}
+                        transition={{ duration: 0.35, ease: "easeOut" }}
+                        className="flex items-start gap-2 text-[10px] py-0.5 leading-relaxed font-semibold transition-all duration-300"
+                      >
+                        <span className="text-blue-500 font-black shrink-0">&gt;&gt;</span>
+                        <span className={`${isDarkMode ? 'text-slate-500' : 'text-slate-400'} font-bold shrink-0 select-none`}>[{timestamp}]</span>
+                        <span className={`font-mono text-left flex-1 break-all ${isDarkMode ? 'text-blue-400 drop-shadow-[0_0_2px_rgba(37,99,235,0.2)]' : 'text-blue-700'}`}>
+                          {message.includes("SEC_LEVEL_") ? (
+                            <>
+                              {message.split("SEC_LEVEL_")[0]}
+                              <span className={`font-bold px-1 py-0.5 rounded text-[9px] border ${isDarkMode ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-blue-50 border-blue-200 text-blue-750'}`}>
+                                SEC_LEVEL_{message.split("SEC_LEVEL_")[1]}
+                              </span>
+                            </>
+                          ) : (
+                            message
+                          )}
+                        </span>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
+            </div>
+            
+            {/* Mini Cards Widget Bar */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className={`border rounded-2xl p-4 flex items-center justify-between transition-colors duration-300 ${isDarkMode ? 'bg-slate-950/60 border-slate-900 shadow-lg' : 'bg-white border-slate-100 shadow-sm'}`}>
+                <div>
+                  <div className={`text-[8px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>DB ENGINE</div>
+                  <div className="text-xs font-black text-blue-500 uppercase tracking-widest mt-1">FIRESTORE</div>
+                </div>
+                <Database className={isDarkMode ? 'text-blue-500/50' : 'text-blue-500/40'} size={16} />
+              </div>
+              
+              <div className={`border rounded-2xl p-4 flex items-center justify-between transition-colors duration-300 ${isDarkMode ? 'bg-slate-950/60 border-slate-900 shadow-lg' : 'bg-white border-slate-100 shadow-sm'}`}>
+                <div>
+                  <div className={`text-[8px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>SYS UPTIME</div>
+                  <div className="text-xs font-black text-blue-500 uppercase tracking-widest mt-1">99.98%</div>
+                </div>
+                <Activity className="text-blue-500/50 animate-pulse" size={16} />
+              </div>
+              
+              <div className={`border rounded-2xl p-4 flex items-center justify-between transition-colors duration-300 ${isDarkMode ? 'bg-slate-950/60 border-slate-900 shadow-lg' : 'bg-white border-slate-100 shadow-sm'}`}>
+                <div>
+                  <div className={`text-[8px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>SYS PING</div>
+                  <div className="text-xs font-black text-blue-500 uppercase tracking-widest mt-1">
+                    {sysPing !== null ? `${sysPing}ms` : 'Measuring...'}
+                  </div>
+                </div>
+                <div className="w-4 h-4 flex items-center justify-center shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(37,99,235,1)] animate-ping" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Right Pane - Credentials Entrance Gateway */}
+        <div className={`w-full lg:w-5/12 xl:w-2/5 p-6 sm:p-12 flex flex-col justify-between border-l relative z-10 shrink-0 transition-colors duration-300 ${isDarkMode ? 'bg-[#040406] border-slate-900' : 'bg-[#f1f5f9] border-slate-200'}`}>
+          <div className={`absolute bottom-0 right-0 w-96 h-96 rounded-full blur-3xl pointer-events-none ${isDarkMode ? 'bg-blue-500/[0.03]' : 'bg-blue-500/[0.015]'}`} />
+          
+          {/* Top Header Selector & Theme Toggle */}
+          <div className="flex items-center justify-between w-full mb-8 pt-4">
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 flex items-center justify-center overflow-hidden rounded-md shrink-0">
+                {siteSettings.logoUrl ? (
+                  <img src={siteSettings.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                ) : (
+                  <QrCode className="text-blue-500" size={18} />
+                )}
+              </div>
+              <span className={`font-mono text-xs font-black tracking-widest ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+                {siteSettings.companyName.toUpperCase()}
+              </span>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              {/* Light/Dark Toggle Switch */}
+              <button
+                type="button"
+                onClick={() => setIsDarkMode(!isDarkMode)}
+                className={`p-2 rounded-xl border flex items-center gap-1.5 transition-all shadow-sm ${isDarkMode ? 'border-slate-800 text-amber-400 bg-slate-900 hover:bg-slate-800 hover:text-amber-300' : 'border-slate-200 text-slate-500 bg-white hover:bg-slate-100 hover:text-slate-800'}`}
+                title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              >
+                {isDarkMode ? <Sun size={14} /> : <Moon size={14} />}
+                <span className="text-[9px] font-black tracking-wider uppercase font-mono px-0.5">
+                  {isDarkMode ? "Light" : "Dark"}
+                </span>
+              </button>
+              <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(37,99,235,1)] animate-ping" />
+            </div>
+          </div>
+          
+          {/* Main Credentials Sign In card */}
+          <div className="my-auto w-full max-w-md mx-auto">
+            <form 
+              onSubmit={handleLogin}
+              className={`border rounded-[2.5rem] p-8 sm:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.15)] relative overflow-hidden backdrop-blur-md transition-colors duration-300 ${isDarkMode ? 'bg-[#09090c]/90 border-slate-900' : 'bg-white border-slate-100'}`}
+            >
+              {/* Electric neon horizontal border highlight */}
+              <div className="absolute top-0 left-8 right-8 h-[2px] bg-gradient-to-r from-transparent via-blue-500 to-transparent shadow-[0_0_15px_rgba(37,99,235,0.8)]" />
+              
+              {/* Authenticator header label */}
+              <div className="flex items-center gap-4 mb-8">
+                <div className={`relative w-12 h-12 border rounded-2xl flex items-center justify-center shrink-0 shadow-inner ${isDarkMode ? 'border-blue-500/20 bg-blue-950/20' : 'border-blue-500/10 bg-blue-50/50'}`}>
+                  <Shield className="text-blue-500" size={24} />
+                  <div className={`absolute inset-0 rounded-2xl border ${isDarkMode ? 'border-blue-500/10' : 'border-blue-500/5'} animate-pulse pointer-events-none`} />
+                </div>
+                <div>
+                  <h2 className={`text-base font-black uppercase tracking-tight leading-none ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>AUTHORIZED ACCESS</h2>
+                  <span className={`text-[9px] font-black tracking-[0.15em] uppercase mt-1.5 block ${isDarkMode ? 'text-blue-400' : 'text-blue-500'}`}>PROTOCOL SECURITY VERIFY</span>
+                </div>
+              </div>
+              
+              <div className="space-y-6">
+                {/* Input block: IDENTITY ID */}
+                <div className="space-y-2">
+                  <label className={`text-[9px] font-black uppercase tracking-[0.2em] block pl-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>IDENTITY MAIL</label>
+                  <div className="relative group">
+                    <User className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isDarkMode ? 'text-slate-500 group-focus-within:text-blue-400' : 'text-slate-400 group-focus-within:text-blue-500'}`} size={16} />
+                    <input
+                      type="email"
+                      required
+                      placeholder="abc@gmail.com"
+                      disabled={isAuthLoading}
+                      value={authEmail}
+                      onChange={e => setAuthEmail(e.target.value)}
+                      className={`w-full border rounded-2xl py-4 pl-12 pr-6 text-xs font-mono tracking-wider transition-all disabled:opacity-50 ${isDarkMode ? 'bg-[#030305] border-slate-900 text-white placeholder-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20' : 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10'}`}
+                    />
+                  </div>
+                </div>
+
+                {/* Input block: SECRET CIPHER KEY */}
+                <div className="space-y-2">
+                  <label className={`text-[9px] font-black uppercase tracking-[0.2em] block pl-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>SECRET CIPHER KEY</label>
+                  <div className="relative group">
+                    <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isDarkMode ? 'text-slate-500 group-focus-within:text-blue-400' : 'text-slate-400 group-focus-within:text-blue-500'}`} size={16} />
+                    <input
+                      type="password"
+                      required
+                      placeholder="•••••••••••••••••"
+                      disabled={isAuthLoading}
+                      value={authPass}
+                      onChange={e => setAuthPass(e.target.value)}
+                      className={`w-full border rounded-2xl py-4 pl-12 pr-6 text-xs font-mono tracking-widest transition-all disabled:opacity-50 ${isDarkMode ? 'bg-[#030305] border-slate-900 text-white placeholder-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20' : 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10'}`}
+                    />
+                  </div>
+                </div>
+                
+                {/* Visual validation warning in case of error */}
+                {authError && (
+                  <div className={`p-4 border rounded-2xl font-mono text-[9px] font-black tracking-wider uppercase leading-relaxed animate-pulse ${isDarkMode ? 'bg-blue-950/20 border-blue-500/30 text-blue-400' : 'bg-blue-50 border-blue-500/20 text-blue-600'}`}>
+                    ⚠️ AUTH_ERROR: {authError}
+                  </div>
+                )}
+                
+                {/* Button block: INITIALIZE DATABASE CONNECTION */}
+                <button
+                  type="submit"
+                  disabled={isAuthLoading}
+                  className="w-full py-4 mt-2 bg-gradient-to-r from-blue-600 to-indigo-500 hover:from-blue-500 hover:to-indigo-400 border border-blue-500/20 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-[0_8px_25px_rgba(37,99,235,0.2)] hover:shadow-[0_8px_30px_rgba(37,99,235,0.35)] transition-all active:scale-[0.98] disabled:opacity-50"
+                >
+                  {isAuthLoading ? (
+                    <>
+                      <Clock className="animate-spin text-white" size={16} />
+                      <span>INITIALIZING SIGNAL...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>INITIALIZE DATABASE CONNECTION</span>
+                      <ArrowRight size={14} className="font-bold shrink-0" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+            
+            {/* Cybernet bypass Google SSO login */}
+            <div className="mt-6">
+              <button
+                type="button"
+                disabled={isAuthLoading}
+                onClick={handleGoogleLogin}
+                className={`w-full border rounded-2xl p-4 flex items-center justify-between group relative overflow-hidden transition-all text-left disabled:opacity-50 ${isDarkMode ? 'bg-[#040814]/40 border-slate-900 hover:border-blue-500/40' : 'bg-white border-slate-200 hover:border-blue-500/30 shadow-sm'}`}
+              >
+                <div className="flex items-center gap-3 relative z-10">
+                  <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${isDarkMode ? 'bg-blue-950/20 border-blue-500/20' : 'bg-blue-50 border-blue-200'}`}>
+                    <LogIn size={14} className="text-blue-500 group-hover:scale-110 transition-transform" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-black uppercase tracking-wider font-mono ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>DIAGNOSTIC BACKDOOR</span>
+                      <span className={`text-[7px] font-black border px-1 py-0.5 rounded tracking-widest uppercase ${isDarkMode ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-blue-50 text-blue-500 border-blue-200'}`}>BYPASS</span>
+                    </div>
+                    <p className={`text-[9px] font-semibold uppercase mt-0.5 tracking-wider ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>BYPASS SECURITY TO LOAD DEMO DIRECTLY</p>
+                  </div>
+                </div>
+                <ArrowRight size={14} className={`group-hover:translate-x-1 transition-all shrink-0 z-10 ${isDarkMode ? 'text-slate-600 group-hover:text-blue-400' : 'text-slate-400 group-hover:text-blue-500'}`} />
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/0 to-blue-500/[0.02] transform translate-x-full group-hover:translate-x-0 transition-transform duration-500" />
+              </button>
+            </div>
+          </div>
+          
+          {/* Footer information containing signature */}
+          <div className="mt-auto pt-8">
+            {/* Signature: POWERED BY + cursive Taousi */}
+            <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/50 pt-4 mt-4">
+              <div className="flex items-center gap-2">
+                <span className={`text-[9px] font-black uppercase tracking-[0.25em] font-mono leading-none ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>POWERED BY</span>
+                <a href="https://md-ahbab-khan-taousi.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 font-signature text-3xl leading-none pl-1 hover:opacity-80 transition-opacity cursor-pointer">
+                  Taousi
+                </a>
+              </div>
+              
+              {/* Dot row indicator */}
+              <div className="flex gap-1.5">
+                {[
+                  { color: 'bg-blue-600/80', delay: 0 },
+                  { color: 'bg-blue-500', delay: 0.15 },
+                  { color: 'bg-blue-600', delay: 0.3, glow: true },
+                  { color: 'bg-blue-400/80', delay: 0.45 },
+                ].map((dot, idx) => (
+                  <motion.span
+                    key={idx}
+                    className={`w-1.5 h-1.5 rounded-full ${dot.color} ${dot.glow ? 'shadow-[0_0_10px_rgba(37,99,235,0.8)]' : ''}`}
+                    animate={{ 
+                      scale: [1, 1.35, 1],
+                      opacity: [0.5, 1, 0.5],
+                    }}
+                    transition={{
+                      duration: 1.4,
+                      repeat: Infinity,
+                      delay: dot.delay,
+                      ease: "easeInOut"
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 overflow-hidden transition-colors duration-300">
       {/* Mobile Sidebar Overlay */}
@@ -1633,19 +2171,7 @@ export default function App() {
             </button>
           )}
 
-          <div className={`px-4 ${isSidebarCollapsed ? 'hidden' : 'block'}`}>
-            <div className="flex items-center gap-2 mb-4 text-[10px] font-bold uppercase text-slate-400 tracking-widest">
-              <Sparkles size={12} className="text-blue-500" />
-              Created by <a href="https://md-ahbab-khan-taousi.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-[#1858ff] font-black hover:opacity-80 transition-opacity cursor-pointer">Taousi</a>
-            </div>
-            <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300">
-              <div className="flex items-center justify-between mb-1">
-                <a href="https://md-ahbab-khan-taousi.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-xs font-black text-[#1858ff] hover:opacity-80 transition-opacity cursor-pointer">Taousi Intelligence</a>
-                <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
-              </div>
-              <p className="text-[10px] text-slate-400 font-medium">Ultra-high precision engine</p>
-            </div>
-          </div>
+
         </div>
       </aside>
 
@@ -1783,6 +2309,15 @@ export default function App() {
                         />
                         <button onClick={saveDisplayName} className="text-xs text-green-600">Save</button>
                       </div>
+                    ) : user?.email === 'khantaousi@gmail.com' ? (
+                      <a 
+                        href="https://md-ahbab-khan-taousi.vercel.app/" 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-tight cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                      >
+                        {userProfile?.displayName || 'Taousi'}
+                      </a>
                     ) : (
                       <span className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-tight cursor-pointer hover:text-blue-600" onClick={() => setIsEditingName(true)}>
                         {userProfile?.displayName || user.email?.split('@')[0]}

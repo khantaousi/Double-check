@@ -753,7 +753,9 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
         date: string,
         startedAt: string,
         completedAt: string
-      }[] 
+      }[],
+      firstLogin?: string | null,
+      lastLogout?: string | null
     }>();
     
     filteredForStats.forEach(task => {

@@ -34,7 +34,7 @@ export function Complaints({ userProfile, user }: { userProfile: UserProfile | n
         createdAt: new Date().toISOString(),
         // Hidden identity fields
         submittedByEmail: user?.email || 'unknown',
-        submittedByName: userProfile?.displayName || userProfile?.name || 'unknown'
+        submittedByName: userProfile?.displayName || 'unknown'
       });
       setComplaintText('');
       setSuccessMsg('Your feedback has been submitted anonymously. Thank you.');
