@@ -155,9 +155,12 @@ service cloud.firestore {
     // 7. User daily sessions
     match /sessions/{sessionId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && (
-        sessionId.startsWith(request.auth.uid + "_") || isAdmin()
+      allow create, update: if isSignedIn() && (
+        (incoming() != null && incoming().userId == request.auth.uid) || 
+        sessionId.matches('^' + request.auth.uid + '_.*') || 
+        isAdmin()
       );
+      allow delete: if isAdmin();
     }
     
     // 8. Complaints

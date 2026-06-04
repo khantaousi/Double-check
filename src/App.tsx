@@ -1901,11 +1901,16 @@ export default function App() {
           
           {/* Footer information containing signature */}
           <div className="mt-auto pt-8">
+            <div className={`flex items-center justify-between border-t pt-4 font-mono text-[8px] font-black tracking-[0.2em] ${isDarkMode ? 'border-slate-900 text-slate-600' : 'border-slate-200 text-slate-400'}`}>
+              <span>256-BIT ENCRYPTED STREAM</span>
+              <span>REG_NODE_3000</span>
+            </div>
+            
             {/* Signature: POWERED BY + cursive Taousi */}
-            <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/50 pt-4 mt-4">
+            <div className="flex items-center justify-between mt-4">
               <div className="flex items-center gap-2">
                 <span className={`text-[9px] font-black uppercase tracking-[0.25em] font-mono leading-none ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>POWERED BY</span>
-                <a href="https://md-ahbab-khan-taousi.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 font-signature text-3xl leading-none pl-1 hover:opacity-80 transition-opacity cursor-pointer">
+                <a href="https://md-ahbab-khan-taousi.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-[#ff4d2d] font-signature text-3xl leading-none pl-1 hover:opacity-80 transition-opacity cursor-pointer">
                   Taousi
                 </a>
               </div>
@@ -1913,14 +1918,14 @@ export default function App() {
               {/* Dot row indicator */}
               <div className="flex gap-1.5">
                 {[
-                  { color: 'bg-blue-600/80', delay: 0 },
-                  { color: 'bg-blue-500', delay: 0.15 },
-                  { color: 'bg-blue-600', delay: 0.3, glow: true },
-                  { color: 'bg-blue-400/80', delay: 0.45 },
+                  { color: 'bg-red-600/80', delay: 0 },
+                  { color: 'bg-red-500', delay: 0.15 },
+                  { color: 'bg-[#ff4d2d]', delay: 0.3, glow: true },
+                  { color: 'bg-red-400/80', delay: 0.45 },
                 ].map((dot, idx) => (
                   <motion.span
                     key={idx}
-                    className={`w-1.5 h-1.5 rounded-full ${dot.color} ${dot.glow ? 'shadow-[0_0_10px_rgba(37,99,235,0.8)]' : ''}`}
+                    className={`w-1.5 h-1.5 rounded-full ${dot.color} ${dot.glow ? 'shadow-[0_0_10px_rgba(255,77,45,0.8)]' : ''}`}
                     animate={{ 
                       scale: [1, 1.35, 1],
                       opacity: [0.5, 1, 0.5],
@@ -2170,6 +2175,42 @@ export default function App() {
               <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Sign Out Session</span>
             </button>
           )}
+
+          {/* Sidebar Signature */}
+          <div className={`pt-2 border-t border-slate-200/40 dark:border-slate-800/40 transition-all flex items-center justify-between ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+            {!isSidebarCollapsed ? (
+              <>
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-[8px] font-black uppercase tracking-[0.2em] font-mono leading-none ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>POWERED BY</span>
+                  <a 
+                    href="https://md-ahbab-khan-taousi.vercel.app/" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-[#ff4d2d] font-signature text-2xl leading-none pl-0.5 hover:opacity-80 transition-opacity cursor-pointer inline-block"
+                  >
+                    Taousi
+                  </a>
+                </div>
+                
+                {/* Micro dots */}
+                <div className="flex gap-1">
+                  <span className="w-1 h-1 rounded-full bg-red-600/80 animate-pulse" />
+                  <span className="w-1 h-1 rounded-full bg-[#ff4d2d]" />
+                  <span className="w-1 h-1 rounded-full bg-red-400/80 animate-pulse" />
+                </div>
+              </>
+            ) : (
+              <a 
+                href="https://md-ahbab-khan-taousi.vercel.app/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                title="Powered by Taousi" 
+                className="text-[#ff4d2d] font-signature text-xl hover:opacity-80 transition-opacity cursor-pointer"
+              >
+                T
+              </a>
+            )}
+          </div>
 
 
         </div>
