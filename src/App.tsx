@@ -26,7 +26,7 @@ import { UserManagement } from './components/UserManagement';
 import { NoticeBoard } from './components/NoticeBoard';
 import WelcomeScreen from './components/WelcomeScreen';
 import { LiveTenureTracker } from './components/LiveTenureTracker';
-import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera, Shield, ArrowRight, Barcode, QrCode } from 'lucide-react';
+import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera, Shield, ArrowRight, Barcode, QrCode, Coins } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toPng } from 'html-to-image';
 import { db, auth, logInWithEmail, signOut, signInWithGoogle } from './lib/firebase';
@@ -1896,6 +1896,31 @@ export default function App() {
                 <ArrowRight size={14} className={`group-hover:translate-x-1 transition-all shrink-0 z-10 ${isDarkMode ? 'text-slate-600 group-hover:text-blue-400' : 'text-slate-400 group-hover:text-blue-500'}`} />
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/0 to-blue-500/[0.02] transform translate-x-full group-hover:translate-x-0 transition-transform duration-500" />
               </button>
+            </div>
+
+            {/* Salary Portal Access */}
+            <div className="mt-4">
+              <a
+                href="https://employee-salary-portal-8azh.onrender.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`w-full border rounded-2xl p-4 flex items-center justify-between group relative overflow-hidden transition-all text-left ${isDarkMode ? 'bg-emerald-950/20 border-emerald-950/30 hover:border-emerald-500/40' : 'bg-emerald-50/40 border-emerald-100/80 hover:border-emerald-500/30 shadow-sm'}`}
+              >
+                <div className="flex items-center gap-3 relative z-10">
+                  <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${isDarkMode ? 'bg-emerald-950/40 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'}`}>
+                    <Coins size={14} className="text-emerald-500 group-hover:scale-110 transition-transform" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-black uppercase tracking-wider font-mono ${isDarkMode ? 'text-emerald-300' : 'text-emerald-700'}`}>SALARY PORTAL</span>
+                      <span className={`text-[7px] font-black border px-1 py-0.5 rounded tracking-widest uppercase ${isDarkMode ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-500 border-emerald-200'}`}>SECURE</span>
+                    </div>
+                    <p className={`text-[9px] font-semibold uppercase mt-0.5 tracking-wider ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>CHECK YOUR SALARY</p>
+                  </div>
+                </div>
+                <ArrowRight size={14} className={`group-hover:translate-x-1 transition-all shrink-0 z-10 ${isDarkMode ? 'text-slate-600 group-hover:text-emerald-400' : 'text-slate-400 group-hover:text-emerald-500'}`} />
+                <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/0 via-emerald-500/0 to-emerald-500/[0.02] transform translate-x-full group-hover:translate-x-0 transition-transform duration-500" />
+              </a>
             </div>
           </div>
           
