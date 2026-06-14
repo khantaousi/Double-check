@@ -888,6 +888,32 @@ export default function App() {
     };
   }, []);
 
+  // Update browser tab icon (favicon) and page title dynamically based on customized siteSettings
+  useEffect(() => {
+    if (siteSettings?.companyName) {
+      document.title = `${siteSettings.companyName} | System`;
+    }
+    if (siteSettings?.logoUrl) {
+      const links = ['link[rel="icon"]', 'link[rel="shortcut icon"]', 'link[rel="apple-touch-icon"]'];
+      links.forEach(selector => {
+        let link: HTMLLinkElement | null = document.querySelector(selector);
+        if (!link) {
+          link = document.createElement('link');
+          if (selector.includes('shortcut')) {
+            link.rel = 'shortcut icon';
+          } else if (selector.includes('apple')) {
+            link.rel = 'apple-touch-icon';
+          } else {
+            link.rel = 'icon';
+          }
+          link.type = 'image/png';
+          document.getElementsByTagName('head')[0].appendChild(link);
+        }
+        link.href = siteSettings.logoUrl;
+      });
+    }
+  }, [siteSettings]);
+
   useEffect(() => {
     if (!user) return;
 
