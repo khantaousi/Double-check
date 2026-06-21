@@ -73,7 +73,7 @@ service cloud.firestore {
 
     // 3. User Profiles
     match /users/{userId} {
-      allow get, create: if isOwner(userId);
+      allow get, create: if isOwner(userId) || isAdmin();
       allow update: if isOwner(userId) && (
         !incoming().diff(existing()).affectedKeys().hasAny(['role', 'email'])
       );
