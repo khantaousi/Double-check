@@ -544,129 +544,228 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
           </div>
         )}
         {showAddModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAddModal(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
-            <motion.form initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} onSubmit={handleCreateUser} className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-[2rem] p-10 shadow-2xl border border-slate-200 dark:border-slate-800">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tighter uppercase">New Personnel</h2>
-                <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAddModal(false)} className="absolute inset-0" />
+            <motion.form 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 20 }} 
+              onSubmit={handleCreateUser} 
+              className="relative w-full max-w-3xl bg-white dark:bg-slate-900 rounded-[2rem] p-6 md:p-8 shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh] my-4"
+            >
+              <div className="flex justify-between items-start mb-6 shrink-0">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tighter uppercase">New Personnel</h2>
+                  <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-wider mt-1">Create a secure system user account & configure active permissions</p>
+                </div>
+                <button type="button" onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"><X size={20}/></button>
               </div>
-              <div className="space-y-6">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Email Address</label>
-                  <div className="relative text-slate-700 dark:text-slate-200">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <input 
-                      required 
-                      type="email" 
-                      value={email} 
-                      onChange={e => setEmail(e.target.value)} 
-                      placeholder="user@example.com"
-                      className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3.5 pl-10 pr-4 text-sm font-black focus:ring-2 focus:ring-blue-500/20" 
-                    />
+
+              {/* Scrollable form body containing the neat sections */}
+              <div className="flex-1 overflow-y-auto pr-1 md:pr-2 space-y-6 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-805">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  
+                  {/* Left Column: Personal details */}
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-100 dark:border-slate-800/80 pb-2">
+                      <h3 className="text-[11px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest flex items-center gap-2">
+                        <User size={13} />
+                        Personal Profile
+                      </h3>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Display Name (Agent Name)</label>
+                      <div className="relative text-slate-750 dark:text-slate-200">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <input 
+                          required 
+                          type="text" 
+                          value={customDisplayName} 
+                          onChange={e => setCustomDisplayName(e.target.value)} 
+                          placeholder="John Doe"
+                          className="w-full bg-slate-50 dark:bg-slate-805 border border-slate-200/50 dark:border-slate-800 rounded-xl py-3 pl-10 pr-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100 transition-all" 
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Employee ID</label>
+                      <div className="relative text-slate-750 dark:text-slate-200">
+                        <Fingerprint className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <input 
+                          required
+                          type="text" 
+                          value={employeeId} 
+                          onChange={e => setEmployeeId(e.target.value)} 
+                          placeholder="e.g. EMP420"
+                          className="w-full bg-slate-50 dark:bg-slate-805 border border-slate-200/50 dark:border-slate-800 rounded-xl py-3 pl-10 pr-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100 transition-all" 
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Joining Date</label>
+                        <input 
+                          required
+                          type="date" 
+                          value={joiningDate} 
+                          onChange={e => setJoiningDate(e.target.value)} 
+                          className="w-full bg-slate-50 dark:bg-slate-805 border border-slate-200/50 dark:border-slate-800 rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100 transition-all" 
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Birthday</label>
+                        <input 
+                          required
+                          type="date" 
+                          value={birthday} 
+                          onChange={e => setBirthday(e.target.value)} 
+                          className="w-full bg-slate-50 dark:bg-slate-805 border border-slate-200/50 dark:border-slate-800 rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100 transition-all" 
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Authentication & Role */}
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-100 dark:border-slate-800/80 pb-2">
+                      <h3 className="text-[11px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest flex items-center gap-2">
+                        <Lock size={13} />
+                        Account Credentials & Role
+                      </h3>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Email Address</label>
+                      <div className="relative text-slate-750 dark:text-slate-200">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <input 
+                          required 
+                          type="email" 
+                          value={email} 
+                          onChange={e => setEmail(e.target.value)} 
+                          placeholder="user@example.com"
+                          className="w-full bg-slate-50 dark:bg-slate-805 border border-slate-200/50 dark:border-slate-800 rounded-xl py-3 pl-10 pr-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100 transition-all" 
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Password</label>
+                        <div className="relative text-slate-750 dark:text-slate-200">
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                          <input 
+                            required 
+                            type="password" 
+                            value={password} 
+                            onChange={e => setPassword(e.target.value)} 
+                            placeholder="••••••"
+                            className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200/50 dark:border-slate-800 rounded-xl py-3 pl-10 pr-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100 transition-all" 
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex items-center justify-between">
+                          <span>Confirm</span>
+                          {confirmPassword && (
+                            <span className={`text-[8px] font-black ${password === confirmPassword ? 'text-green-500 animate-pulse' : 'text-red-500'}`}>
+                              {password === confirmPassword ? 'OK' : 'FAIL'}
+                            </span>
+                          )}
+                        </label>
+                        <div className="relative text-slate-750 dark:text-slate-200">
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                          <input 
+                            required 
+                            type="password" 
+                            value={confirmPassword} 
+                            onChange={e => setConfirmPassword(e.target.value)} 
+                            placeholder="••••••"
+                            className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200/50 dark:border-slate-800 rounded-xl py-3 pl-10 pr-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100 transition-all" 
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Deployment Role</label>
+                      <select value={role} onChange={e => setRole(e.target.value as any)} className="w-full bg-slate-50 dark:bg-slate-805 border border-slate-200/50 dark:border-slate-800 rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100 transition-all">
+                        <option value="user">Standard Agent</option>
+                        <option value="admin">System Admin</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Display Name (Agent Name)</label>
-                  <div className="relative text-slate-700 dark:text-slate-200">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <input 
-                      required 
-                      type="text" 
-                      value={customDisplayName} 
-                      onChange={e => setCustomDisplayName(e.target.value)} 
-                      placeholder="John Doe"
-                      className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3.5 pl-10 pr-4 text-sm font-black focus:ring-2 focus:ring-blue-500/20" 
-                    />
+
+                {/* Permissions Grid Section */}
+                <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-800/80">
+                  <div className="flex items-center justify-between pb-1">
+                    <h3 className="text-[11px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest flex items-center gap-2">
+                      <Shield size={13} />
+                      Operational Permissions
+                    </h3>
+                    <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase">Click to toggle permission level</span>
                   </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Employee ID</label>
-                  <div className="relative text-slate-700 dark:text-slate-200">
-                    <Fingerprint className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <input 
-                      type="text" 
-                      value={employeeId} 
-                      onChange={e => setEmployeeId(e.target.value)} 
-                      placeholder="e.g. EMP420"
-                      className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3.5 pl-10 pr-4 text-sm font-black focus:ring-2 focus:ring-blue-500/20" 
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Joining Date</label>
-                  <div className="relative text-slate-700 dark:text-slate-200">
-                    <input 
-                      type="date" 
-                      value={joiningDate} 
-                      onChange={e => setJoiningDate(e.target.value)} 
-                      className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3.5 px-4 text-sm font-black focus:ring-2 focus:ring-blue-500/20" 
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Birthday</label>
-                  <div className="relative text-slate-700 dark:text-slate-200">
-                    <input 
-                      type="date" 
-                      value={birthday} 
-                      onChange={e => setBirthday(e.target.value)} 
-                      className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3.5 px-4 text-sm font-black focus:ring-2 focus:ring-blue-500/20" 
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Secure Password</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
-                    <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 pl-10 pr-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20" />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex items-center justify-between">
-                    Confirm Password
-                    {confirmPassword && (
-                      <span className={`text-[9px] font-black ${password === confirmPassword ? 'text-green-500' : 'text-red-500'}`}>
-                        {password === confirmPassword ? 'Match' : 'Not Match'}
-                      </span>
-                    )}
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
-                    <input required type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 pl-10 pr-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20" />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Deployment Role</label>
-                  <select value={role} onChange={e => setRole(e.target.value as any)} className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20">
-                    <option value="user">Standard Agent</option>
-                    <option value="admin">System Admin</option>
-                  </select>
-                </div>
-                <div className="pt-4 space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    {Object.entries(permissions).map(([key, level]) => (
-                      <button 
-                        key={key} 
-                        type="button" 
-                        onClick={() => setPermissions(prev => {
-                          const nextLevel = level === 'none' ? 'read' : level === 'read' ? 'write' : 'none';
-                          return ({...prev, [key]: nextLevel});
-                        })} 
-                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-bold uppercase transition-all border ${
-                          level === 'write' ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/30 text-blue-600' : 
-                          level === 'read' ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/30 text-amber-600' :
-                          'bg-transparent border-slate-100 dark:border-slate-800 text-slate-400'
-                        }`}
-                      >
-                        <div className={`w-2 h-2 rounded-full ${level !== 'none' ? 'bg-blue-500' : 'bg-slate-200 dark:bg-slate-700'}`} />
-                        {key} ({level})
-                      </button>
-                    ))}
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {Object.entries(permissions).map(([key, level]) => {
+                      const label = key === 'dashboard' ? 'Double Check' : 
+                                    key === 'tracker' ? 'Product Tracking' : 
+                                    key === 'rules' ? 'Logic Rules' : 
+                                    key === 'products' ? 'Product Library' : 
+                                    key === 'settings' ? 'Delivery Settings' : 
+                                    key === 'printSlips' ? 'Print Invoices' : key;
+                      return (
+                        <button 
+                          key={key} 
+                          type="button" 
+                          onClick={() => setPermissions(prev => {
+                            const nextLevel = level === 'none' ? 'read' : level === 'read' ? 'write' : 'none';
+                            return ({...prev, [key]: nextLevel});
+                          })} 
+                          className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-[9px] font-bold uppercase transition-all duration-150 border text-left group ${
+                            level === 'write' ? 'bg-emerald-500/10 border-emerald-500/30 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 
+                            level === 'read' ? 'bg-amber-500/10 border-amber-500/30 dark:border-amber-500/20 text-amber-600 dark:text-amber-500' :
+                            'bg-transparent border-slate-100 dark:border-slate-800 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                          }`}
+                        >
+                          <span className="truncate mr-1">{label}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[8px] font-black tracking-wider shrink-0 ${
+                            level === 'write' ? 'bg-emerald-500/20 text-emerald-600' : 
+                            level === 'read' ? 'bg-amber-500/20 text-amber-600' : 
+                            'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                          }`}>
+                            {level === 'none' ? 'NONE' : level === 'read' ? 'READ' : 'WRITE'}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
-              <button disabled={isCreating} type="submit" className="w-full mt-10 bg-slate-900 dark:bg-blue-600 text-white rounded-2xl py-4 font-bold text-xs uppercase tracking-widest hover:bg-slate-800 dark:hover:bg-blue-700 transition-all disabled:opacity-50">{isCreating ? 'Deploying...' : 'Provision User'}</button>
+
+              {/* Pinned Action Buttons Footer */}
+              <div className="h-px bg-slate-100 dark:bg-slate-800 shrink-0 mt-4" />
+              <div className="flex justify-end gap-3 pt-4 shrink-0">
+                <button 
+                  type="button" 
+                  onClick={() => setShowAddModal(false)} 
+                  className="px-5 py-3 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold text-xs uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  disabled={isCreating} 
+                  type="submit" 
+                  className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50 shadow-md shadow-blue-500/15"
+                >
+                  {isCreating ? 'Deploying...' : 'Provision User'}
+                </button>
+              </div>
             </motion.form>
           </div>
         )}
