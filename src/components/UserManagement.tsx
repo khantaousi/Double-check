@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { Shield, UserCheck, ShieldAlert, Plus, Mail, Lock, X, Activity, ToggleLeft, ToggleRight, Fingerprint, User, CheckCircle2, Clock, ChevronDown, ChevronUp, LayoutDashboard, BookOpen, Package, Settings, Printer } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { secondaryAuth, db, auth } from '../lib/firebase';
+import { secondaryAuth, secondaryDb, db, auth } from '../lib/firebase';
 import { getInitials, getAvatarColor } from '../lib/avatar';
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -124,7 +124,7 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
         isActive: true
       };
       
-      await setDoc(doc(db, 'users', userCred.user.uid), cleanObject(profile));
+      await setDoc(doc(secondaryDb, 'users', userCred.user.uid), cleanObject(profile));
       
       await secondaryAuth.signOut();
       
