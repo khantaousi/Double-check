@@ -26,7 +26,7 @@ import { UserManagement } from './components/UserManagement';
 import { NoticeBoard } from './components/NoticeBoard';
 import WelcomeScreen from './components/WelcomeScreen';
 import { LiveTenureTracker } from './components/LiveTenureTracker';
-import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera, Shield, ArrowRight, Barcode, QrCode, Coins } from 'lucide-react';
+import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera, Shield, ArrowRight, Barcode, QrCode, Coins, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toPng } from 'html-to-image';
 import { db, auth, logInWithEmail, signOut, signInWithGoogle } from './lib/firebase';
@@ -36,7 +36,7 @@ import { handleFirestoreError, OperationType } from './lib/errors';
 import { cleanObject, getBSTISOString, formatBST } from './lib/utils';
 
 import { subDays, addDays, parseISO, differenceInMinutes } from 'date-fns';
-import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { onAuthStateChanged, User as FirebaseUser, reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth';
 import { getInitials, getAvatarColor } from './lib/avatar';
 import { PrintSlips } from './components/PrintSlips';
 import { Complaints } from './components/Complaints';
@@ -97,6 +97,7 @@ export default function App() {
   const [rawRows, setRawRows] = useState<any[]>([]);
   const [authEmail, setAuthEmail] = useState('');
   const [authPass, setAuthPass] = useState('');
+  const [showAuthPass, setShowAuthPass] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [complaintsCount, setComplaintsCount] = useState(0);
   const [seenComplaintsCount, setSeenComplaintsCount] = useState(() => {
@@ -157,6 +158,16 @@ export default function App() {
   });
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [changePasswordCurrent, setChangePasswordCurrent] = useState('');
+  const [changePasswordNew, setChangePasswordNew] = useState('');
+  const [changePasswordConfirm, setChangePasswordConfirm] = useState('');
+  const [changePasswordError, setChangePasswordError] = useState<string | null>(null);
+  const [changePasswordSuccess, setChangePasswordSuccess] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [showPasswordCurrent, setShowPasswordCurrent] = useState(false);
+  const [showPasswordNew, setShowPasswordNew] = useState(false);
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [hasShownWelcome, setHasShownWelcome] = useState(false);
   const [hasSeeded, setHasSeeded] = useState(false);
@@ -718,6 +729,54 @@ export default function App() {
     }
   };
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangePasswordError(null);
+    setChangePasswordSuccess(false);
+    
+    if (changePasswordNew !== changePasswordConfirm) {
+      setChangePasswordError("Passwords do not match");
+      return;
+    }
+    
+    if (changePasswordNew.length < 6) {
+      setChangePasswordError("Password must be at least 6 characters");
+      return;
+    }
+    
+    setIsChangingPassword(true);
+    
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser || !currentUser.email) {
+        throw new Error("User not authenticated");
+      }
+      
+      // Re-authenticate
+      const credential = EmailAuthProvider.credential(currentUser.email, changePasswordCurrent);
+      await reauthenticateWithCredential(currentUser, credential);
+      
+      // Update password
+      await updatePassword(currentUser, changePasswordNew);
+      
+      setChangePasswordSuccess(true);
+      setChangePasswordCurrent('');
+      setChangePasswordNew('');
+      setChangePasswordConfirm('');
+    } catch (error: any) {
+      console.error("Error changing password:", error);
+      if (error.code === 'auth/wrong-password') {
+        setChangePasswordError("Incorrect current password.");
+      } else if (error.code === 'auth/weak-password') {
+        setChangePasswordError("Password is too weak.");
+      } else {
+        setChangePasswordError(error.message || "Failed to update password.");
+      }
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
@@ -913,6 +972,112 @@ export default function App() {
       });
     }
   }, [siteSettings]);
+
+  // Apply dynamic theme from siteSettings
+  useEffect(() => {
+    const theme = siteSettings?.theme || 'classic-blue';
+    let styleEl = document.getElementById('dynamic-theme') as HTMLStyleElement;
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'dynamic-theme';
+      document.head.appendChild(styleEl);
+    }
+
+    const themeStyles: Record<string, string> = {
+      'classic-blue': `
+        :root {
+          --color-blue-50: #eff6ff;
+          --color-blue-100: #dbeafe;
+          --color-blue-200: #bfdbfe;
+          --color-blue-300: #93c5fd;
+          --color-blue-400: #60a5fa;
+          --color-blue-500: #3b82f6;
+          --color-blue-600: #2563eb;
+          --color-blue-700: #1d4ed8;
+          --color-blue-800: #1e40af;
+          --color-blue-900: #1e3a8a;
+          --color-blue-950: #172554;
+        }
+      `,
+      'royal-indigo': `
+        :root {
+          --color-blue-50: #f5f3ff;
+          --color-blue-100: #ede9fe;
+          --color-blue-200: #ddd6fe;
+          --color-blue-300: #c4b5fd;
+          --color-blue-400: #a78bfa;
+          --color-blue-500: #8b5cf6;
+          --color-blue-600: #4f46e5;
+          --color-blue-700: #4338ca;
+          --color-blue-800: #3730a3;
+          --color-blue-900: #312e81;
+          --color-blue-950: #1e1b4b;
+        }
+      `,
+      'forest-emerald': `
+        :root {
+          --color-blue-50: #ecfdf5;
+          --color-blue-100: #d1fae5;
+          --color-blue-200: #a7f3d0;
+          --color-blue-300: #6ee7b7;
+          --color-blue-400: #34d399;
+          --color-blue-500: #10b981;
+          --color-blue-600: #059669;
+          --color-blue-700: #047857;
+          --color-blue-800: #065f46;
+          --color-blue-900: #064e3b;
+          --color-blue-950: #022c22;
+        }
+      `,
+      'crimson-rose': `
+        :root {
+          --color-blue-50: #fff1f2;
+          --color-blue-100: #ffe4e6;
+          --color-blue-200: #fecdd3;
+          --color-blue-300: #fda4af;
+          --color-blue-400: #fb7185;
+          --color-blue-500: #f43f5e;
+          --color-blue-600: #e11d48;
+          --color-blue-700: #be123c;
+          --color-blue-800: #9f1239;
+          --color-blue-900: #881337;
+          --color-blue-950: #4c0519;
+        }
+      `,
+      'sunset-amber': `
+        :root {
+          --color-blue-50: #fdfbeb;
+          --color-blue-100: #fef3c7;
+          --color-blue-200: #fde68a;
+          --color-blue-300: #fcd34d;
+          --color-blue-400: #fbbf24;
+          --color-blue-500: #f59e0b;
+          --color-blue-600: #d97706;
+          --color-blue-700: #b45309;
+          --color-blue-800: #92400e;
+          --color-blue-900: #78350f;
+          --color-blue-950: #451a03;
+        }
+      `,
+      'amethyst-purple': `
+        :root {
+          --color-blue-50: #faf5ff;
+          --color-blue-100: #f3e8ff;
+          --color-blue-200: #e9d5ff;
+          --color-blue-300: #d8b4fe;
+          --color-blue-400: #c084fc;
+          --color-blue-500: #a855f7;
+          --color-blue-600: #9333ea;
+          --color-blue-700: #7e22ce;
+          --color-blue-800: #6b21a8;
+          --color-blue-900: #581c87;
+          --color-blue-950: #3b0764;
+        }
+      `
+    };
+
+    styleEl.textContent = themeStyles[theme] || themeStyles['classic-blue'];
+  }, [siteSettings?.theme]);
 
   useEffect(() => {
     if (!user) return;
@@ -1860,14 +2025,21 @@ export default function App() {
                   <div className="relative group">
                     <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isDarkMode ? 'text-slate-500 group-focus-within:text-blue-400' : 'text-slate-400 group-focus-within:text-blue-500'}`} size={16} />
                     <input
-                      type="password"
+                      type={showAuthPass ? "text" : "password"}
                       required
                       placeholder="•••••••••••••••••"
                       disabled={isAuthLoading}
                       value={authPass}
                       onChange={e => setAuthPass(e.target.value)}
-                      className={`w-full border rounded-2xl py-4 pl-12 pr-6 text-xs font-mono tracking-widest transition-all disabled:opacity-50 ${isDarkMode ? 'bg-[#030305] border-slate-900 text-white placeholder-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20' : 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10'}`}
+                      className={`w-full border rounded-2xl py-4 pl-12 pr-12 text-xs font-mono tracking-widest transition-all disabled:opacity-50 ${isDarkMode ? 'bg-[#030305] border-slate-900 text-white placeholder-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20' : 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10'}`}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowAuthPass(!showAuthPass)}
+                      className={`absolute right-4 top-1/2 -translate-y-1/2 transition-colors focus:outline-none ${isDarkMode ? 'text-slate-500 hover:text-blue-400' : 'text-slate-400 hover:text-blue-500'}`}
+                    >
+                      {showAuthPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
                   </div>
                 </div>
                 
@@ -2421,11 +2593,20 @@ export default function App() {
                       </span>
                     )}
                   </div>
-                  {userProfile?.employeeId && (
-                    <p className="text-[9px] font-black text-blue-600 dark:text-blue-400 mt-0.5 tracking-wider self-start bg-blue-500/10 dark:bg-blue-500/20 px-1 py-0.5 rounded">
-                      ID: {userProfile.employeeId}
-                    </p>
-                  )}
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {userProfile?.employeeId && (
+                      <p className="text-[9px] font-black text-blue-600 dark:text-blue-400 tracking-wider bg-blue-500/10 dark:bg-blue-500/20 px-1 py-0.5 rounded">
+                        ID: {userProfile.employeeId}
+                      </p>
+                    )}
+                    <button
+                      onClick={() => setShowChangePasswordModal(true)}
+                      className="text-[9px] font-black text-slate-500 hover:text-blue-500 dark:text-slate-400 dark:hover:text-blue-400 uppercase tracking-widest flex items-center gap-1 hover:underline transition-all"
+                    >
+                      <Lock size={10} />
+                      Password
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -2529,11 +2710,18 @@ export default function App() {
                       <div className="relative">
                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         <input 
-                          required type="password" placeholder="Assigned Passphrase" 
+                          required type={showAuthPass ? "text" : "password"} placeholder="Assigned Passphrase" 
                           disabled={isAuthLoading}
                           value={authPass} onChange={e => setAuthPass(e.target.value)}
-                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl py-4 pl-12 pr-6 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-bold disabled:opacity-50"
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl py-4 pl-12 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-bold disabled:opacity-50"
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowAuthPass(!showAuthPass)}
+                          className={`absolute right-4 top-1/2 -translate-y-1/2 transition-colors focus:outline-none ${isDarkMode ? 'text-slate-500 hover:text-blue-400' : 'text-slate-400 hover:text-blue-500'}`}
+                        >
+                          {showAuthPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
                       </div>
                       {authError && (
                         <div className="p-3 bg-red-50 dark:bg-red-900/10 text-red-500 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-red-100 dark:border-red-900/20">
@@ -3528,6 +3716,169 @@ export default function App() {
                   Cancel
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Change Password Modal Overlay */}
+      <AnimatePresence>
+        {showChangePasswordModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                if (!isChangingPassword) {
+                  setShowChangePasswordModal(false);
+                  setChangePasswordError(null);
+                  setChangePasswordSuccess(false);
+                }
+              }}
+              className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-2xl border border-slate-100 dark:border-slate-800"
+            >
+              <button 
+                onClick={() => {
+                  setShowChangePasswordModal(false);
+                  setChangePasswordError(null);
+                  setChangePasswordSuccess(false);
+                }}
+                disabled={isChangingPassword}
+                className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 rounded-2xl flex items-center justify-center text-blue-600 mb-6 mx-auto">
+                <Lock size={22} />
+              </div>
+
+              <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 text-center uppercase tracking-tighter mb-1">
+                Change Password
+              </h3>
+              <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 text-center uppercase tracking-wider mb-6">
+                Update your security credentials
+              </p>
+
+              {changePasswordSuccess ? (
+                <div className="space-y-6 text-center">
+                  <div className="p-4 bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400 rounded-2xl border border-emerald-100 dark:border-emerald-900/20 text-xs font-bold uppercase tracking-wider">
+                    Password updated successfully!
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowChangePasswordModal(false);
+                      setChangePasswordSuccess(false);
+                    }}
+                    className="w-full bg-slate-900 dark:bg-slate-800 text-white dark:text-slate-200 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95"
+                  >
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleChangePassword} className="space-y-4">
+                  {changePasswordError && (
+                    <div className="p-3 bg-red-50 dark:bg-red-900/10 text-red-500 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-red-100 dark:border-red-900/20">
+                      {changePasswordError}
+                    </div>
+                  )}
+
+                  {/* Current Password */}
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] block pl-1 text-slate-500 dark:text-slate-400">
+                      Current Password
+                    </label>
+                    <div className="relative group">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-blue-500" size={16} />
+                      <input
+                        required
+                        type={showPasswordCurrent ? "text" : "password"}
+                        placeholder="••••••••••••"
+                        disabled={isChangingPassword}
+                        value={changePasswordCurrent}
+                        onChange={e => setChangePasswordCurrent(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200/50 dark:border-slate-800 rounded-2xl py-4 pl-12 pr-12 text-xs font-mono tracking-widest transition-all focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswordCurrent(!showPasswordCurrent)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
+                      >
+                        {showPasswordCurrent ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* New Password */}
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] block pl-1 text-slate-500 dark:text-slate-400">
+                      New Password
+                    </label>
+                    <div className="relative group">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-blue-500" size={16} />
+                      <input
+                        required
+                        type={showPasswordNew ? "text" : "password"}
+                        placeholder="••••••••••••"
+                        disabled={isChangingPassword}
+                        value={changePasswordNew}
+                        onChange={e => setChangePasswordNew(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200/50 dark:border-slate-800 rounded-2xl py-4 pl-12 pr-12 text-xs font-mono tracking-widest transition-all focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswordNew(!showPasswordNew)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
+                      >
+                        {showPasswordNew ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Confirm New Password */}
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] block pl-1 text-slate-500 dark:text-slate-400">
+                      Confirm New Password
+                    </label>
+                    <div className="relative group">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-blue-500" size={16} />
+                      <input
+                        required
+                        type={showPasswordConfirm ? "text" : "password"}
+                        placeholder="••••••••••••"
+                        disabled={isChangingPassword}
+                        value={changePasswordConfirm}
+                        onChange={e => setChangePasswordConfirm(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200/50 dark:border-slate-800 rounded-2xl py-4 pl-12 pr-12 text-xs font-mono tracking-widest transition-all focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
+                      >
+                        {showPasswordConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={isChangingPassword}
+                      className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 transition-all active:scale-95"
+                    >
+                      {isChangingPassword ? "Updating..." : "Update Password"}
+                    </button>
+                  </div>
+                </form>
+              )}
             </motion.div>
           </div>
         )}

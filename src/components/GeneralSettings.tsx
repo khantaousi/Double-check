@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SiteSettings } from '../types';
-import { Globe, ShieldCheck, DollarSign, Upload, RotateCcw, Image as ImageIcon, Database } from 'lucide-react';
+import { Globe, ShieldCheck, DollarSign, Upload, RotateCcw, Image as ImageIcon, Database, Palette } from 'lucide-react';
 
 interface GeneralSettingsProps {
   settings: SiteSettings;
@@ -163,6 +163,53 @@ export function GeneralSettings({ settings, onUpdate, canWrite = true }: General
             If any of these keywords are found in <span className="font-bold">Special Instruction</span>, the row will be automatically marked as a <span className="text-purple-500 font-bold">MATCH</span>.
           </p>
         </div>
+      </div>
+
+      <div className="flex items-center gap-3 mb-2 px-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+        <div className="w-8 h-8 rounded-xl bg-pink-50 dark:bg-pink-900/20 flex items-center justify-center text-pink-600 dark:text-pink-400">
+          <Palette size={16} />
+        </div>
+        <div>
+          <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">System Theme UI</h3>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Select the global UI style for the full site</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+        {[
+          { id: 'classic-blue', name: 'Classic Blue', dot: '#2563eb' },
+          { id: 'royal-indigo', name: 'Royal Indigo', dot: '#4f46e5' },
+          { id: 'forest-emerald', name: 'Forest Emerald', dot: '#059669' },
+          { id: 'crimson-rose', name: 'Crimson Rose', dot: '#e11d48' },
+          { id: 'sunset-amber', name: 'Sunset Amber', dot: '#f59e0b' },
+          { id: 'amethyst-purple', name: 'Amethyst Purple', dot: '#9333ea' },
+        ].map((themeOpt) => {
+          const isSelected = (settings.theme || 'classic-blue') === themeOpt.id;
+          return (
+            <button
+              key={themeOpt.id}
+              disabled={!canWrite}
+              onClick={() => onUpdate({ ...settings, theme: themeOpt.id })}
+              className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${
+                isSelected 
+                  ? 'border-blue-600 bg-blue-50/20 dark:bg-blue-900/10 ring-2 ring-blue-500/20 shadow-sm' 
+                  : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700'
+              }`}
+            >
+              <div 
+                className="w-8 h-8 rounded-full flex items-center justify-center shadow-inner"
+                style={{ backgroundColor: themeOpt.dot }}
+              >
+                {isSelected && (
+                  <div className="w-3.5 h-3.5 rounded-full bg-white dark:bg-slate-900 shadow-md" />
+                )}
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 text-center">
+                {themeOpt.name}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

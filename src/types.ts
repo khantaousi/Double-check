@@ -148,6 +148,7 @@ export interface SiteSettings {
   logoUrl?: string;
   customAmountRule?: string;
   combineBaseRulesWithAI?: boolean;
+  theme?: string;
 }
 
 export const DEFAULT_DELIVERY_SETTINGS: DeliverySettings = {
@@ -160,7 +161,8 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   amountTolerance: 5,
   permissionKeywords: ['permit', 'permit by', 'permitted by', 'permitted', 'authorized', 'boss ok', 'leader ok'],
   logoUrl: '',
-  combineBaseRulesWithAI: false
+  combineBaseRulesWithAI: false,
+  theme: 'classic-blue'
 };
 
 export const DEFAULT_RULES: ValidationRule[] = [

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { Shield, UserCheck, ShieldAlert, Plus, Mail, Lock, X, Activity, ToggleLeft, ToggleRight, Fingerprint, User, CheckCircle2, Clock, ChevronDown, ChevronUp, LayoutDashboard, BookOpen, Package, Settings, Printer } from 'lucide-react';
+import { Shield, UserCheck, ShieldAlert, Plus, Mail, Lock, X, Activity, ToggleLeft, ToggleRight, Fingerprint, User, CheckCircle2, Clock, ChevronDown, ChevronUp, LayoutDashboard, BookOpen, Package, Settings, Printer, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { secondaryAuth, secondaryDb, db, auth } from '../lib/firebase';
 import { getInitials, getAvatarColor } from '../lib/avatar';
@@ -21,6 +21,8 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [customDisplayName, setCustomDisplayName] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [joiningDate, setJoiningDate] = useState('');
@@ -136,6 +138,8 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
       setBirthday('');
       setPassword('');
       setConfirmPassword('');
+      setShowPassword(false);
+      setShowConfirmPassword(false);
       alert('User created successfully.');
     } catch (error: any) {
       console.error('Error creating user:', error);
@@ -660,12 +664,19 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
                           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                           <input 
                             required 
-                            type="password" 
+                            type={showPassword ? "text" : "password"} 
                             value={password} 
                             onChange={e => setPassword(e.target.value)} 
                             placeholder="••••••"
-                            className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200/50 dark:border-slate-800 rounded-xl py-3 pl-10 pr-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100 transition-all" 
+                            className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200/50 dark:border-slate-800 rounded-xl py-3 pl-10 pr-10 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100 transition-all" 
                           />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none flex items-center justify-center p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                          >
+                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
                         </div>
                       </div>
 
@@ -682,12 +693,19 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
                           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                           <input 
                             required 
-                            type="password" 
+                            type={showConfirmPassword ? "text" : "password"} 
                             value={confirmPassword} 
                             onChange={e => setConfirmPassword(e.target.value)} 
                             placeholder="••••••"
-                            className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200/50 dark:border-slate-800 rounded-xl py-3 pl-10 pr-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100 transition-all" 
+                            className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200/50 dark:border-slate-800 rounded-xl py-3 pl-10 pr-10 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100 transition-all" 
                           />
+                          <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none flex items-center justify-center p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                          >
+                            {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
                         </div>
                       </div>
                     </div>
