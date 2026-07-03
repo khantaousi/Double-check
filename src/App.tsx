@@ -26,7 +26,7 @@ import { UserManagement } from './components/UserManagement';
 import { NoticeBoard } from './components/NoticeBoard';
 import WelcomeScreen from './components/WelcomeScreen';
 import { LiveTenureTracker } from './components/LiveTenureTracker';
-import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera, Shield, ArrowRight, Barcode, QrCode, Coins, Eye, EyeOff } from 'lucide-react';
+import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera, Shield, ArrowRight, Barcode, QrCode, Coins, Eye, EyeOff, Palette } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toPng } from 'html-to-image';
 import { db, auth, logInWithEmail, signOut, signInWithGoogle } from './lib/firebase';
@@ -178,6 +178,8 @@ export default function App() {
   const [isCapturingRoster, setIsCapturingRoster] = useState(false);
   const [showFullRoster, setShowFullRoster] = useState(false);
   const [rosterSearch, setRosterSearch] = useState('');
+  const [showBirthdayPortalModal, setShowBirthdayPortalModal] = useState(false);
+  const [birthdayPortalSearch, setBirthdayPortalSearch] = useState('');
   const [selectedRosterId, setSelectedRosterId] = useState('');
   const [pendingTasksCount, setPendingTasksCount] = useState(0);
 
@@ -533,6 +535,10 @@ export default function App() {
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showThemeDropdown, setShowThemeDropdown] = useState(false);
+  const [localTheme, setLocalTheme] = useState<string | null>(() => {
+    return localStorage.getItem('local-theme') || null;
+  });
 
   const getInitialLogs = () => {
     const makeTime = (offset: number) => {
@@ -973,9 +979,11 @@ export default function App() {
     }
   }, [siteSettings]);
 
-  // Apply dynamic theme from siteSettings
+  // Apply dynamic theme from siteSettings or local override
+  const activeTheme = localTheme || siteSettings?.theme || 'classic-blue';
+
   useEffect(() => {
-    const theme = siteSettings?.theme || 'classic-blue';
+    const theme = activeTheme;
     let styleEl = document.getElementById('dynamic-theme') as HTMLStyleElement;
     if (!styleEl) {
       styleEl = document.createElement('style');
@@ -1077,7 +1085,7 @@ export default function App() {
     };
 
     styleEl.textContent = themeStyles[theme] || themeStyles['classic-blue'];
-  }, [siteSettings?.theme]);
+  }, [activeTheme]);
 
   useEffect(() => {
     if (!user) return;
@@ -1438,16 +1446,31 @@ export default function App() {
   }, [activeTab, complaintsCount]);
 
   useEffect(() => {
-    if (userProfile?.role === 'admin' || user?.email === 'khantaousi@gmail.com') {
+    if (user) {
       const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
         const userList = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         })) as UserProfile[];
-        // Sort by Role (Admin first) then lastSeen descending
+        // Sort by Role (Admin first) then by employeeId (ascending), falling back to lastSeen
         const sortedUsers = [...userList].sort((a, b) => {
           if (a.role === 'admin' && b.role !== 'admin') return -1;
           if (a.role !== 'admin' && b.role === 'admin') return 1;
+          
+          const idA = a.employeeId ? String(a.employeeId).trim() : '';
+          const idB = b.employeeId ? String(b.employeeId).trim() : '';
+          
+          if (idA !== '' && idB === '') return -1;
+          if (idA === '' && idB !== '') return 1;
+          
+          if (idA !== '' && idB !== '') {
+            const numA = parseInt(idA, 10);
+            const numB = parseInt(idB, 10);
+            if (!isNaN(numA) && !isNaN(numB)) {
+              return numA - numB;
+            }
+            return idA.localeCompare(idB);
+          }
           
           const timeA = a.lastSeen ? new Date(a.lastSeen).getTime() : 0;
           const timeB = b.lastSeen ? new Date(b.lastSeen).getTime() : 0;
@@ -2473,6 +2496,89 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-6">
+            {/* Dynamic UI Theme Selector Popover (Visible to all users, admin updates global config, staff previews locally) */}
+            <div className="relative" id="header-theme-selector">
+              <button 
+                onClick={() => setShowThemeDropdown(!showThemeDropdown)}
+                className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-slate-200 dark:border-slate-700 active:scale-95 flex items-center justify-center cursor-pointer shadow-sm"
+                title="Change UI Theme (থিম পরিবর্তন করুন)"
+              >
+                <Palette size={18} />
+              </button>
+              
+              <AnimatePresence>
+                {showThemeDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowThemeDropdown(false)} />
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute right-0 mt-3 w-64 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] z-50 overflow-hidden p-4"
+                    >
+                      <div className="pb-3 mb-3 border-b border-slate-100 dark:border-slate-800/60">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Select UI Theme</span>
+                        <span className="text-[8px] font-bold text-slate-300 dark:text-slate-500 uppercase block mt-0.5">
+                          {isAdmin ? "⚡ ADMIN: Changes global site theme" : "👤 STAFF: Local preview mode"}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { id: 'classic-blue', name: 'Classic Blue', color: '#3b82f6' },
+                          { id: 'royal-indigo', name: 'Royal Indigo', color: '#8b5cf6' },
+                          { id: 'forest-emerald', name: 'Forest Emerald', color: '#10b981' },
+                          { id: 'crimson-rose', name: 'Crimson Rose', color: '#f43f5e' },
+                          { id: 'sunset-amber', name: 'Sunset Amber', color: '#f59e0b' },
+                          { id: 'amethyst-purple', name: 'Amethyst Purple', color: '#a855f7' },
+                        ].map(tOpt => {
+                          const isSelected = activeTheme === tOpt.id;
+                          return (
+                            <button
+                              key={tOpt.id}
+                              onClick={() => {
+                                setLocalTheme(tOpt.id);
+                                localStorage.setItem('local-theme', tOpt.id);
+                                if (isAdmin) {
+                                  handleSiteSettingsUpdate({
+                                    ...siteSettings,
+                                    theme: tOpt.id
+                                  }).catch(console.error);
+                                }
+                              }}
+                              className={`flex items-center gap-2 p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                                isSelected 
+                                  ? 'border-blue-500 bg-blue-50/20 dark:bg-blue-900/10' 
+                                  : 'border-transparent bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              <span className="w-3.5 h-3.5 rounded-full shrink-0 shadow-inner" style={{ backgroundColor: tOpt.color }} />
+                              <span className="text-[9px] font-black uppercase tracking-tight text-slate-700 dark:text-slate-200 truncate">
+                                {tOpt.name.split(' ')[0]}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      
+                      {/* Reset custom override option for staff */}
+                      {!isAdmin && localTheme && (
+                        <button
+                          onClick={() => {
+                            setLocalTheme(null);
+                            localStorage.removeItem('local-theme');
+                          }}
+                          className="w-full mt-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 text-[8px] font-black uppercase tracking-widest rounded-lg transition-colors"
+                        >
+                          Reset to Global Default
+                        </button>
+                      )}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
             <button 
               onClick={() => setIsDarkMode(!isDarkMode)}
               className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-slate-200 dark:border-slate-700 active:scale-95"
@@ -2601,10 +2707,11 @@ export default function App() {
                     )}
                     <button
                       onClick={() => setShowChangePasswordModal(true)}
-                      className="text-[9px] font-black text-slate-500 hover:text-blue-500 dark:text-slate-400 dark:hover:text-blue-400 uppercase tracking-widest flex items-center gap-1 hover:underline transition-all"
+                      className="text-[10px] font-black text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 uppercase tracking-wider flex items-center gap-1 hover:underline transition-all bg-slate-100 dark:bg-slate-750 px-2 py-0.5 rounded-md hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                      title="Change Password (পাসওয়ার্ড পরিবর্তন করুন)"
                     >
                       <Lock size={10} />
-                      Password
+                      Change Password
                     </button>
                   </div>
                 </div>
@@ -2827,37 +2934,234 @@ export default function App() {
                       <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight">
                         Welcome Back, <span className="text-blue-600 dark:text-blue-400">{userProfile?.displayName || user?.email || 'User'}</span>
                       </h3>
-                      {sessionSeconds > 0 && (
-                        <div className="mt-2 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tight">
-                          <Clock size={14} className="text-blue-500 animate-pulse shrink-0" />
-                          <span>Today Active Session: <span className="text-blue-600 dark:text-blue-400 font-extrabold">{formatDurationHelper(sessionSeconds)}</span></span>
-                        </div>
-                      )}
-                      <p className="text-slate-500 dark:text-slate-400 mt-1.5 font-medium text-sm">
+                      <div className="mt-3 flex flex-wrap gap-4 items-center">
+                        {sessionSeconds > 0 && (
+                          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tight">
+                            <Clock size={14} className="text-blue-500 animate-pulse shrink-0" />
+                            <span>Today Active Session: <span className="text-blue-600 dark:text-blue-400 font-extrabold">{formatDurationHelper(sessionSeconds)}</span></span>
+                          </div>
+                        )}
+                        <button
+                          onClick={() => setShowChangePasswordModal(true)}
+                          className="text-[10px] font-black bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl transition-all uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-blue-500/10 cursor-pointer hover:scale-[1.02] active:scale-95"
+                        >
+                          <Lock size={12} />
+                          Change Password (পাসওয়ার্ড পরিবর্তন)
+                        </button>
+                      </div>
+                      <p className="text-slate-500 dark:text-slate-400 mt-3 font-medium text-sm">
                         Access your command center modules and tools from the left-side workspace menu.
                       </p>
                     </div>
 
                     {nextBday && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 p-6 rounded-3xl flex items-center justify-between shadow-sm"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/40 rounded-2xl flex items-center justify-center shrink-0">
-                            <Gift className="text-amber-600 dark:text-amber-400" size={24} />
+                      <div className="space-y-4">
+                        <motion.div
+                          initial={{ opacity: 0, y: -15 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 p-6 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-fade-in"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/40 rounded-2xl flex items-center justify-center shrink-0">
+                              <Gift className="text-amber-600 dark:text-amber-400" size={24} />
+                            </div>
+                            <div>
+                              <h4 className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-500 mb-0.5">Upcoming Birthday</h4>
+                              <p className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                                {nextBday.daysLeft === 0 
+                                  ? `🎉 Today is ${nextBday.user.displayName || nextBday.user.email?.split('@')[0]}'s Birthday!` 
+                                  : `Next up: ${nextBday.user.displayName || nextBday.user.email?.split('@')[0]}'s Birthday on ${formatBST(nextBday.date, 'dd MMM')} (${nextBday.daysLeft} days left)`}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-500 mb-0.5">Upcoming Birthday</h4>
-                            <p className="text-sm font-bold text-amber-900 dark:text-amber-200">
-                              {nextBday.daysLeft === 0 
-                                ? `🎉 Today is ${nextBday.user.displayName || nextBday.user.email?.split('@')[0]}'s Birthday!` 
-                                : `Next up: ${nextBday.user.displayName || nextBday.user.email?.split('@')[0]}'s Birthday on ${formatBST(nextBday.date, 'dd MMM')} (${nextBday.daysLeft} days left)`}
-                            </p>
-                          </div>
-                        </div>
-                      </motion.div>
+                          <button
+                            onClick={() => setShowBirthdayPortalModal(true)}
+                            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-amber-500/10 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer self-start sm:self-center shrink-0 flex items-center gap-1.5"
+                          >
+                            <Gift size={13} className="animate-bounce" />
+                            View Birthday Portal (জন্মদিন পোর্টাল)
+                          </button>
+                        </motion.div>
+
+                        {/* Birthday Portal Modal */}
+                        <AnimatePresence>
+                          {showBirthdayPortalModal && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                              {/* Backdrop */}
+                              <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                onClick={() => setShowBirthdayPortalModal(false)}
+                                className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+                              />
+                              
+                              {/* Modal Content */}
+                              <motion.div
+                                initial={{ scale: 0.95, opacity: 0, y: 15 }}
+                                animate={{ scale: 1, opacity: 1, y: 0 }}
+                                exit={{ scale: 0.95, opacity: 0, y: 15 }}
+                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-xl max-h-[80vh] overflow-hidden shadow-2xl flex flex-col relative z-10"
+                              >
+                                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center shadow-inner">
+                                      <Gift size={20} />
+                                    </div>
+                                    <div>
+                                      <h3 className="font-black text-lg text-slate-800 dark:text-slate-100 tracking-tight leading-none">Team Birthday Portal</h3>
+                                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Calendar & Schedule (জন্মদিন তালিকা)</p>
+                                    </div>
+                                  </div>
+                                  <button 
+                                    onClick={() => setShowBirthdayPortalModal(false)}
+                                    className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                  >
+                                    <X size={18} />
+                                  </button>
+                                </div>
+
+                                {/* Search bar */}
+                                <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/50">
+                                  <div className="relative">
+                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                    <input
+                                      type="text"
+                                      placeholder="Search teammate by name..."
+                                      value={birthdayPortalSearch}
+                                      onChange={(e) => setBirthdayPortalSearch(e.target.value)}
+                                      className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200/60 dark:border-slate-800/80 rounded-2xl py-3 pl-11 pr-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100"
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Birthday list */}
+                                <div className="flex-1 overflow-y-auto p-6 space-y-3 scrollbar-thin">
+                                  {(() => {
+                                    // Map allUsers and pre-calculate their next birthday with sorted order
+                                    const now = new Date();
+                                    const currentYear = now.getFullYear();
+
+                                    const listWithBdays = allUsers
+                                      .filter(u => u.birthday)
+                                      .map(u => {
+                                        const parts = u.birthday!.split('-');
+                                        if (parts.length !== 3) return null;
+                                        const [_, month, day] = parts;
+                                        
+                                        let bdayThisYear = new Date(currentYear, parseInt(month) - 1, parseInt(day));
+                                        if (bdayThisYear.getTime() < now.getTime() && 
+                                            !(bdayThisYear.getMonth() === now.getMonth() && bdayThisYear.getDate() === now.getDate())) {
+                                          bdayThisYear = new Date(currentYear + 1, parseInt(month) - 1, parseInt(day));
+                                        }
+                                        
+                                        const diffTime = Math.abs(bdayThisYear.getTime() - now.getTime());
+                                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                        const isToday = bdayThisYear.getMonth() === now.getMonth() && bdayThisYear.getDate() === now.getDate();
+                                        const actualDaysLeft = isToday ? 0 : diffDays;
+
+                                        return {
+                                          user: u,
+                                          bdayDate: bdayThisYear,
+                                          daysLeft: actualDaysLeft,
+                                          rawMonth: parseInt(month),
+                                          rawDay: parseInt(day),
+                                        };
+                                      })
+                                      .filter(item => {
+                                        if (!item) return false;
+                                        if (!birthdayPortalSearch) return true;
+                                        const s = birthdayPortalSearch.toLowerCase();
+                                        return (item.user.displayName || '').toLowerCase().includes(s) || 
+                                               (item.user.email || '').toLowerCase().includes(s);
+                                      })
+                                      .sort((a, b) => {
+                                        if (!a || !b) return 0;
+                                        return a.daysLeft - b.daysLeft;
+                                      });
+
+                                    if (listWithBdays.length === 0) {
+                                      return (
+                                        <div className="py-12 text-center text-slate-400 font-medium text-xs">
+                                          No teammates with registered birthdays found.
+                                        </div>
+                                      );
+                                    }
+
+                                    return listWithBdays.map((item, idx) => {
+                                      if (!item) return null;
+                                      const u = item.user;
+                                      const isToday = item.daysLeft === 0;
+                                      const isSoon = item.daysLeft <= 30 && !isToday;
+
+                                      return (
+                                        <div
+                                          key={u.id || idx}
+                                          className={`p-4 rounded-2xl border transition-all duration-300 flex items-center justify-between ${
+                                            isToday 
+                                              ? 'bg-gradient-to-r from-amber-500/10 via-amber-600/5 to-transparent border-amber-300/60 dark:border-amber-500/30 ring-1 ring-amber-400/20' 
+                                              : isSoon
+                                              ? 'bg-orange-500/5 border-orange-200 dark:border-orange-900/30'
+                                              : 'bg-white dark:bg-slate-900 border-slate-150 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                                          }`}
+                                        >
+                                          <div className="flex items-center gap-3">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 uppercase tracking-tighter ${
+                                              isToday 
+                                                ? 'bg-amber-50 text-white shadow-md shadow-amber-500/20 animate-bounce' 
+                                                : isSoon
+                                                ? 'bg-orange-100 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400'
+                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                            }`}>
+                                              {isToday ? '🎂' : (u.displayName || u.email || 'U').substring(0, 2)}
+                                            </div>
+                                            <div>
+                                              <div className="font-black text-xs text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                                <span>{u.displayName || u.email?.split('@')[0]}</span>
+                                                {isToday && (
+                                                  <span className="text-[9px] font-black uppercase bg-amber-500 text-white px-2 py-0.5 rounded-full animate-pulse">
+                                                    Today!
+                                                  </span>
+                                                )}
+                                                {isSoon && (
+                                                  <span className="text-[9px] font-bold uppercase bg-orange-100 dark:bg-orange-950/50 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded-full">
+                                                    Soon
+                                                  </span>
+                                                )}
+                                              </div>
+                                              <div className="text-[10px] text-slate-400 dark:text-slate-500 font-bold tracking-tight mt-0.5">
+                                                Birth Date: <span className="font-extrabold text-slate-500 dark:text-slate-400">{formatBST(item.bdayDate, 'dd MMMM')}</span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          
+                                          <div className="text-right">
+                                            <div className={`text-xs font-black tabular-nums uppercase ${isToday ? 'text-amber-600 dark:text-amber-400' : isSoon ? 'text-orange-600 dark:text-orange-400' : 'text-slate-500'}`}>
+                                              {isToday ? 'Celebration 🎉' : `${item.daysLeft} days left`}
+                                            </div>
+                                            <div className="text-[9px] text-slate-400 dark:text-slate-500 font-bold mt-0.5">
+                                              {isToday ? 'Wish them today!' : `Next birthday: ${item.bdayDate.getFullYear()}`}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    });
+                                  })()}
+                                </div>
+                                
+                                <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                                  <button
+                                    onClick={() => setShowBirthdayPortalModal(false)}
+                                    className="px-5 py-2.5 bg-slate-900 dark:bg-blue-600 hover:bg-slate-800 dark:hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors"
+                                  >
+                                    Close Portal
+                                  </button>
+                                </div>
+                              </motion.div>
+                            </div>
+                          )}
+                        </AnimatePresence>
+                      </div>
                     )}
 
                     {userProfile && (
@@ -3196,19 +3500,39 @@ export default function App() {
                                         </tr>
                                       </thead>
                                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                                        {roster.rows
-                                          ?.filter((r: any) => {
+                                        {(() => {
+                                          const mappedRows = (roster.rows || []).map((r: any, originalIdx: number) => ({
+                                            ...r,
+                                            originalIdx
+                                          }));
+                                          const filteredRows = mappedRows.filter((r: any) => {
                                             if (!rosterSearch) return true;
                                             const s = rosterSearch.toLowerCase();
                                             return String(r.id || '').toLowerCase().includes(s) || String(r.name || '').toLowerCase().includes(s);
-                                          })
-                                          ?.map((r: any, idx: number) => (
-                                            <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                                          });
+                                          const sortedAndFilteredRows = [...filteredRows].sort((a: any, b: any) => {
+                                            const idA = String(a.id || '').trim();
+                                            const idB = String(b.id || '').trim();
+                                            
+                                            if (idA === '' && idB !== '') return 1;
+                                            if (idB === '' && idA !== '') return -1;
+                                            if (idA === '' && idB === '') return 0;
+                                            
+                                            const numA = parseInt(idA, 10);
+                                            const numB = parseInt(idB, 10);
+                                            if (!isNaN(numA) && !isNaN(numB)) {
+                                              return numA - numB;
+                                            }
+                                            return idA.localeCompare(idB);
+                                          });
+
+                                          return sortedAndFilteredRows.map((r: any) => (
+                                            <tr key={r.originalIdx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
                                               <td className="p-2 text-xs font-black text-blue-600 dark:text-blue-400">
                                                 <input
                                                   type="text"
                                                   value={r.id || ''}
-                                                  onChange={(e) => handleRosterCellChangeLocal(idx, 'id', null, e.target.value)}
+                                                  onChange={(e) => handleRosterCellChangeLocal(r.originalIdx, 'id', null, e.target.value)}
                                                   onBlur={handleRosterCellBlurSave}
                                                   onKeyDown={(e) => {
                                                     if (e.key === 'Enter') {
@@ -3222,7 +3546,7 @@ export default function App() {
                                                 <input
                                                   type="text"
                                                   value={r.name || ''}
-                                                  onChange={(e) => handleRosterCellChangeLocal(idx, 'name', null, e.target.value)}
+                                                  onChange={(e) => handleRosterCellChangeLocal(r.originalIdx, 'name', null, e.target.value)}
                                                   onBlur={handleRosterCellBlurSave}
                                                   onKeyDown={(e) => {
                                                     if (e.key === 'Enter') {
@@ -3276,7 +3600,7 @@ export default function App() {
                                                       type="text"
                                                       value={rawShift}
                                                       placeholder="Day Off"
-                                                      onChange={(e) => handleRosterCellChangeLocal(idx, '', hdr, e.target.value)}
+                                                      onChange={(e) => handleRosterCellChangeLocal(r.originalIdx, '', hdr, e.target.value)}
                                                       onBlur={handleRosterCellBlurSave}
                                                       onKeyDown={(e) => {
                                                         if (e.key === 'Enter') {
@@ -3291,7 +3615,7 @@ export default function App() {
                                               {!isCapturingRoster && (
                                                 <td className="p-2 text-right">
                                                   <button
-                                                    onClick={() => handleDeleteRosterRow(idx)}
+                                                    onClick={() => handleDeleteRosterRow(r.originalIdx)}
                                                     className="p-1 px-2.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-all text-[10px] font-black uppercase tracking-wider"
                                                     title="Delete this Row"
                                                   >
@@ -3300,8 +3624,8 @@ export default function App() {
                                                 </td>
                                               )}
                                             </tr>
-                                          ))
-                                        }
+                                          ));
+                                        })()}
                                       </tbody>
                                     </table>
                                   </div>

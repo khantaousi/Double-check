@@ -69,12 +69,14 @@ export function GeneralSettings({ settings, onUpdate, canWrite = true }: General
               ) : (
                 <Database className="text-slate-300 dark:text-slate-600" size={32} />
               )}
-              <div 
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-              >
-                <Upload size={20} className="text-white" />
-              </div>
+              {canWrite && (
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                >
+                  <Upload size={20} className="text-white" />
+                </div>
+              )}
             </div>
             <input 
               ref={fileInputRef}
@@ -82,6 +84,7 @@ export function GeneralSettings({ settings, onUpdate, canWrite = true }: General
               accept="image/*" 
               className="hidden" 
               onChange={handleLogoUpload}
+              disabled={!canWrite}
             />
           </div>
           <div>
@@ -90,7 +93,8 @@ export function GeneralSettings({ settings, onUpdate, canWrite = true }: General
             <div className="flex gap-2 mt-3">
               <button 
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-xl text-[10px] font-bold uppercase transition-all hover:bg-blue-700 shadow-lg shadow-blue-500/20 active:scale-95"
+                disabled={!canWrite}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-xl text-[10px] font-bold uppercase transition-all hover:bg-blue-700 shadow-lg shadow-blue-500/20 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
               >
                 <ImageIcon size={12} />
                 Change Logo
@@ -98,7 +102,8 @@ export function GeneralSettings({ settings, onUpdate, canWrite = true }: General
               {settings.logoUrl && (
                 <button 
                   onClick={resetLogo}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-[10px] font-bold uppercase transition-all hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 active:scale-95"
+                  disabled={!canWrite}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-[10px] font-bold uppercase transition-all hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
                 >
                   <RotateCcw size={12} />
                   Default
@@ -127,7 +132,8 @@ export function GeneralSettings({ settings, onUpdate, canWrite = true }: General
             <input 
               value={settings.companyName}
               onChange={e => onUpdate({ ...settings, companyName: e.target.value })}
-              className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:outline-none transition-all"
+              disabled={!canWrite}
+              className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:outline-none transition-all disabled:opacity-60"
             />
           </div>
         </div>
@@ -140,7 +146,8 @@ export function GeneralSettings({ settings, onUpdate, canWrite = true }: General
               type="number"
               value={settings.amountTolerance}
               onChange={e => onUpdate({ ...settings, amountTolerance: Number(e.target.value) })}
-              className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:outline-none transition-all"
+              disabled={!canWrite}
+              className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:outline-none transition-all disabled:opacity-60"
             />
           </div>
           <p className="text-[9px] text-slate-400 mt-1 ml-1 leading-relaxed">
@@ -155,8 +162,9 @@ export function GeneralSettings({ settings, onUpdate, canWrite = true }: General
             <input 
               value={keywordInput}
               onChange={e => handleKeywordChange(e.target.value)}
+              disabled={!canWrite}
               placeholder="boss ok, permit, authorized..."
-              className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:outline-none transition-all"
+              className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold focus:ring-2 focus:ring-indigo-500/10 focus:outline-none transition-all disabled:opacity-60"
             />
           </div>
           <p className="text-[9px] text-slate-400 mt-1 ml-1 leading-relaxed">
