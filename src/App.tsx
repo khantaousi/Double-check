@@ -2496,88 +2496,90 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-6">
-            {/* Dynamic UI Theme Selector Popover (Visible to all users, admin updates global config, staff previews locally) */}
-            <div className="relative" id="header-theme-selector">
-              <button 
-                onClick={() => setShowThemeDropdown(!showThemeDropdown)}
-                className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-slate-200 dark:border-slate-700 active:scale-95 flex items-center justify-center cursor-pointer shadow-sm"
-                title="Change UI Theme (থিম পরিবর্তন করুন)"
-              >
-                <Palette size={18} />
-              </button>
-              
-              <AnimatePresence>
-                {showThemeDropdown && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowThemeDropdown(false)} />
-                    <motion.div 
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      className="absolute right-0 mt-3 w-64 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] z-50 overflow-hidden p-4"
-                    >
-                      <div className="pb-3 mb-3 border-b border-slate-100 dark:border-slate-800/60">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Select UI Theme</span>
-                        <span className="text-[8px] font-bold text-slate-300 dark:text-slate-500 uppercase block mt-0.5">
-                          {isAdmin ? "⚡ ADMIN: Changes global site theme" : "👤 STAFF: Local preview mode"}
-                        </span>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-2">
-                        {[
-                          { id: 'classic-blue', name: 'Classic Blue', color: '#3b82f6' },
-                          { id: 'royal-indigo', name: 'Royal Indigo', color: '#8b5cf6' },
-                          { id: 'forest-emerald', name: 'Forest Emerald', color: '#10b981' },
-                          { id: 'crimson-rose', name: 'Crimson Rose', color: '#f43f5e' },
-                          { id: 'sunset-amber', name: 'Sunset Amber', color: '#f59e0b' },
-                          { id: 'amethyst-purple', name: 'Amethyst Purple', color: '#a855f7' },
-                        ].map(tOpt => {
-                          const isSelected = activeTheme === tOpt.id;
-                          return (
-                            <button
-                              key={tOpt.id}
-                              onClick={() => {
-                                setLocalTheme(tOpt.id);
-                                localStorage.setItem('local-theme', tOpt.id);
-                                if (isAdmin) {
-                                  handleSiteSettingsUpdate({
-                                    ...siteSettings,
-                                    theme: tOpt.id
-                                  }).catch(console.error);
-                                }
-                              }}
-                              className={`flex items-center gap-2 p-2 rounded-xl border text-left transition-all cursor-pointer ${
-                                isSelected 
-                                  ? 'border-blue-500 bg-blue-50/20 dark:bg-blue-900/10' 
-                                  : 'border-transparent bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800'
-                              }`}
-                            >
-                              <span className="w-3.5 h-3.5 rounded-full shrink-0 shadow-inner" style={{ backgroundColor: tOpt.color }} />
-                              <span className="text-[9px] font-black uppercase tracking-tight text-slate-700 dark:text-slate-200 truncate">
-                                {tOpt.name.split(' ')[0]}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                      
-                      {/* Reset custom override option for staff */}
-                      {!isAdmin && localTheme && (
-                        <button
-                          onClick={() => {
-                            setLocalTheme(null);
-                            localStorage.removeItem('local-theme');
-                          }}
-                          className="w-full mt-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 text-[8px] font-black uppercase tracking-widest rounded-lg transition-colors"
-                        >
-                          Reset to Global Default
-                        </button>
-                      )}
-                    </motion.div>
-                  </>
-                )}
-              </AnimatePresence>
-            </div>
+            {/* Dynamic UI Theme Selector Popover (Only visible to admin) */}
+            {isAdmin && (
+              <div className="relative" id="header-theme-selector">
+                <button 
+                  onClick={() => setShowThemeDropdown(!showThemeDropdown)}
+                  className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-slate-200 dark:border-slate-700 active:scale-95 flex items-center justify-center cursor-pointer shadow-sm"
+                  title="Change UI Theme (থিম পরিবর্তন করুন)"
+                >
+                  <Palette size={18} />
+                </button>
+                
+                <AnimatePresence>
+                  {showThemeDropdown && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowThemeDropdown(false)} />
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        className="absolute right-0 mt-3 w-64 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] z-50 overflow-hidden p-4"
+                      >
+                        <div className="pb-3 mb-3 border-b border-slate-100 dark:border-slate-800/60">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Select UI Theme</span>
+                          <span className="text-[8px] font-bold text-slate-300 dark:text-slate-500 uppercase block mt-0.5">
+                            {isAdmin ? "⚡ ADMIN: Changes global site theme" : "👤 STAFF: Local preview mode"}
+                          </span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { id: 'classic-blue', name: 'Classic Blue', color: '#3b82f6' },
+                            { id: 'royal-indigo', name: 'Royal Indigo', color: '#8b5cf6' },
+                            { id: 'forest-emerald', name: 'Forest Emerald', color: '#10b981' },
+                            { id: 'crimson-rose', name: 'Crimson Rose', color: '#f43f5e' },
+                            { id: 'sunset-amber', name: 'Sunset Amber', color: '#f59e0b' },
+                            { id: 'amethyst-purple', name: 'Amethyst Purple', color: '#a855f7' },
+                          ].map(tOpt => {
+                            const isSelected = activeTheme === tOpt.id;
+                            return (
+                              <button
+                                key={tOpt.id}
+                                onClick={() => {
+                                  setLocalTheme(tOpt.id);
+                                  localStorage.setItem('local-theme', tOpt.id);
+                                  if (isAdmin) {
+                                    handleSiteSettingsUpdate({
+                                      ...siteSettings,
+                                      theme: tOpt.id
+                                    }).catch(console.error);
+                                  }
+                                }}
+                                className={`flex items-center gap-2 p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                                  isSelected 
+                                    ? 'border-blue-500 bg-blue-50/20 dark:bg-blue-900/10' 
+                                    : 'border-transparent bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
+                              >
+                                <span className="w-3.5 h-3.5 rounded-full shrink-0 shadow-inner" style={{ backgroundColor: tOpt.color }} />
+                                <span className="text-[9px] font-black uppercase tracking-tight text-slate-700 dark:text-slate-200 truncate">
+                                  {tOpt.name.split(' ')[0]}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        
+                        {/* Reset custom override option for staff */}
+                        {!isAdmin && localTheme && (
+                          <button
+                            onClick={() => {
+                              setLocalTheme(null);
+                              localStorage.removeItem('local-theme');
+                            }}
+                            className="w-full mt-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 text-[8px] font-black uppercase tracking-widest rounded-lg transition-colors"
+                          >
+                            Reset to Global Default
+                          </button>
+                        )}
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
 
             <button 
               onClick={() => setIsDarkMode(!isDarkMode)}
@@ -3480,7 +3482,7 @@ export default function App() {
                                         placeholder="Search roster rows by name or ID..."
                                         value={rosterSearch}
                                         onChange={(e) => setRosterSearch(e.target.value)}
-                                        className="bg-slate-50 dark:bg-slate-100 border-none rounded-xl text-xs font-bold px-4 py-2.5 w-full md:w-72 focus:ring-2 focus:ring-blue-500/20"
+                                        className="bg-slate-100 dark:bg-slate-800 border-none rounded-xl text-xs font-bold px-4 py-2.5 w-full md:w-72 focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100"
                                       />
                                     </div>
                                   </div>
