@@ -149,6 +149,7 @@ export interface SiteSettings {
   customAmountRule?: string;
   combineBaseRulesWithAI?: boolean;
   theme?: string;
+  isDoubleCheckEnabled?: boolean;
 }
 
 export const DEFAULT_DELIVERY_SETTINGS: DeliverySettings = {
@@ -162,7 +163,8 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   permissionKeywords: ['permit', 'permit by', 'permitted by', 'permitted', 'authorized', 'boss ok', 'leader ok'],
   logoUrl: '',
   combineBaseRulesWithAI: false,
-  theme: 'classic-blue'
+  theme: 'classic-blue',
+  isDoubleCheckEnabled: true
 };
 
 export const DEFAULT_RULES: ValidationRule[] = [

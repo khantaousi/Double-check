@@ -26,7 +26,7 @@ import { UserManagement } from './components/UserManagement';
 import { NoticeBoard } from './components/NoticeBoard';
 import WelcomeScreen from './components/WelcomeScreen';
 import { LiveTenureTracker } from './components/LiveTenureTracker';
-import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera, Shield, ArrowRight, Barcode, QrCode, Coins, Eye, EyeOff, Palette } from 'lucide-react';
+import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera, Shield, ArrowRight, Barcode, QrCode, Coins, Eye, EyeOff, Palette, Power, PowerOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toPng } from 'html-to-image';
 import { db, auth, logInWithEmail, signOut, signInWithGoogle } from './lib/firebase';
@@ -2255,6 +2255,11 @@ export default function App() {
                   >
                     <Database size={18} className="shrink-0" />
                     <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Double Check</span>
+                    {siteSettings.isDoubleCheckEnabled === false && (
+                      <span className={`ml-auto text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md ${isSidebarCollapsed ? 'hidden' : 'block'} bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50`}>
+                        OFF
+                      </span>
+                    )}
                   </button>
                 )}
 
@@ -2496,90 +2501,82 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-6">
-            {/* Dynamic UI Theme Selector Popover (Only visible to admin) */}
-            {isAdmin && (
-              <div className="relative" id="header-theme-selector">
-                <button 
-                  onClick={() => setShowThemeDropdown(!showThemeDropdown)}
-                  className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-slate-200 dark:border-slate-700 active:scale-95 flex items-center justify-center cursor-pointer shadow-sm"
-                  title="Change UI Theme (থিম পরিবর্তন করুন)"
-                >
-                  <Palette size={18} />
-                </button>
-                
-                <AnimatePresence>
-                  {showThemeDropdown && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setShowThemeDropdown(false)} />
-                      <motion.div 
-                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        className="absolute right-0 mt-3 w-64 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] z-50 overflow-hidden p-4"
-                      >
-                        <div className="pb-3 mb-3 border-b border-slate-100 dark:border-slate-800/60">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Select UI Theme</span>
-                          <span className="text-[8px] font-bold text-slate-300 dark:text-slate-500 uppercase block mt-0.5">
-                            {isAdmin ? "⚡ ADMIN: Changes global site theme" : "👤 STAFF: Local preview mode"}
-                          </span>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-2">
-                          {[
-                            { id: 'classic-blue', name: 'Classic Blue', color: '#3b82f6' },
-                            { id: 'royal-indigo', name: 'Royal Indigo', color: '#8b5cf6' },
-                            { id: 'forest-emerald', name: 'Forest Emerald', color: '#10b981' },
-                            { id: 'crimson-rose', name: 'Crimson Rose', color: '#f43f5e' },
-                            { id: 'sunset-amber', name: 'Sunset Amber', color: '#f59e0b' },
-                            { id: 'amethyst-purple', name: 'Amethyst Purple', color: '#a855f7' },
-                          ].map(tOpt => {
-                            const isSelected = activeTheme === tOpt.id;
-                            return (
-                              <button
-                                key={tOpt.id}
-                                onClick={() => {
-                                  setLocalTheme(tOpt.id);
-                                  localStorage.setItem('local-theme', tOpt.id);
-                                  if (isAdmin) {
-                                    handleSiteSettingsUpdate({
-                                      ...siteSettings,
-                                      theme: tOpt.id
-                                    }).catch(console.error);
-                                  }
-                                }}
-                                className={`flex items-center gap-2 p-2 rounded-xl border text-left transition-all cursor-pointer ${
-                                  isSelected 
-                                    ? 'border-blue-500 bg-blue-50/20 dark:bg-blue-900/10' 
-                                    : 'border-transparent bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                }`}
-                              >
-                                <span className="w-3.5 h-3.5 rounded-full shrink-0 shadow-inner" style={{ backgroundColor: tOpt.color }} />
-                                <span className="text-[9px] font-black uppercase tracking-tight text-slate-700 dark:text-slate-200 truncate">
-                                  {tOpt.name.split(' ')[0]}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                        
-                        {/* Reset custom override option for staff */}
-                        {!isAdmin && localTheme && (
-                          <button
-                            onClick={() => {
-                              setLocalTheme(null);
-                              localStorage.removeItem('local-theme');
-                            }}
-                            className="w-full mt-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 text-[8px] font-black uppercase tracking-widest rounded-lg transition-colors"
-                          >
-                            Reset to Global Default
-                          </button>
-                        )}
-                      </motion.div>
-                    </>
-                  )}
-                </AnimatePresence>
-              </div>
-            )}
+            {/* Dynamic UI Theme Selector Popover (Available for all agents/users locally) */}
+            <div className="relative" id="header-theme-selector">
+              <button 
+                onClick={() => setShowThemeDropdown(!showThemeDropdown)}
+                className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-slate-200 dark:border-slate-700 active:scale-95 flex items-center justify-center cursor-pointer shadow-sm"
+                title="Change Personal UI Theme (ব্যক্তিগত থিম পরিবর্তন)"
+              >
+                <Palette size={18} />
+              </button>
+              
+              <AnimatePresence>
+                {showThemeDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowThemeDropdown(false)} />
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute right-0 mt-3 w-64 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] z-50 overflow-hidden p-4"
+                    >
+                      <div className="pb-3 mb-3 border-b border-slate-100 dark:border-slate-800/60">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Personal Theme</span>
+                        <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase block mt-0.5">
+                          👤 Personal local setting (Only affects you)
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { id: 'classic-blue', name: 'Classic Blue', color: '#3b82f6' },
+                          { id: 'royal-indigo', name: 'Royal Indigo', color: '#8b5cf6' },
+                          { id: 'forest-emerald', name: 'Forest Emerald', color: '#10b981' },
+                          { id: 'crimson-rose', name: 'Crimson Rose', color: '#f43f5e' },
+                          { id: 'sunset-amber', name: 'Sunset Amber', color: '#f59e0b' },
+                          { id: 'amethyst-purple', name: 'Amethyst Purple', color: '#a855f7' },
+                        ].map(tOpt => {
+                          const isSelected = activeTheme === tOpt.id;
+                          return (
+                            <button
+                              key={tOpt.id}
+                              onClick={() => {
+                                setLocalTheme(tOpt.id);
+                                localStorage.setItem('local-theme', tOpt.id);
+                              }}
+                              className={`flex items-center gap-2 p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                                isSelected 
+                                  ? 'border-blue-500 bg-blue-50/20 dark:bg-blue-900/10' 
+                                  : 'border-transparent bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              <span className="w-3.5 h-3.5 rounded-full shrink-0 shadow-inner" style={{ backgroundColor: tOpt.color }} />
+                              <span className="text-[9px] font-black uppercase tracking-tight text-slate-700 dark:text-slate-200 truncate">
+                                {tOpt.name.split(' ')[0]}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      
+                      {/* Reset custom override option */}
+                      {localTheme && (
+                        <button
+                          onClick={() => {
+                            setLocalTheme(null);
+                            localStorage.removeItem('local-theme');
+                          }}
+                          className="w-full mt-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 text-[8px] font-black uppercase tracking-widest rounded-lg transition-colors cursor-pointer"
+                        >
+                          Reset to Global Default
+                        </button>
+                      )}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
 
             <button 
               onClick={() => setIsDarkMode(!isDarkMode)}
@@ -3695,8 +3692,73 @@ export default function App() {
                   transition={{ duration: 0.2 }}
                   className="space-y-10"
                 >
-                  {canWriteToTab('validation') ? (
-                    <FileUpload onDataLoaded={handleDataLoaded} isLoading={isLoading} resetTrigger={resetTrigger} />
+                  {/* Admin Double Check ON/OFF Control Bar */}
+                  {isAdmin && (
+                    <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-4 transition-all ${
+                      siteSettings.isDoubleCheckEnabled !== false 
+                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-800 dark:text-emerald-300' 
+                        : 'bg-red-500/10 border-red-500/20 text-red-800 dark:text-red-300'
+                    }`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2.5 rounded-xl ${
+                          siteSettings.isDoubleCheckEnabled !== false ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/20 text-red-600 dark:text-red-400'
+                        }`}>
+                          <Power size={20} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs font-black uppercase tracking-wider">
+                              Double Check Module: {siteSettings.isDoubleCheckEnabled !== false ? 'ONLINE (ACTIVE)' : 'OFF (DISABLED FOR STAFF)'}
+                            </h4>
+                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                              siteSettings.isDoubleCheckEnabled !== false ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
+                            }`}>
+                              {siteSettings.isDoubleCheckEnabled !== false ? 'ON' : 'OFF'}
+                            </span>
+                          </div>
+                          <p className="text-[10px] font-bold opacity-80 mt-0.5">
+                            {siteSettings.isDoubleCheckEnabled !== false 
+                              ? 'Staff users can freely access and use Double Check validation.' 
+                              : 'Double Check is currently OFF for staff. Only Admins can see this workspace.'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleSiteSettingsUpdate({
+                          ...siteSettings,
+                          isDoubleCheckEnabled: siteSettings.isDoubleCheckEnabled === false ? true : false
+                        })}
+                        className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition-all active:scale-95 cursor-pointer shrink-0 flex items-center gap-2 ${
+                          siteSettings.isDoubleCheckEnabled !== false
+                            ? 'bg-red-600 hover:bg-red-700 text-white'
+                            : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        }`}
+                      >
+                        <Power size={14} />
+                        {siteSettings.isDoubleCheckEnabled !== false ? 'Turn OFF Double Check' : 'Turn ON Double Check'}
+                      </button>
+                    </div>
+                  )}
+
+                  {!isAdmin && siteSettings.isDoubleCheckEnabled === false ? (
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 sm:p-12 rounded-3xl text-center max-w-xl mx-auto my-8 shadow-xl">
+                      <div className="w-16 h-16 bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-inner">
+                        <PowerOff size={32} />
+                      </div>
+                      <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+                        Double Check Module Disabled
+                      </h3>
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                        ডাবল চেক সার্ভিসটি এডমিন কর্তৃক সাময়িকভাবে বন্ধ রাখা হয়েছে।
+                      </p>
+                      <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500 mt-1">
+                        Double Check feature is currently turned OFF by system administrator. Please contact your admin for access.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {canWriteToTab('validation') ? (
+                        <FileUpload onDataLoaded={handleDataLoaded} isLoading={isLoading} resetTrigger={resetTrigger} />
                   ) : (
                     <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl flex items-center gap-4 text-slate-500 dark:text-slate-400">
                       <div className="p-3 bg-amber-500/10 text-amber-500 rounded-2xl">
@@ -3787,7 +3849,9 @@ export default function App() {
                       </p>
                     </div>
                   )}
-                </motion.div>
+                </>
+              )}
+            </motion.div>
               )}
 
               {activeTab === 'tracker' && hasAccess('tracker') && (

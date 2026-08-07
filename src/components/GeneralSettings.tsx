@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SiteSettings } from '../types';
-import { Globe, ShieldCheck, DollarSign, Upload, RotateCcw, Image as ImageIcon, Database, Palette } from 'lucide-react';
+import { Globe, ShieldCheck, DollarSign, Upload, RotateCcw, Image as ImageIcon, Database, Palette, Power } from 'lucide-react';
 
 interface GeneralSettingsProps {
   settings: SiteSettings;
@@ -171,6 +171,45 @@ export function GeneralSettings({ settings, onUpdate, canWrite = true }: General
             If any of these keywords are found in <span className="font-bold">Special Instruction</span>, the row will be automatically marked as a <span className="text-purple-500 font-bold">MATCH</span>.
           </p>
         </div>
+      </div>
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300">
+        <div className="flex items-center gap-4">
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+            settings.isDoubleCheckEnabled !== false 
+              ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400' 
+              : 'bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400'
+          }`}>
+            <Power size={24} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">Double Check Feature Access</h3>
+              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                settings.isDoubleCheckEnabled !== false ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
+              }`}>
+                {settings.isDoubleCheckEnabled !== false ? 'ON' : 'OFF'}
+              </span>
+            </div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+              {settings.isDoubleCheckEnabled !== false 
+                ? 'Double Check module is currently active for staff members' 
+                : 'Double Check module is turned OFF. Staff users cannot access or use it'}
+            </p>
+          </div>
+        </div>
+        <button
+          disabled={!canWrite}
+          onClick={() => onUpdate({ ...settings, isDoubleCheckEnabled: settings.isDoubleCheckEnabled === false ? true : false })}
+          className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50 disabled:pointer-events-none flex items-center gap-2 self-start sm:self-center shrink-0 ${
+            settings.isDoubleCheckEnabled !== false 
+              ? 'bg-red-600 hover:bg-red-700 text-white' 
+              : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+          }`}
+        >
+          <Power size={14} />
+          {settings.isDoubleCheckEnabled !== false ? 'Turn OFF Double Check' : 'Turn ON Double Check'}
+        </button>
       </div>
 
       <div className="flex items-center gap-3 mb-2 px-2 pt-4 border-t border-slate-100 dark:border-slate-800">
