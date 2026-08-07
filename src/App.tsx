@@ -20,6 +20,7 @@ import { ProductTracker } from './components/ProductTracker';
 import { TeamWork } from './components/TeamWork';
 import { DeliverySettings } from './components/DeliverySettings';
 import { GeneralSettings } from './components/GeneralSettings';
+import { AgentProfileSettings } from './components/AgentProfileSettings';
 import { FileUpload } from './components/FileUpload';
 import { DataTable } from './components/DataTable';
 import { UserManagement } from './components/UserManagement';
@@ -1726,6 +1727,7 @@ export default function App() {
     if (userProfile?.role === 'admin') return true;
     if (tab === 'users') return false;
     if (tab === 'complaints') return true;
+    if (tab === 'settings') return true;
     const key = tab === 'validation' ? 'dashboard' : tab;
     return (userProfile?.permissions?.[key as keyof UserProfile['permissions']] || 'none') !== 'none';
   };
@@ -2342,7 +2344,7 @@ export default function App() {
                 {hasAccess('settings') && (
                   <button 
                     onClick={() => { setActiveTab('settings'); setIsSidebarOpen(false); }}
-                    title={isSidebarCollapsed ? "Delivery Settings" : undefined}
+                    title={isSidebarCollapsed ? "Settings" : undefined}
                     className={`w-full flex items-center gap-3 rounded-xl text-xs font-bold transition-all border ${isSidebarCollapsed ? 'justify-center py-3 px-0' : 'px-4 py-3'} ${
                       activeTab === 'settings' 
                         ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
@@ -2350,7 +2352,7 @@ export default function App() {
                     }`}
                   >
                     <Settings size={18} className="shrink-0" />
-                    <span className={isSidebarCollapsed ? "hidden" : "block"}>Delivery Settings</span>
+                    <span className={isSidebarCollapsed ? "hidden" : "block"}>Settings (সেটিংস)</span>
                   </button>
                 )}
 
@@ -2659,9 +2661,13 @@ export default function App() {
             {user ? (
               <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-1.5 px-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300">
                 <div className="relative">
-                  <div className={`w-8 h-8 rounded-lg ${getAvatarColor(userProfile?.displayName || user.email)} flex items-center justify-center text-white text-xs font-black shadow-sm`}>
-                    {getInitials(userProfile?.displayName || user.email)}
-                  </div>
+                  {userProfile?.photoURL ? (
+                    <img src={userProfile.photoURL} alt="Avatar" className="w-8 h-8 rounded-lg object-cover shadow-sm border border-slate-200 dark:border-slate-700" />
+                  ) : (
+                    <div className={`w-8 h-8 rounded-lg ${getAvatarColor(userProfile?.displayName || user.email)} flex items-center justify-center text-white text-xs font-black shadow-sm`}>
+                      {getInitials(userProfile?.displayName || user.email)}
+                    </div>
+                  )}
                   <div className={`absolute -bottom-1 -right-1 w-3 h-3 border-2 border-white dark:border-slate-800 rounded-full ${userProfile?.isActive !== false ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.3)]' : 'bg-slate-300'}`} />
                   {userProfile?.isOnline && (
                     <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-ping opacity-75" />
@@ -2698,21 +2704,13 @@ export default function App() {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {userProfile?.employeeId && (
+                  {userProfile?.employeeId && (
+                    <div className="flex items-center gap-2 mt-0.5">
                       <p className="text-[9px] font-black text-blue-600 dark:text-blue-400 tracking-wider bg-blue-500/10 dark:bg-blue-500/20 px-1 py-0.5 rounded">
                         ID: {userProfile.employeeId}
                       </p>
-                    )}
-                    <button
-                      onClick={() => setShowChangePasswordModal(true)}
-                      className="text-[10px] font-black text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 uppercase tracking-wider flex items-center gap-1 hover:underline transition-all bg-slate-100 dark:bg-slate-750 px-2 py-0.5 rounded-md hover:bg-blue-50 dark:hover:bg-blue-950/30"
-                      title="Change Password (পাসওয়ার্ড পরিবর্তন করুন)"
-                    >
-                      <Lock size={10} />
-                      Change Password
-                    </button>
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -2940,13 +2938,6 @@ export default function App() {
                             <span>Today Active Session: <span className="text-blue-600 dark:text-blue-400 font-extrabold">{formatDurationHelper(sessionSeconds)}</span></span>
                           </div>
                         )}
-                        <button
-                          onClick={() => setShowChangePasswordModal(true)}
-                          className="text-[10px] font-black bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl transition-all uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-blue-500/10 cursor-pointer hover:scale-[1.02] active:scale-95"
-                        >
-                          <Lock size={12} />
-                          Change Password (পাসওয়ার্ড পরিবর্তন)
-                        </button>
                       </div>
                       <p className="text-slate-500 dark:text-slate-400 mt-3 font-medium text-sm">
                         Access your command center modules and tools from the left-side workspace menu.
@@ -3958,29 +3949,59 @@ export default function App() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="max-w-2xl mx-auto pt-10"
+                  className="max-w-3xl mx-auto pt-8 px-2 space-y-10"
                 >
-                  <div className="mb-10 text-center">
-                    <h2 className="text-3xl font-black text-slate-800 dark:text-slate-100 tracking-tighter mb-2">Operational Controls</h2>
-                    <p className="text-slate-400 dark:text-slate-500 font-medium tracking-tight">Configure global brand identity, validation tolerance, and logistics fees.</p>
+                  <div className="text-center mb-6">
+                    <h2 className="text-3xl font-black text-slate-800 dark:text-slate-100 tracking-tighter mb-2">
+                      Agent Profile & Settings (সেটিংস)
+                    </h2>
+                    <p className="text-slate-400 dark:text-slate-500 font-medium tracking-tight">
+                      Manage your profile picture, change password, and customize your personal workspace theme.
+                    </p>
                   </div>
-                  <div className="space-y-10">
-                    <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none transition-colors duration-300">
-                      <GeneralSettings 
-                        settings={siteSettings}
-                        onUpdate={handleSiteSettingsUpdate}
-                        canWrite={canWriteToTab('settings')}
-                      />
+
+                  {/* Personal Agent Profile, Password & Theme Settings */}
+                  <AgentProfileSettings
+                    user={user}
+                    userProfile={userProfile}
+                    activeTheme={activeTheme}
+                    onSelectTheme={(tId) => {
+                      setLocalTheme(tId);
+                      localStorage.setItem('local-theme', tId);
+                    }}
+                  />
+
+                  {/* System Operational Settings (Admin Only) */}
+                  {isAdmin ? (
+                    <div className="space-y-10 pt-8 border-t border-slate-200 dark:border-slate-800">
+                      <div className="text-center">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-3.5 py-1.5 rounded-full border border-blue-200 dark:border-blue-800">
+                          System Administrator Controls (অ্যাডমিন সেটিংস)
+                        </span>
+                      </div>
+
+                      <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none transition-colors duration-300">
+                        <GeneralSettings 
+                          settings={siteSettings}
+                          onUpdate={handleSiteSettingsUpdate}
+                          canWrite={true}
+                        />
+                      </div>
+                      
+                      <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none transition-colors duration-300">
+                        <DeliverySettings 
+                          settings={delivery}
+                          onUpdate={handleDeliveryUpdate}
+                          canWrite={true}
+                        />
+                      </div>
                     </div>
-                    
-                    <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none transition-colors duration-300">
-                      <DeliverySettings 
-                        settings={delivery}
-                        onUpdate={handleDeliveryUpdate}
-                        canWrite={canWriteToTab('settings')}
-                      />
+                  ) : (
+                    <div className="p-6 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-3xl text-center text-slate-400 dark:text-slate-500 text-xs font-bold flex flex-col items-center gap-2">
+                      <ShieldCheck size={28} className="text-slate-400 dark:text-slate-500" />
+                      <span>Global system configurations (branding, delivery rates, and validation tolerances) are managed by Administrator.</span>
                     </div>
-                  </div>
+                  )}
                 </motion.div>
               )}
 
