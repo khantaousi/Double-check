@@ -36,6 +36,37 @@ export function AgentProfileSettings({
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
 
+  // Custom Theme State
+  const colorPickerRef = useRef<HTMLInputElement>(null);
+  const [customHex, setCustomHex] = useState(() => {
+    if (activeTheme.startsWith('custom:')) return activeTheme.replace('custom:', '');
+    if (activeTheme.startsWith('#')) return activeTheme;
+    return '#0284c7';
+  });
+
+  // RGB Helpers
+  const hexToRgb = (hexStr: string) => {
+    let clean = hexStr.replace('#', '').trim();
+    if (clean.length === 3) clean = clean.split('').map(c => c + c).join('');
+    if (clean.length === 6 && !isNaN(parseInt(clean, 16))) {
+      const num = parseInt(clean, 16);
+      return {
+        r: (num >> 16) & 255,
+        g: (num >> 8) & 255,
+        b: num & 255
+      };
+    }
+    return { r: 2, g: 132, b: 199 };
+  };
+
+  const rgbToHex = (r: number, g: number, b: number) => {
+    const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v) || 0));
+    const hex = ((1 << 24) + (clamp(r) << 16) + (clamp(g) << 8) + clamp(b)).toString(16).slice(1);
+    return `#${hex}`;
+  };
+
+  const currentRgb = hexToRgb(customHex);
+
   // Initials Fallback Helper
   const getInitials = (name?: string) => {
     if (!name) return 'U';
@@ -352,9 +383,30 @@ export function AgentProfileSettings({
 
           {/* Confirm New Password */}
           <div>
-            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-              Confirm New Password (নতুন পাসওয়ার্ড নিশ্চিত করুন)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Confirm New Password (নতুন পাসওয়ার্ড নিশ্চিত করুন)
+              </label>
+              {confirmPassword.length > 0 && (
+                <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-md border flex items-center gap-1 transition-all ${
+                  newPassword === confirmPassword
+                    ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                    : 'bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800'
+                }`}>
+                  {newPassword === confirmPassword ? (
+                    <>
+                      <CheckCircle2 size={12} className="shrink-0" />
+                      Match
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle size={12} className="shrink-0" />
+                      Not Match
+                    </>
+                  )}
+                </span>
+              )}
+            </div>
             <div className="relative">
               <input
                 type={showConfirmPassword ? 'text' : 'password'}
@@ -363,7 +415,13 @@ export function AgentProfileSettings({
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 disabled={isChangingPassword}
                 placeholder="Re-enter new password"
-                className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 outline-none pr-10"
+                className={`w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border text-xs font-bold text-slate-800 dark:text-slate-100 outline-none pr-10 transition-all ${
+                  confirmPassword.length > 0
+                    ? newPassword === confirmPassword
+                      ? 'border-emerald-500 focus:ring-2 focus:ring-emerald-500'
+                      : 'border-red-500 focus:ring-2 focus:ring-red-500'
+                    : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-indigo-500'
+                }`}
               />
               <button
                 type="button"
@@ -446,6 +504,132 @@ export function AgentProfileSettings({
               </button>
             );
           })}
+        </div>
+
+        {/* 4. Custom Theme Color Picker (কাস্টম কালার থিম) */}
+        <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+          <div className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              {/* Clickable Color Swatch and Hidden Input */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (colorPickerRef.current) {
+                    if ('showPicker' in colorPickerRef.current) {
+                      (colorPickerRef.current as any).showPicker();
+                    } else {
+                      colorPickerRef.current.click();
+                    }
+                  }
+                }}
+                className="relative group shrink-0 cursor-pointer focus:outline-none"
+                title="Click to open RGB Color Picker"
+              >
+                <input
+                  ref={colorPickerRef}
+                  type="color"
+                  value={customHex.startsWith('#') ? customHex : `#${customHex}`}
+                  onChange={(e) => {
+                    const newHex = e.target.value;
+                    setCustomHex(newHex);
+                    onSelectTheme(`custom:${newHex}`);
+                  }}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                />
+                <div
+                  className="w-12 h-12 rounded-2xl shadow-md border-2 border-white dark:border-slate-700 flex items-center justify-center transition-transform group-hover:scale-105 active:scale-95"
+                  style={{ backgroundColor: customHex.startsWith('#') ? customHex : `#${customHex}` }}
+                >
+                  <Palette size={20} className="text-white drop-shadow" />
+                </div>
+              </button>
+
+              <div>
+                <div className="flex items-center gap-2">
+                  <h5 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+                    Custom Color Theme (কাস্টম থিম)
+                  </h5>
+                  {(activeTheme.startsWith('custom:') || activeTheme.startsWith('#')) && (
+                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-purple-500 text-white">
+                      Active
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mt-0.5">
+                  RGB: {currentRgb.r}, {currentRgb.g}, {currentRgb.b} • Click palette to choose color
+                </p>
+              </div>
+            </div>
+
+            {/* RGB Inputs and Color Pick Trigger */}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Individual R, G, B Controls */}
+              <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold">
+                <span className="text-[10px] font-black text-red-500">R:</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={255}
+                  value={currentRgb.r}
+                  onChange={(e) => {
+                    const newR = Math.max(0, Math.min(255, parseInt(e.target.value) || 0));
+                    const newHex = rgbToHex(newR, currentRgb.g, currentRgb.b);
+                    setCustomHex(newHex);
+                    onSelectTheme(`custom:${newHex}`);
+                  }}
+                  className="w-10 text-center bg-transparent outline-none font-mono text-slate-800 dark:text-slate-100"
+                />
+
+                <span className="text-[10px] font-black text-green-500 ml-1">G:</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={255}
+                  value={currentRgb.g}
+                  onChange={(e) => {
+                    const newG = Math.max(0, Math.min(255, parseInt(e.target.value) || 0));
+                    const newHex = rgbToHex(currentRgb.r, newG, currentRgb.b);
+                    setCustomHex(newHex);
+                    onSelectTheme(`custom:${newHex}`);
+                  }}
+                  className="w-10 text-center bg-transparent outline-none font-mono text-slate-800 dark:text-slate-100"
+                />
+
+                <span className="text-[10px] font-black text-blue-500 ml-1">B:</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={255}
+                  value={currentRgb.b}
+                  onChange={(e) => {
+                    const newB = Math.max(0, Math.min(255, parseInt(e.target.value) || 0));
+                    const newHex = rgbToHex(currentRgb.r, currentRgb.g, newB);
+                    setCustomHex(newHex);
+                    onSelectTheme(`custom:${newHex}`);
+                  }}
+                  className="w-10 text-center bg-transparent outline-none font-mono text-slate-800 dark:text-slate-100"
+                />
+              </div>
+
+              {/* Choose Color Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (colorPickerRef.current) {
+                    if ('showPicker' in colorPickerRef.current) {
+                      (colorPickerRef.current as any).showPicker();
+                    } else {
+                      colorPickerRef.current.click();
+                    }
+                  }
+                }}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-purple-500/20 active:scale-95 flex items-center gap-2 cursor-pointer shrink-0"
+              >
+                <Palette size={14} />
+                Pick RGB Color (কালার সিলেক্ট করুন)
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

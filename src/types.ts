@@ -93,6 +93,7 @@ export interface AppNotice {
   message: string;
   createdAt: string;
   expiresAt?: string;
+  scrollSpeedSeconds?: number;
   createdBy: string;
   viewers: { userId: string; userName: string; viewedAt: string }[];
 }

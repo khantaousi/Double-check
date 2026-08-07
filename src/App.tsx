@@ -1064,7 +1064,6 @@ export default function App() {
           --color-blue-600: #d97706;
           --color-blue-700: #b45309;
           --color-blue-800: #92400e;
-          --color-blue-900: #78350f;
           --color-blue-950: #451a03;
         }
       `,
@@ -1085,7 +1084,53 @@ export default function App() {
       `
     };
 
-    styleEl.textContent = themeStyles[theme] || themeStyles['classic-blue'];
+    if (themeStyles[theme]) {
+      styleEl.textContent = themeStyles[theme];
+    } else if (theme.startsWith('custom:') || theme.startsWith('#')) {
+      const hexColor = theme.replace('custom:', '');
+      let hex = hexColor.replace('#', '').trim();
+      if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+      if (hex.length === 6 && !isNaN(parseInt(hex, 16))) {
+        const num = parseInt(hex, 16);
+        const r = (num >> 16) & 255;
+        const g = (num >> 8) & 255;
+        const b = num & 255;
+
+        const blend = (factor: number, isDark = false) => {
+          if (!isDark) {
+            const nr = Math.round(r + (255 - r) * factor);
+            const ng = Math.round(g + (255 - g) * factor);
+            const nb = Math.round(b + (255 - b) * factor);
+            return `#${((1 << 24) + (nr << 16) + (ng << 8) + nb).toString(16).slice(1)}`;
+          } else {
+            const nr = Math.round(r * (1 - factor));
+            const ng = Math.round(g * (1 - factor));
+            const nb = Math.round(b * (1 - factor));
+            return `#${((1 << 24) + (nr << 16) + (ng << 8) + nb).toString(16).slice(1)}`;
+          }
+        };
+
+        styleEl.textContent = `
+          :root {
+            --color-blue-50: ${blend(0.93)};
+            --color-blue-100: ${blend(0.82)};
+            --color-blue-200: ${blend(0.65)};
+            --color-blue-300: ${blend(0.45)};
+            --color-blue-400: ${blend(0.25)};
+            --color-blue-500: #${hex};
+            --color-blue-600: ${blend(0.15, true)};
+            --color-blue-700: ${blend(0.30, true)};
+            --color-blue-800: ${blend(0.45, true)};
+            --color-blue-900: ${blend(0.60, true)};
+            --color-blue-950: ${blend(0.75, true)};
+          }
+        `;
+      } else {
+        styleEl.textContent = themeStyles['classic-blue'];
+      }
+    } else {
+      styleEl.textContent = themeStyles['classic-blue'];
+    }
   }, [activeTheme]);
 
   useEffect(() => {
@@ -1361,6 +1406,19 @@ export default function App() {
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'notices'));
     return () => unsubscribe();
   }, [user]);
+
+  // Periodic check to auto-remove expired notices in real time
+  useEffect(() => {
+    if (notices.length === 0) return;
+    const interval = setInterval(() => {
+      const now = new Date();
+      setNotices(prev => prev.filter(n => {
+        if (!n.expiresAt) return true;
+        return new Date(n.expiresAt) > now;
+      }));
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [notices.length]);
 
   const markAllAsRead = async () => {
     // Regular notifications
@@ -2474,6 +2532,36 @@ export default function App() {
         <AnimatePresence>
           {showWelcome && <WelcomeScreen onComplete={() => setShowWelcome(false)} userProfile={userProfile} user={user} />}
         </AnimatePresence>
+
+        {/* Global Announcement Banner (Sobar Opore Top Notice Banner) */}
+        {notices.length > 0 && (
+          <div className="bg-blue-50/90 dark:bg-[#030712] border-b border-blue-200/80 dark:border-cyan-950/80 text-slate-800 dark:text-slate-100 shadow-md dark:shadow-xl backdrop-blur-md overflow-hidden px-4 py-2 flex items-center gap-3 shrink-0 relative z-30 transition-colors duration-300">
+            <div className="flex items-center gap-2 bg-blue-100/90 dark:bg-slate-900/90 border border-blue-200 dark:border-slate-800 px-3 py-1.5 rounded-xl shrink-0 shadow-inner">
+              <Bell size={14} className="text-blue-600 dark:text-cyan-400 animate-pulse" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-cyan-400">ALERT</span>
+            </div>
+            
+            <div className="flex-1 overflow-hidden relative py-0.5">
+              <div 
+                className="animate-marquee whitespace-nowrap text-xs font-semibold text-slate-800 dark:text-slate-100 tracking-wide flex items-center"
+                style={{ animationDuration: `${notices[0]?.scrollSpeedSeconds || 25}s` }}
+              >
+                {notices.map((n, idx) => (
+                  <span key={n.id || idx} className="inline-flex items-center gap-3 mr-24">
+                    <span className="font-extrabold text-blue-700 dark:text-cyan-300 uppercase">[{n.title}]:</span>
+                    <span className="text-slate-800 dark:text-slate-200 font-medium">{n.message}</span>
+                    {n.expiresAt && (
+                      <span className="text-[9px] text-amber-800 dark:text-amber-400 font-mono bg-amber-100/80 dark:bg-amber-950/60 border border-amber-300/60 dark:border-amber-800/40 px-2 py-0.5 rounded-md">
+                        Expires: {formatBST(parseISO(n.expiresAt), 'MMM dd, HH:mm')}
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Top Header Bar */}
         <header className="h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 md:px-10 shrink-0 sticky top-0 z-20 transition-colors duration-300">
           <div className="flex items-center gap-5">
@@ -4255,9 +4343,20 @@ export default function App() {
 
                   {/* Confirm New Password */}
                   <div className="space-y-1.5">
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] block pl-1 text-slate-500 dark:text-slate-400">
-                      Confirm New Password
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[9px] font-black uppercase tracking-[0.2em] block pl-1 text-slate-500 dark:text-slate-400">
+                        Confirm New Password
+                      </label>
+                      {changePasswordConfirm.length > 0 && (
+                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded flex items-center gap-1 border ${
+                          changePasswordNew === changePasswordConfirm
+                            ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                            : 'bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800'
+                        }`}>
+                          {changePasswordNew === changePasswordConfirm ? 'Match' : 'Not Match'}
+                        </span>
+                      )}
+                    </div>
                     <div className="relative group">
                       <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-blue-500" size={16} />
                       <input
@@ -4267,7 +4366,13 @@ export default function App() {
                         disabled={isChangingPassword}
                         value={changePasswordConfirm}
                         onChange={e => setChangePasswordConfirm(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200/50 dark:border-slate-800 rounded-2xl py-4 pl-12 pr-12 text-xs font-mono tracking-widest transition-all focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100"
+                        className={`w-full bg-slate-50 dark:bg-slate-850 border rounded-2xl py-4 pl-12 pr-12 text-xs font-mono tracking-widest transition-all focus:outline-none text-slate-800 dark:text-slate-100 ${
+                          changePasswordConfirm.length > 0
+                            ? changePasswordNew === changePasswordConfirm
+                              ? 'border-emerald-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20'
+                              : 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500/20'
+                            : 'border-slate-200/50 dark:border-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
+                        }`}
                       />
                       <button
                         type="button"
