@@ -33,8 +33,10 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  if (errInfo.error.includes('Quota limit exceeded') || errInfo.error.includes('quota')) {
-    console.warn(`Firestore Quota Exceeded [${operationType}] at ${path}. Disabling noisy errors.`);
+  const errStr = errInfo.error.toLowerCase();
+  if (errStr.includes('quota') || errStr.includes('resource-exhausted') || errStr.includes('resource_exhausted')) {
+    // Silence quota errors so they don't flood developer console or break application UI
+    return;
   } else {
     console.error('Firestore Error: \n' + JSON.stringify(errInfo));
   }

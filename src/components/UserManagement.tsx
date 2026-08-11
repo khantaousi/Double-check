@@ -385,7 +385,7 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
                                 // Automatically grand all permissions when becoming admin
                                 updateDoc(doc(db, 'users', user.id!), cleanObject({ 
                                   permissions: { dashboard: 'write', rules: 'write', products: 'write', settings: 'write', tracker: 'write', printSlips: 'write' }
-                                })).catch(console.error);
+                                })).catch(() => {});
                               }
                             }}
                             className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-all duration-200 whitespace-nowrap shadow-sm hover:shadow-md hover:scale-[1.03] active:scale-95 ${

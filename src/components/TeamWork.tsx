@@ -610,15 +610,24 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       try {
         await batch.commit();
       } catch (err) {
-        console.error("Maintenance failed:", err);
+        const errStr = String(err).toLowerCase();
+        if (!errStr.includes('quota') && !errStr.includes('resource-exhausted')) {
+          console.error("Maintenance failed:", err);
+        }
         handleFirestoreError(err, OperationType.WRITE, 'tasks/batch-maintenance');
       }
     };
 
-    maintenance();
+    if (document.visibilityState === 'visible') {
+      maintenance();
+    }
     
     // Periodically run maintenance so if a user leaves the app open across midnight, tasks automatically submit.
-    const intervalId = setInterval(maintenance, 60000); // every minute
+    const intervalId = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        maintenance();
+      }
+    }, 300000); // every 5 minutes
     return () => clearInterval(intervalId);
   }, [tasks, isAdmin]);
 

@@ -676,7 +676,7 @@ export default function App() {
         return;
       }
 
-      if (now - lastSyncTimeRef.current >= 30000) {
+      if (now - lastSyncTimeRef.current >= 120000 && document.visibilityState === 'visible') {
         lastSyncTimeRef.current = now;
         try {
           const sessionDocRef = doc(db, 'sessions', currentSessionIdRef.current);
@@ -686,7 +686,10 @@ export default function App() {
             isOnline: true
           });
         } catch (err) {
-          console.error("Error syncing session duration:", err);
+          const errStr = String(err).toLowerCase();
+          if (!errStr.includes('quota') && !errStr.includes('resource-exhausted')) {
+            console.error("Error syncing session duration:", err);
+          }
         }
       }
     }, 1000);
@@ -703,7 +706,7 @@ export default function App() {
           totalDurationSeconds: finalSecs,
           lastActive: getBSTISOString(),
           isOnline: false
-        }).catch(console.error);
+        }).catch(() => {});
       }
     };
   }, [user, userProfile?.id]);
@@ -865,13 +868,18 @@ export default function App() {
 
           // Heartbeat to keep lastSeen updated while browsing
           heartbeat = setInterval(() => {
-            if (auth.currentUser) {
+            if (auth.currentUser && document.visibilityState === 'visible') {
               updateDoc(userRef, cleanObject({ 
                 lastSeen: getBSTISOString(),
                 isOnline: true 
-              })).catch(console.error);
+              })).catch((err) => {
+                const errStr = String(err).toLowerCase();
+                if (!errStr.includes('quota') && !errStr.includes('resource-exhausted')) {
+                  console.error("Heartbeat error:", err);
+                }
+              });
             }
-          }, 60000); // Every 1 minute
+          }, 300000); // Every 5 minutes
 
           unsubscribeProfile = onSnapshot(userRef, (doc) => {
             if (doc.exists()) {
@@ -880,7 +888,7 @@ export default function App() {
               
               // SECURITY: Immediate forced logout if account deactivated
               if (profile.isActive === false && u.email !== 'khantaousi@gmail.com') {
-                updateDoc(userRef, cleanObject({ isOnline: false, lastSeen: getBSTISOString() })).catch(console.error);
+                updateDoc(userRef, cleanObject({ isOnline: false, lastSeen: getBSTISOString() })).catch(() => {});
                 signOut();
                 setAuthError('Your account has been deactivated by an administrator.');
                 setLoginMode('staff');
@@ -4198,7 +4206,10 @@ export default function App() {
                         });
                         await updateDoc(doc(db, 'users', user.uid), cleanObject({ isOnline: false, lastSeen: getBSTISOString() }));
                       } catch (e) {
-                        console.error("Offline sync error:", e);
+                        const errStr = String(e).toLowerCase();
+                        if (!errStr.includes('quota') && !errStr.includes('resource-exhausted')) {
+                          console.error("Offline sync error:", e);
+                        }
                       }
                     }
                     signOut();

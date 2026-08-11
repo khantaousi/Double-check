@@ -1,7 +1,11 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
+import { setLogLevel } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut as fbSignOut, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer, collection, query, where, getDocs } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
+
+// Suppress excessive verbose logs from Firebase SDK
+setLogLevel('error');
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -49,9 +53,7 @@ async function initFirebase() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration.");
-    }
+    // Gracefully handle connection or quota error silently
   }
 }
 initFirebase();
