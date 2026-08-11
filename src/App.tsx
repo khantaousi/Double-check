@@ -4037,7 +4037,11 @@ export default function App() {
                       setLocalTheme(tId);
                       localStorage.setItem('local-theme', tId);
                     }}
-                    onProfileUpdated={() => {
+                    onProfileUpdated={(updatedFields) => {
+                      if (updatedFields && user) {
+                        setUserProfile(prev => prev ? { ...prev, ...updatedFields } : prev);
+                        setAllUsers(prev => prev.map(u => u.id === user.uid ? { ...u, ...updatedFields } : u));
+                      }
                       if (user) {
                         getDoc(doc(db, 'users', user.uid)).then(snap => {
                           if (snap.exists()) {

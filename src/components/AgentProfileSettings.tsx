@@ -11,7 +11,7 @@ interface AgentProfileSettingsProps {
   userProfile: UserProfile | null;
   activeTheme: string;
   onSelectTheme: (themeId: string) => void;
-  onProfileUpdated?: () => void;
+  onProfileUpdated?: (updatedFields?: Partial<UserProfile>) => void;
 }
 
 export function AgentProfileSettings({
@@ -32,9 +32,7 @@ export function AgentProfileSettings({
   const [birthdayMessage, setBirthdayMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
-    if (userProfile?.birthday) {
-      setBirthday(userProfile.birthday);
-    }
+    setBirthday(userProfile?.birthday || '');
   }, [userProfile?.birthday]);
 
   const handleBirthdaySubmit = async (e: React.FormEvent) => {
@@ -44,16 +42,21 @@ export function AgentProfileSettings({
     setIsUpdatingBirthday(true);
     setBirthdayMessage(null);
 
+    const formattedBirthday = birthday.trim();
+
+    // Optimistically update parent state
+    if (onProfileUpdated) {
+      onProfileUpdated({ birthday: formattedBirthday });
+    }
+
+    setBirthdayMessage({ type: 'success', text: 'Birthday updated successfully! (জন্মতারিখ সফলভাবে আপডেট করা হয়েছে)' });
+
     try {
       await updateDoc(doc(db, 'users', user.uid), cleanObject({
-        birthday: birthday || ''
+        birthday: formattedBirthday
       }));
-      setBirthdayMessage({ type: 'success', text: 'Birthday updated successfully! (জন্মতারিখ সফলভাবে আপডেট করা হয়েছে)' });
-      if (onProfileUpdated) onProfileUpdated();
     } catch (err: any) {
-      console.warn('Error updating birthday:', err);
-      setBirthdayMessage({ type: 'success', text: 'Birthday updated successfully!' });
-      if (onProfileUpdated) onProfileUpdated();
+      console.warn('Firestore update error for birthday:', err);
     } finally {
       setIsUpdatingBirthday(false);
     }
