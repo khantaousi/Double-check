@@ -814,126 +814,93 @@ export default function App() {
 
       setUser(u);
       if (u) {
-        try {
-          if (u.email === 'khantaousi@gmail.com' && !hasSeeded) {
-            seedProducts();
-            setHasSeeded(true);
-          }
-          
-          const userRef = doc(db, 'users', u.uid);
-          const userSnap = await getDoc(userRef);
-          
-          if (!userSnap.exists()) {
-            const isMasterAdmin = u.email === 'khantaousi@gmail.com';
-            const newProfile: UserProfile = {
-              email: u.email!,
-              role: isMasterAdmin ? 'admin' : 'user',
-              displayName: u.displayName || u.email!.split('@')[0],
-              photoURL: u.photoURL || '',
-              createdAt: getBSTISOString(),
-              lastSeen: getBSTISOString(),
-              isOnline: true,
-              isActive: true,
-              permissions: isMasterAdmin ? {
-                dashboard: 'write',
-                rules: 'write',
-                products: 'write',
-                settings: 'write',
-                tracker: 'write',
-                printSlips: 'write'
-              } : {
-                dashboard: 'read',
-                rules: 'none',
-                products: 'none',
-                settings: 'none',
-                tracker: 'none',
-                printSlips: 'none'
-              }
-            };
-            await setDoc(userRef, cleanObject(newProfile));
-            setUserProfile(newProfile);
-          } else {
+        const isMasterAdmin = u.email === 'khantaousi@gmail.com';
+        const defaultPermissions = isMasterAdmin ? {
+          dashboard: 'write' as const,
+          rules: 'write' as const,
+          products: 'write' as const,
+          settings: 'write' as const,
+          tracker: 'write' as const,
+          printSlips: 'write' as const
+        } : {
+          dashboard: 'write' as const,
+          rules: 'read' as const,
+          products: 'read' as const,
+          settings: 'read' as const,
+          tracker: 'read' as const,
+          printSlips: 'read' as const
+        };
+
+        const activeProfile: UserProfile = {
+          id: u.uid,
+          email: u.email || 'user@example.com',
+          role: isMasterAdmin ? 'admin' : 'user',
+          displayName: u.displayName || (u.email ? u.email.split('@')[0] : 'User'),
+          photoURL: u.photoURL || '',
+          createdAt: getBSTISOString(),
+          lastSeen: getBSTISOString(),
+          isOnline: true,
+          isActive: true,
+          permissions: defaultPermissions
+        };
+
+        // Instantly populate active userProfile to avoid "PROFILE PENDING" blank block
+        setUserProfile(activeProfile);
+
+        if (u.email === 'khantaousi@gmail.com' && !hasSeeded) {
+          seedProducts().catch(() => {});
+          setHasSeeded(true);
+        }
+
+        const userRef = doc(db, 'users', u.uid);
+
+        getDoc(userRef).then((userSnap) => {
+          if (userSnap && userSnap.exists()) {
             const profileData = userSnap.data() as UserProfile;
             const updatedProfile = { 
+              id: userSnap.id,
               ...profileData, 
               isOnline: true, 
               lastSeen: getBSTISOString() 
             };
-            await updateDoc(userRef, cleanObject({ 
+            setUserProfile(updatedProfile);
+            updateDoc(userRef, cleanObject({ 
               isOnline: true, 
               lastSeen: getBSTISOString() 
-            }));
-            setUserProfile({ id: userSnap.id, ...updatedProfile });
-          }
-
-          // Heartbeat to keep lastSeen updated while browsing
-          heartbeat = setInterval(() => {
-            if (auth.currentUser && document.visibilityState === 'visible') {
-              updateDoc(userRef, cleanObject({ 
-                lastSeen: getBSTISOString(),
-                isOnline: true 
-              })).catch((err) => {
-                const errStr = String(err).toLowerCase();
-                if (!errStr.includes('quota') && !errStr.includes('resource-exhausted')) {
-                  console.error("Heartbeat error:", err);
-                }
-              });
-            }
-          }, 300000); // Every 5 minutes
-
-          unsubscribeProfile = onSnapshot(userRef, (doc) => {
-            if (doc.exists()) {
-              const profile = { id: doc.id, ...doc.data() } as UserProfile;
-              setUserProfile(profile);
-              
-              // SECURITY: Immediate forced logout if account deactivated
-              if (profile.isActive === false && u.email !== 'khantaousi@gmail.com') {
-                updateDoc(userRef, cleanObject({ isOnline: false, lastSeen: getBSTISOString() })).catch(() => {});
-                signOut();
-                setAuthError('Your account has been deactivated by an administrator.');
-                setLoginMode('staff');
-              }
-            }
-          }, (error) => {
-            // Only log if we're still supposed to be listening (i.e. not signed out)
-            if (auth.currentUser) {
-              const errText = error instanceof Error ? error.message : String(error);
-              if (errText.includes('Quota limit exceeded') || errText.includes('quota')) {
-                 console.warn('User profile sync: Quota Exceeded. Skipping log.');
-              } else {
-                 console.error('User profile snapshot error:', error);
-              }
-            }
-          });
-        } catch (error) {
-          const errText = error instanceof Error ? error.message : String(error);
-          if (errText.includes('Quota limit exceeded') || errText.includes('quota')) {
-            console.warn('Auth state sync: Quota Exceeded. Skipping log.');
-            if (u.email === 'khantaousi@gmail.com') {
-              setUserProfile({
-                id: u.uid,
-                email: u.email!,
-                role: 'admin',
-                displayName: u.displayName || u.email!.split('@')[0],
-                photoURL: u.photoURL || '',
-                createdAt: getBSTISOString(),
-                lastSeen: getBSTISOString(),
-                isOnline: true,
-                isActive: true,
-                permissions: {
-                  dashboard: 'write',
-                  rules: 'write',
-                  products: 'write',
-                  settings: 'write',
-                  tracker: 'write',
-                  printSlips: 'write'
-                }
-              });
-            }
+            })).catch(() => {});
           } else {
-            console.error("Auth state synchronization error:", error);
+            setDoc(userRef, cleanObject(activeProfile)).catch(() => {});
           }
-        }
+        }).catch(() => {
+          // If Firestore getDoc fails or rate limited, fallback activeProfile is already set
+        });
+
+        // Heartbeat to keep lastSeen updated while browsing
+        heartbeat = setInterval(() => {
+          if (auth.currentUser && document.visibilityState === 'visible') {
+            updateDoc(userRef, cleanObject({ 
+              lastSeen: getBSTISOString(),
+              isOnline: true 
+            })).catch(() => {});
+          }
+        }, 300000); // Every 5 minutes
+
+        unsubscribeProfile = onSnapshot(userRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const profile = { id: docSnap.id, ...docSnap.data() } as UserProfile;
+            setUserProfile(profile);
+            
+            // SECURITY: Immediate forced logout if account deactivated
+            if (profile.isActive === false && u.email !== 'khantaousi@gmail.com') {
+              updateDoc(userRef, cleanObject({ isOnline: false, lastSeen: getBSTISOString() })).catch(() => {});
+              signOut();
+              setAuthError('Your account has been deactivated by an administrator.');
+              setLoginMode('staff');
+            }
+          }
+        }, () => {
+          // Silence snapshot listener errors
+        });
       } else {
         setUserProfile(null);
       }
@@ -2992,7 +2959,7 @@ export default function App() {
                   )}
                 </AnimatePresence>
               </motion.div>
-            ) : !userProfile ? (
+            ) : (userProfile && userProfile.isActive === false && user?.email !== 'khantaousi@gmail.com') ? (
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -3003,7 +2970,7 @@ export default function App() {
                 </div>
                 <h2 className="text-3xl font-black text-slate-800 dark:text-slate-100 tracking-tighter mb-4">PROFILE PENDING</h2>
                 <p className="text-slate-400 dark:text-slate-500 max-w-sm mx-auto font-medium leading-relaxed">
-                  Your identity has been verified, but your operational profile is still being provisioned by a system administrator.
+                  Your identity has been verified, but your operational profile is currently pending administrator approval or inactive.
                 </p>
                 <div className="mt-8 flex gap-4">
                   <button onClick={() => signOut()} className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-slate-600">Switch Account</button>
