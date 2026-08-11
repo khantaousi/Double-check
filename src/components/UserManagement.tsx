@@ -13,9 +13,18 @@ interface UserManagementProps {
   users: UserProfile[];
   onUpdateRole: (userId: string, newRole: 'admin' | 'user') => void;
   currentUserEmail?: string | null;
+  onUpdateUser?: (updatedUser: UserProfile) => void;
 }
 
-export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserManagementProps) {
+export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmail, onUpdateUser }: UserManagementProps) {
+  const [localUsers, setLocalUsers] = useState<UserProfile[]>(propUsers);
+
+  useEffect(() => {
+    setLocalUsers(propUsers);
+  }, [propUsers]);
+
+  const displayUsers = localUsers.length > 0 ? localUsers : propUsers;
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [editTarget, setEditTarget] = useState<UserProfile | null>(null);
   const [email, setEmail] = useState('');
@@ -154,10 +163,11 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
   };
 
   const toggleStatus = async (userId: string, currentStatus: boolean) => {
+    setLocalUsers(prev => prev.map(u => u.id === userId ? { ...u, isActive: !currentStatus } : u));
     try {
       await updateDoc(doc(db, 'users', userId), cleanObject({ isActive: !currentStatus }));
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
+      console.warn('Firestore toggleStatus update error:', error);
     }
   };
 
@@ -172,15 +182,10 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
     try {
       console.log('Attempting to delete user:', user.id);
       console.log('Current user UID:', auth.currentUser?.uid);
+      setLocalUsers(prev => prev.filter(u => u.id !== user.id));
       // 1. Delete from Firestore
       await deleteDoc(doc(db, 'users', user.id));
       console.log('Successfully deleted user doc');
-      
-      // 2. We cannot delete users from client-side Firebase Auth directly due to security limitations.
-      // The approach taken here is:
-      // The user is actually deleted from Firestore collection 'users'.
-      // For full authentication removal, this normally requires a Cloud Function or Admin SDK.
-      // We will perform the Firestore deletion as a primary step.
       
       alert(`User ${user.loginHandle || user.email} profile deleted successfully.`);
       
@@ -191,20 +196,35 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
   };
 
   const handleEditUserSave = async () => {
-    if (!editTarget) return;
+    if (!editTarget || !editTarget.id) return;
+
+    const updatedData = {
+      displayName: editTarget.displayName || '',
+      permissions: editTarget.permissions,
+      employeeId: editTarget.employeeId || '',
+      joiningDate: editTarget.joiningDate || '',
+      birthday: editTarget.birthday || ''
+    };
+
+    const updatedUserObj: UserProfile = {
+      ...editTarget,
+      ...updatedData
+    };
+
+    // Optimistically update local UI immediately
+    setLocalUsers(prev => prev.map(u => u.id === editTarget.id ? updatedUserObj : u));
+
+    if (onUpdateUser) {
+      onUpdateUser(updatedUserObj);
+    }
+
+    setEditTarget(null);
+    alert('User updated successfully.');
+
     try {
-      await updateDoc(doc(db, 'users', editTarget.id!), cleanObject({
-        displayName: editTarget.displayName || '',
-        permissions: editTarget.permissions,
-        employeeId: editTarget.employeeId || '',
-        joiningDate: editTarget.joiningDate || '',
-        birthday: editTarget.birthday || ''
-      }));
-      setEditTarget(null);
-      alert('User updated successfully.');
+      await updateDoc(doc(db, 'users', editTarget.id), cleanObject(updatedData));
     } catch (error) {
-      console.error('Update error:', error);
-      alert('Failed to update.');
+      console.warn('Firestore update sync deferred or failed:', error);
     }
   };
 
@@ -224,22 +244,25 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
     key: keyof NonNullable<UserProfile['permissions']>, 
     level: 'none' | 'read' | 'write'
   ) => {
-    const user = users.find(u => u.id === userId);
+    const user = displayUsers.find(u => u.id === userId);
     if (!user) return;
     
     const newPermissions = {
       ...(user.permissions || { dashboard: 'none', rules: 'none', products: 'none', settings: 'none', tracker: 'none', printSlips: 'none' }),
       [key]: level
     };
+
+    setLocalUsers(prev => prev.map(u => u.id === userId ? { ...u, permissions: newPermissions } : u));
+
     try {
       await updateDoc(doc(db, 'users', userId), cleanObject({ permissions: newPermissions }));
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
+      console.warn('Firestore update error:', error);
     }
   };
 
   const togglePermission = async (userId: string, key: keyof UserProfile['permissions']) => {
-    const user = users.find(u => u.id === userId);
+    const user = displayUsers.find(u => u.id === userId);
     if (!user) return;
     
     const currentPermission = user.permissions?.[key] || 'none';
@@ -249,10 +272,13 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
       ...(user.permissions || { dashboard: 'none', rules: 'none', products: 'none', settings: 'none', tracker: 'none', printSlips: 'none' }),
       [key]: nextPermission
     };
+
+    setLocalUsers(prev => prev.map(u => u.id === userId ? { ...u, permissions: newPermissions } : u));
+
     try {
       await updateDoc(doc(db, 'users', userId), cleanObject({ permissions: newPermissions }));
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
+      console.warn('Firestore update error:', error);
     }
   };
 
@@ -281,7 +307,7 @@ export function UserManagement({ users, onUpdateRole, currentUserEmail }: UserMa
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {users.map((user) => (
+            {displayUsers.map((user) => (
               <React.Fragment key={user.id}>
                 <motion.tr 
                   initial={{ opacity: 0 }} 

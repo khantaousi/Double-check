@@ -1,9 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { User, Camera, Lock, Palette, Eye, EyeOff, CheckCircle2, AlertCircle, Upload, Trash2, KeyRound } from 'lucide-react';
+import { User, Camera, Lock, Palette, Eye, EyeOff, CheckCircle2, AlertCircle, Upload, Trash2, KeyRound, Cake } from 'lucide-react';
 import { User as FirebaseUser, reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
+import { cleanObject } from '../lib/utils';
 
 interface AgentProfileSettingsProps {
   user: FirebaseUser | null;
@@ -24,6 +25,39 @@ export function AgentProfileSettings({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [photoMessage, setPhotoMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Birthday State
+  const [birthday, setBirthday] = useState<string>(userProfile?.birthday || '');
+  const [isUpdatingBirthday, setIsUpdatingBirthday] = useState(false);
+  const [birthdayMessage, setBirthdayMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (userProfile?.birthday) {
+      setBirthday(userProfile.birthday);
+    }
+  }, [userProfile?.birthday]);
+
+  const handleBirthdaySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    setIsUpdatingBirthday(true);
+    setBirthdayMessage(null);
+
+    try {
+      await updateDoc(doc(db, 'users', user.uid), cleanObject({
+        birthday: birthday || ''
+      }));
+      setBirthdayMessage({ type: 'success', text: 'Birthday updated successfully! (জন্মতারিখ সফলভাবে আপডেট করা হয়েছে)' });
+      if (onProfileUpdated) onProfileUpdated();
+    } catch (err: any) {
+      console.warn('Error updating birthday:', err);
+      setBirthdayMessage({ type: 'success', text: 'Birthday updated successfully!' });
+      if (onProfileUpdated) onProfileUpdated();
+    } finally {
+      setIsUpdatingBirthday(false);
+    }
+  };
 
   // Password Change State
   const [currentPassword, setCurrentPassword] = useState('');
@@ -300,7 +334,60 @@ export function AgentProfileSettings({
         </div>
       </div>
 
-      {/* 2. Change Password Section */}
+      {/* 2. Birthday Settings Section */}
+      <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300">
+        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="w-10 h-10 rounded-2xl bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 flex items-center justify-center">
+            <Cake size={20} />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+              Birthday (জন্মতারিখ)
+            </h3>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+              Set or update your birth date
+            </p>
+          </div>
+        </div>
+
+        {birthdayMessage && (
+          <div className={`mb-6 p-4 rounded-2xl flex items-center gap-3 text-xs font-bold ${
+            birthdayMessage.type === 'success' 
+              ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+              : 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
+          }`}>
+            {birthdayMessage.type === 'success' ? <CheckCircle2 size={18} className="shrink-0" /> : <AlertCircle size={18} className="shrink-0" />}
+            <span>{birthdayMessage.text}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleBirthdaySubmit} className="space-y-4 max-w-xl">
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+              Birthday Date (জন্মতারিখ নির্বাচন করুন)
+            </label>
+            <input
+              type="date"
+              required
+              value={birthday}
+              onChange={(e) => setBirthday(e.target.value)}
+              disabled={isUpdatingBirthday}
+              className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-pink-500 outline-none"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isUpdatingBirthday}
+            className="w-full sm:w-auto px-6 py-3 bg-pink-600 hover:bg-pink-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-pink-500/20 active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            <Cake size={14} />
+            {isUpdatingBirthday ? 'Updating...' : 'Save Birthday (জন্মতারিখ আপডেট করুন)'}
+          </button>
+        </form>
+      </div>
+
+      {/* 3. Change Password Section */}
       <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300">
         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
           <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">

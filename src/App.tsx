@@ -1707,13 +1707,18 @@ export default function App() {
 
   const handleUpdateUserRole = async (userId: string, newRole: 'admin' | 'user') => {
     if (!isAdmin) return;
+    setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
     try {
       await updateDoc(doc(db, 'users', userId), cleanObject({
         role: newRole
       }));
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
+      console.warn('Firestore update role error:', error);
     }
+  };
+
+  const handleUpdateUser = (updatedUser: UserProfile) => {
+    setAllUsers(prev => prev.map(u => u.id === updatedUser.id ? { ...u, ...updatedUser } : u));
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -4032,6 +4037,17 @@ export default function App() {
                       setLocalTheme(tId);
                       localStorage.setItem('local-theme', tId);
                     }}
+                    onProfileUpdated={() => {
+                      if (user) {
+                        getDoc(doc(db, 'users', user.uid)).then(snap => {
+                          if (snap.exists()) {
+                            const updated = { id: snap.id, ...snap.data() } as UserProfile;
+                            setUserProfile(updated);
+                            setAllUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
+                          }
+                        }).catch(() => {});
+                      }
+                    }}
                   />
 
                   {/* System Operational Settings (Admin Only) */}
@@ -4097,6 +4113,7 @@ export default function App() {
                   <UserManagement 
                     users={allUsers} 
                     onUpdateRole={handleUpdateUserRole}
+                    onUpdateUser={handleUpdateUser}
                     currentUserEmail={user?.email}
                   />
                 </motion.div>
