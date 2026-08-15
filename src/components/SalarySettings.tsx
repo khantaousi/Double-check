@@ -80,64 +80,50 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
     setTestResult(null);
 
     try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      };
-
-      if (formData.apiKey) {
-        if (formData.authHeaderType === 'Bearer') {
-          headers['Authorization'] = `Bearer ${formData.apiKey.trim()}`;
-        } else if (formData.authHeaderType === 'ApiKey') {
-          headers[formData.customHeaderName || 'X-API-KEY'] = formData.apiKey.trim();
-        } else if (formData.customHeaderName) {
-          headers[formData.customHeaderName] = formData.apiKey.trim();
-        }
-      }
-
-      let requestUrl = formData.apiUrl.trim();
-      let options: RequestInit = {
-        method: formData.httpMethod || 'GET',
-        headers
-      };
-
-      const paramKey = formData.paramName || 'employee_id';
-      const targetId = testEmployeeId.trim();
-
-      if (formData.httpMethod === 'POST') {
-        options.body = JSON.stringify({
-          [paramKey]: targetId,
-          test: true
-        });
-      } else {
-        const urlObj = new URL(requestUrl, window.location.origin);
-        urlObj.searchParams.set(paramKey, targetId);
-        requestUrl = urlObj.toString();
-      }
-
       const startTime = performance.now();
-      const res = await fetch(requestUrl, options);
+      const proxyRes = await fetch('/api/salary/proxy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          apiUrl: formData.apiUrl,
+          apiKey: formData.apiKey,
+          authHeaderType: formData.authHeaderType,
+          customHeaderName: formData.customHeaderName,
+          queryParamName: formData.queryParamName,
+          paramName: formData.paramName || 'employee_id',
+          httpMethod: formData.httpMethod || 'GET',
+          employeeId: testEmployeeId.trim(),
+          month: 'Current',
+          year: new Date().getFullYear()
+        })
+      });
       const endTime = performance.now();
 
-      let resData: any;
-      const contentType = res.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        resData = await res.json();
-      } else {
-        resData = await res.text();
-      }
+      const result = await proxyRes.json();
+      const duration = Math.round(endTime - startTime);
 
-      setTestResult({
-        success: res.ok,
-        status: res.status,
-        data: resData,
-        error: res.ok ? undefined : `HTTP Error ${res.status}: ${res.statusText || 'Request failed'}`,
-        urlUsed: `${requestUrl} (${Math.round(endTime - startTime)}ms)`
-      });
+      if (!proxyRes.ok || !result.ok) {
+        setTestResult({
+          success: false,
+          status: result.status || proxyRes.status,
+          data: result.data || result,
+          error: result.error || `HTTP ${result.status || proxyRes.status}: Request to external API failed.`,
+          urlUsed: `${result.urlUsed || formData.apiUrl} (${duration}ms)`
+        });
+      } else {
+        setTestResult({
+          success: true,
+          status: result.status || 200,
+          data: result.data,
+          urlUsed: `${result.urlUsed || formData.apiUrl} (${duration}ms)`
+        });
+      }
     } catch (err: any) {
       setTestResult({
         success: false,
-        error: `Network/CORS Error: ${err.message || 'Unable to connect to the external API'}. (Ensure the API allows requests from this domain or check API URL).`,
+        error: `Server proxy connection error: ${err.message || 'Failed to reach local server proxy'}.`,
         urlUsed: formData.apiUrl
       });
     } finally {
@@ -243,7 +229,7 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
           <div>
             <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5">
               <ShieldCheck size={13} className="text-emerald-500" />
-              Header Authentication Style
+              Authentication Method (অথেনটিকেশন ধরন)
             </label>
             <select
               value={formData.authHeaderType}
@@ -251,27 +237,58 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
               disabled={!canWrite || isSaving}
               className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
             >
-              <option value="ApiKey">X-API-KEY: {'<key>'}</option>
-              <option value="Bearer">Authorization: Bearer {'<key>'}</option>
-              <option value="Custom">Custom Header Name</option>
+              <option value="Bearer">Authorization: Bearer {'<token>'} (Standard Bearer)</option>
+              <option value="Token">Authorization: Token {'<token>'} (Token Style)</option>
+              <option value="ApiKey">X-API-KEY: {'<key>'} (Default Header)</option>
+              <option value="RawAuth">Authorization: {'<key>'} (Raw Auth Header)</option>
+              <option value="QueryParam">URL Query Parameter (?api_key={'<key>'})</option>
+              <option value="Custom">Custom Header Name (e.g. api-key / x-token)</option>
+              <option value="None">None (Public API - No Auth Required)</option>
             </select>
           </div>
 
-          {/* Custom Header Name (if selected or default) */}
-          <div>
-            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5">
-              <Sliders size={13} className="text-purple-500" />
-              Header Key Name
-            </label>
-            <input
-              type="text"
-              placeholder="X-API-KEY"
-              value={formData.customHeaderName || 'X-API-KEY'}
-              onChange={(e) => setFormData({ ...formData, customHeaderName: e.target.value })}
-              disabled={!canWrite || isSaving || formData.authHeaderType === 'Bearer'}
-              className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none disabled:opacity-50"
-            />
-          </div>
+          {/* Custom Header Name or Query Param Name */}
+          {formData.authHeaderType === 'QueryParam' ? (
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5">
+                <Sliders size={13} className="text-purple-500" />
+                Query Parameter Key Name
+              </label>
+              <input
+                type="text"
+                placeholder="api_key"
+                value={formData.queryParamName || 'api_key'}
+                onChange={(e) => setFormData({ ...formData, queryParamName: e.target.value.trim() })}
+                disabled={!canWrite || isSaving}
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">
+                e.g. api_key, key, token, or access_token
+              </p>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5">
+                <Sliders size={13} className="text-purple-500" />
+                Header Key Name (হেডার নাম - No spaces)
+              </label>
+              <input
+                type="text"
+                placeholder="X-API-KEY"
+                value={formData.customHeaderName || 'X-API-KEY'}
+                onChange={(e) => {
+                  // Clean header name to prevent invalid header errors with spaces
+                  const sanitized = e.target.value.replace(/\s+/g, '-');
+                  setFormData({ ...formData, customHeaderName: sanitized });
+                }}
+                disabled={!canWrite || isSaving || formData.authHeaderType === 'Bearer' || formData.authHeaderType === 'Token' || formData.authHeaderType === 'RawAuth' || formData.authHeaderType === 'None'}
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none disabled:opacity-50"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">
+                {formData.authHeaderType === 'Bearer' ? 'Using Authorization: Bearer <key>' : formData.authHeaderType === 'Token' ? 'Using Authorization: Token <key>' : 'e.g. X-API-KEY, api-key, or x-access-token (no spaces)'}
+              </p>
+            </div>
+          )}
 
           {/* Parameter Name */}
           <div>
@@ -283,7 +300,7 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
               type="text"
               placeholder="employee_id"
               value={formData.paramName}
-              onChange={(e) => setFormData({ ...formData, paramName: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, paramName: e.target.value.trim() })}
               disabled={!canWrite || isSaving}
               className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
             />
@@ -326,8 +343,23 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
             </select>
           </div>
 
+          {/* Admin Notes / Remarks */}
+          <div className="md:col-span-2">
+            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+              Admin Notes / Remarks (নোট বা মন্তব্য - Optional)
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. DA team salary recheck for double check"
+              value={formData.notes || ''}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              disabled={!canWrite || isSaving}
+              className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+          </div>
+
           {/* Enable/Disable Toggle */}
-          <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+          <div className="md:col-span-2 flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
             <div>
               <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
                 Enable Salary Integration (স্যালারি পোর্টাল সক্রিয় করুন)

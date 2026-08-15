@@ -174,7 +174,7 @@ export function SalaryPortal({
     };
   }, [activeUser, selectedMonth, selectedYear]);
 
-  // Fetch Salary from External API
+  // Fetch Salary from External API via Server Proxy
   const fetchSalary = useCallback(async () => {
     if (!activeUser) return;
 
@@ -201,68 +201,57 @@ export function SalaryPortal({
     setRawResponse(null);
 
     try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      };
-
-      if (apiConfig.apiKey) {
-        if (apiConfig.authHeaderType === 'Bearer') {
-          headers['Authorization'] = `Bearer ${apiConfig.apiKey.trim()}`;
-        } else if (apiConfig.authHeaderType === 'ApiKey') {
-          headers[apiConfig.customHeaderName || 'X-API-KEY'] = apiConfig.apiKey.trim();
-        } else if (apiConfig.customHeaderName) {
-          headers[apiConfig.customHeaderName] = apiConfig.apiKey.trim();
-        }
-      }
-
-      let requestUrl = apiConfig.apiUrl.trim();
-      const paramKey = apiConfig.paramName || 'employee_id';
-      let options: RequestInit = {
-        method: apiConfig.httpMethod || 'GET',
-        headers
-      };
-
-      if (apiConfig.httpMethod === 'POST') {
-        options.body = JSON.stringify({
-          [paramKey]: empId,
+      // Use server-side proxy to bypass CORS restrictions and provide clear diagnostic info
+      const proxyRes = await fetch('/api/salary/proxy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          apiUrl: apiConfig.apiUrl,
+          apiKey: apiConfig.apiKey,
+          authHeaderType: apiConfig.authHeaderType,
+          customHeaderName: apiConfig.customHeaderName,
+          queryParamName: apiConfig.queryParamName,
+          paramName: apiConfig.paramName || 'employee_id',
+          httpMethod: apiConfig.httpMethod || 'GET',
+          employeeId: empId,
           month: selectedMonth,
           year: selectedYear
-        });
-      } else {
-        const urlObj = new URL(requestUrl, window.location.origin);
-        urlObj.searchParams.set(paramKey, empId);
-        urlObj.searchParams.set('month', selectedMonth);
-        urlObj.searchParams.set('year', String(selectedYear));
-        requestUrl = urlObj.toString();
-      }
+        })
+      });
 
-      const res = await fetch(requestUrl, options);
-      
-      let resData: any;
-      const contentType = res.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        resData = await res.json();
-      } else {
-        const text = await res.text();
-        try {
-          resData = JSON.parse(text);
-        } catch {
-          resData = { message: text };
+      const result = await proxyRes.json();
+      setRawResponse(result.data || result);
+
+      if (!proxyRes.ok || !result.ok) {
+        const statusCode = result.status || proxyRes.status;
+        const remoteMsg = typeof result.data === 'string' ? result.data : (result.data?.message || result.data?.error || result.error);
+        
+        let errMsg = '';
+        if (statusCode === 404) {
+          errMsg = `Employee ID "${empId}" was not found in the payroll system (HTTP 404 Not Found).`;
+        } else if (statusCode === 401 || statusCode === 403) {
+          errMsg = `Authentication failed with external API (HTTP ${statusCode}). ${remoteMsg ? `Server response: "${remoteMsg}". ` : ''}Please check your API Key & Authentication Method in Settings.`;
+        } else if (statusCode === 502) {
+          errMsg = `Cannot connect to API server (${apiConfig.apiUrl}). Error: ${result.error || 'Server unreachable'}`;
+        } else {
+          errMsg = remoteMsg || result.error || `API returned status ${statusCode}`;
         }
+
+        throw new Error(errMsg);
       }
 
-      setRawResponse(resData);
-
-      if (!res.ok) {
-        throw new Error(resData?.message || `API returned error status ${res.status}: ${res.statusText}`);
+      const resData = result.data;
+      if (!resData) {
+        throw new Error('Empty response received from payroll API');
       }
 
       const parsed = parseSalaryResponse(resData, empId, activeUser.displayName || activeUser.email);
       setSalaryData(parsed);
     } catch (err: any) {
       console.warn('Salary API fetch error:', err);
-      setFetchError(`Unable to fetch salary: ${err.message || 'Network error or CORS issue'}`);
+      setFetchError(err.message || 'Unable to connect to salary API');
       setSalaryData(null);
     } finally {
       setIsLoading(false);
@@ -510,14 +499,36 @@ export function SalaryPortal({
 
       {/* Fetch Error Display */}
       {fetchError && (
-        <div className="p-5 rounded-3xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 space-y-2 shadow-sm">
-          <div className="flex items-center gap-2 font-black text-xs uppercase tracking-tight text-red-700 dark:text-red-300">
-            <AlertTriangle size={16} />
-            <span>Salary Fetch Warning</span>
+        <div className="p-6 rounded-3xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 space-y-3 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 font-black text-xs uppercase tracking-tight text-red-700 dark:text-red-300">
+              <AlertTriangle size={16} />
+              <span>Salary Fetch Warning</span>
+            </div>
+            {isAdmin && onNavigateToSettings && (
+              <button
+                type="button"
+                onClick={onNavigateToSettings}
+                className="text-[11px] font-black uppercase text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+              >
+                <SettingsIcon size={13} />
+                <span>Adjust API Settings &rarr;</span>
+              </button>
+            )}
           </div>
-          <p className="text-xs font-medium text-red-600 dark:text-red-300">
+          <p className="text-xs font-medium text-red-600 dark:text-red-300 leading-relaxed">
             {fetchError}
           </p>
+          {rawResponse && (
+            <details className="text-[10px] text-slate-500 dark:text-slate-400 bg-white/60 dark:bg-slate-900/60 p-3 rounded-xl border border-red-100 dark:border-red-900/30">
+              <summary className="cursor-pointer font-bold select-none text-slate-600 dark:text-slate-300">
+                Show Technical Response Details
+              </summary>
+              <pre className="mt-2 font-mono whitespace-pre-wrap overflow-x-auto p-2 bg-slate-100 dark:bg-slate-950 rounded-lg text-slate-800 dark:text-slate-200 text-[10px]">
+                {JSON.stringify(rawResponse, null, 2)}
+              </pre>
+            </details>
+          )}
         </div>
       )}
 

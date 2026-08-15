@@ -161,8 +161,9 @@ export const DEFAULT_DELIVERY_SETTINGS: DeliverySettings = {
 export interface SalaryApiConfig {
   apiUrl: string;
   apiKey: string;
-  authHeaderType: 'Bearer' | 'ApiKey' | 'Custom';
+  authHeaderType: 'Bearer' | 'ApiKey' | 'Token' | 'RawAuth' | 'QueryParam' | 'Custom' | 'None';
   customHeaderName?: string;
+  queryParamName?: string;
   paramName: string;
   httpMethod: 'GET' | 'POST';
   idField: 'employeeId' | 'email' | 'loginHandle';
@@ -177,6 +178,7 @@ export const DEFAULT_SALARY_API_CONFIG: SalaryApiConfig = {
   apiKey: '',
   authHeaderType: 'ApiKey',
   customHeaderName: 'X-API-KEY',
+  queryParamName: 'api_key',
   paramName: 'employee_id',
   httpMethod: 'GET',
   idField: 'employeeId',

@@ -99,6 +99,206 @@ async function startServer() {
 
   app.get("/api/health", (req, res) => res.json({ status: "ok" }));
   
+  // Helper to validate and sanitize HTTP header names (RFC 7230/9110 token rule)
+  function sanitizeHeaderName(raw: string | undefined, defaultName: string = 'X-API-KEY'): string {
+    if (!raw || typeof raw !== 'string') return defaultName;
+    const trimmed = raw.trim();
+    // Valid HTTP header token characters: letters, numbers, and allowed punctuation without spaces
+    const isValid = /^[a-zA-Z0-9!#$%&'*+-.^_`|~]+$/.test(trimmed);
+    if (isValid && trimmed.length > 0) {
+      return trimmed;
+    }
+    return defaultName;
+  }
+
+  // Server-side proxy for External Salary API to completely bypass CORS & Mixed-Content issues
+  app.post("/api/salary/proxy", async (req, res) => {
+    try {
+      const {
+        apiUrl,
+        apiKey,
+        authHeaderType = 'ApiKey',
+        customHeaderName = 'X-API-KEY',
+        queryParamName = 'api_key',
+        paramName = 'employee_id',
+        httpMethod = 'GET',
+        employeeId,
+        month,
+        year,
+        extraBody
+      } = req.body || {};
+
+      if (!apiUrl) {
+        return res.status(400).json({ ok: false, error: "Missing required 'apiUrl' parameter" });
+      }
+
+      const headers: Record<string, string> = {
+        'Accept': 'application/json, text/plain, */*',
+        'User-Agent': 'ParcelIntelligence-PayrollProxy/1.0'
+      };
+
+      // Sanitize API key (remove accidental quotes or whitespace)
+      let cleanedKey = (apiKey && typeof apiKey === 'string') ? apiKey.trim() : '';
+      if ((cleanedKey.startsWith('"') && cleanedKey.endsWith('"')) || (cleanedKey.startsWith("'") && cleanedKey.endsWith("'"))) {
+        cleanedKey = cleanedKey.slice(1, -1).trim();
+      }
+
+      let isQueryAuth = false;
+
+      let targetUrl = apiUrl.trim();
+
+      // Clean template placeholders like EMPLOYEE_ID, {employee_id}, :employee_id
+      if (employeeId !== undefined && employeeId !== null && employeeId !== '') {
+        targetUrl = targetUrl
+          .replace(/EMPLOYEE_ID/gi, String(employeeId))
+          .replace(new RegExp(`\\{${paramName}\\}`, 'gi'), String(employeeId))
+          .replace(new RegExp(`:${paramName}\\b`, 'gi'), String(employeeId));
+      }
+
+      if (cleanedKey && authHeaderType !== 'None') {
+        if (authHeaderType === 'Bearer') {
+          const authVal = cleanedKey.toLowerCase().startsWith('bearer ') ? cleanedKey : `Bearer ${cleanedKey}`;
+          headers['Authorization'] = authVal;
+          // Also set X-API-KEY for maximum compatibility with AI Studio Express routes
+          headers['X-API-KEY'] = cleanedKey;
+        } else if (authHeaderType === 'Token') {
+          const authVal = cleanedKey.toLowerCase().startsWith('token ') ? cleanedKey : `Token ${cleanedKey}`;
+          headers['Authorization'] = authVal;
+        } else if (authHeaderType === 'RawAuth') {
+          headers['Authorization'] = cleanedKey;
+        } else if (authHeaderType === 'ApiKey') {
+          const headerName = sanitizeHeaderName(customHeaderName, 'X-API-KEY');
+          try {
+            headers[headerName] = cleanedKey;
+            // Also provide Authorization Bearer fallback
+            headers['Authorization'] = `Bearer ${cleanedKey}`;
+          } catch {
+            headers['X-API-KEY'] = cleanedKey;
+          }
+        } else if (authHeaderType === 'Custom') {
+          const headerName = sanitizeHeaderName(customHeaderName, 'X-API-KEY');
+          try {
+            headers[headerName] = cleanedKey;
+          } catch {
+            headers['X-API-KEY'] = cleanedKey;
+          }
+        } else if (authHeaderType === 'QueryParam') {
+          isQueryAuth = true;
+        }
+      }
+      const method = (httpMethod || 'GET').toUpperCase();
+      const fetchOptions: RequestInit = {
+        method,
+        headers
+      };
+
+      const qParamKey = queryParamName && queryParamName.trim() ? queryParamName.trim() : 'api_key';
+
+      if (method === 'POST') {
+        headers['Content-Type'] = 'application/json';
+        const postBody: Record<string, any> = {
+          [paramName]: employeeId,
+          month,
+          year,
+          ...(extraBody || {})
+        };
+        if (isQueryAuth && cleanedKey) {
+          postBody[qParamKey] = cleanedKey;
+        }
+        fetchOptions.body = JSON.stringify(postBody);
+
+        if (isQueryAuth && cleanedKey) {
+          try {
+            const parsedUrl = new URL(targetUrl);
+            parsedUrl.searchParams.set(qParamKey, cleanedKey);
+            targetUrl = parsedUrl.toString();
+          } catch {
+            const sep = targetUrl.includes('?') ? '&' : '?';
+            targetUrl += `${sep}${encodeURIComponent(qParamKey)}=${encodeURIComponent(cleanedKey)}`;
+          }
+        }
+      } else {
+        try {
+          const parsedUrl = new URL(targetUrl);
+          if (employeeId !== undefined && employeeId !== null && employeeId !== '') {
+            parsedUrl.searchParams.set(paramName, String(employeeId));
+          }
+          if (month) parsedUrl.searchParams.set('month', String(month));
+          if (year) parsedUrl.searchParams.set('year', String(year));
+          if (isQueryAuth && cleanedKey) {
+            parsedUrl.searchParams.set(qParamKey, cleanedKey);
+          }
+          targetUrl = parsedUrl.toString();
+        } catch {
+          const separator = targetUrl.includes('?') ? '&' : '?';
+          const params: string[] = [];
+          if (employeeId !== undefined && employeeId !== null && employeeId !== '') {
+            params.push(`${encodeURIComponent(paramName)}=${encodeURIComponent(String(employeeId))}`);
+          }
+          if (month) params.push(`month=${encodeURIComponent(String(month))}`);
+          if (year) params.push(`year=${encodeURIComponent(String(year))}`);
+          if (isQueryAuth && cleanedKey) {
+            params.push(`${encodeURIComponent(qParamKey)}=${encodeURIComponent(cleanedKey)}`);
+          }
+          if (params.length > 0) {
+            targetUrl += `${separator}${params.join('&')}`;
+          }
+        }
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      fetchOptions.signal = controller.signal;
+
+      const remoteRes = await fetch(targetUrl, fetchOptions);
+      clearTimeout(timeoutId);
+
+      const contentType = remoteRes.headers.get('content-type') || '';
+      let responseData: any;
+      if (contentType.includes('application/json')) {
+        responseData = await remoteRes.json();
+      } else {
+        const text = await remoteRes.text();
+        try {
+          responseData = JSON.parse(text);
+        } catch {
+          responseData = text;
+        }
+      }
+
+      // Safe debug header summary
+      const safeHeadersSent: Record<string, string> = {};
+      Object.keys(headers).forEach(k => {
+        if (k.toLowerCase() === 'authorization') {
+          safeHeadersSent[k] = headers[k].length > 15 ? `${headers[k].slice(0, 10)}...${headers[k].slice(-4)}` : '***';
+        } else if (k.toLowerCase().includes('key')) {
+          safeHeadersSent[k] = headers[k].length > 10 ? `${headers[k].slice(0, 4)}...${headers[k].slice(-4)}` : '***';
+        } else {
+          safeHeadersSent[k] = headers[k];
+        }
+      });
+
+      return res.status(remoteRes.status).json({
+        status: remoteRes.status,
+        ok: remoteRes.ok,
+        data: responseData,
+        urlUsed: targetUrl,
+        headersSent: safeHeadersSent
+      });
+    } catch (error: any) {
+      console.error("Salary proxy error:", error);
+      const isTimeout = error.name === 'AbortError' || error.message?.includes('aborted');
+      return res.status(502).json({
+        status: 502,
+        ok: false,
+        error: isTimeout 
+          ? 'External API request timed out after 15 seconds. Please verify the URL or server status.' 
+          : (error.message || 'Failed to connect to external Salary API endpoint'),
+        details: error.toString()
+      });
+    }
+  });
+
   app.get("/api/diag", async (req, res) => {
     const db = await getDb();
     if (!db) return res.status(500).json({ status: "error" });
