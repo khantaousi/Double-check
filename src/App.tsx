@@ -10,7 +10,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { AppNotice, AppNotification, DataRow, TaskHistoryEntry, ValidationRule, ProductPrice, DEFAULT_RULES, DeliverySettings as IDeliverySettings, DEFAULT_DELIVERY_SETTINGS, UserProfile, GiftRule, SiteSettings, DEFAULT_SITE_SETTINGS, TeamTask } from './types';
+import { AppNotice, AppNotification, DataRow, TaskHistoryEntry, ValidationRule, ProductPrice, DEFAULT_RULES, DeliverySettings as IDeliverySettings, DEFAULT_DELIVERY_SETTINGS, UserProfile, GiftRule, SiteSettings, DEFAULT_SITE_SETTINGS, TeamTask, SalaryApiConfig, DEFAULT_SALARY_API_CONFIG } from './types';
 import { processData, calculateRow } from './lib/processor';
 import { RuleEditor } from './components/RuleEditor';
 import { GiftRuleEditor } from './components/GiftRuleEditor';
@@ -21,13 +21,15 @@ import { TeamWork } from './components/TeamWork';
 import { DeliverySettings } from './components/DeliverySettings';
 import { GeneralSettings } from './components/GeneralSettings';
 import { AgentProfileSettings } from './components/AgentProfileSettings';
+import { SalarySettings } from './components/SalarySettings';
+import { SalaryPortal } from './components/SalaryPortal';
 import { FileUpload } from './components/FileUpload';
 import { DataTable } from './components/DataTable';
 import { UserManagement } from './components/UserManagement';
 import { NoticeBoard } from './components/NoticeBoard';
 import WelcomeScreen from './components/WelcomeScreen';
 import { LiveTenureTracker } from './components/LiveTenureTracker';
-import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera, Shield, ArrowRight, Barcode, QrCode, Coins, Eye, EyeOff, Palette, Power, PowerOff } from 'lucide-react';
+import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera, Shield, ArrowRight, Barcode, QrCode, Coins, Eye, EyeOff, Palette, Power, PowerOff, Banknote, Wallet } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toPng } from 'html-to-image';
 import { db, auth, logInWithEmail, signOut, signInWithGoogle } from './lib/firebase';
@@ -43,11 +45,12 @@ import { PrintSlips } from './components/PrintSlips';
 import { Complaints } from './components/Complaints';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'validation' | 'rules' | 'products' | 'settings' | 'users' | 'tracker' | 'printSlips' | 'team' | 'complaints'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'validation' | 'rules' | 'products' | 'settings' | 'users' | 'tracker' | 'printSlips' | 'team' | 'complaints' | 'notices' | 'salary'>('dashboard');
   const [data, setData] = useState<DataRow[]>([]);
   const [rules, setRules] = useState<ValidationRule[]>(DEFAULT_RULES);
   const [delivery, setDelivery] = useState<IDeliverySettings>(DEFAULT_DELIVERY_SETTINGS);
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
+  const [salaryApiConfig, setSalaryApiConfig] = useState<SalaryApiConfig>(DEFAULT_SALARY_API_CONFIG);
   const [giftRules, setGiftRules] = useState<GiftRule[]>([]);
   const [products, setProducts] = useState<ProductPrice[]>([]);
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -1138,6 +1141,15 @@ export default function App() {
       handleFirestoreError(error, OperationType.GET, 'config/gift_rules');
     });
 
+    // Sync Salary API Config
+    const unsubscribeSalaryConfig = onSnapshot(doc(db, 'config', 'salary_api_config'), (docSnap) => {
+      if (docSnap.exists()) {
+        setSalaryApiConfig(docSnap.data() as SalaryApiConfig);
+      }
+    }, (error) => {
+      console.warn('Firestore salary config sync error:', error);
+    });
+
     // Auto-Maintenance Logic (Triggered by Admin)
     const runFrontendMaintenance = async () => {
       if (!isAdmin) return;
@@ -1300,6 +1312,7 @@ export default function App() {
       unsubscribeRules();
       unsubscribeDelivery();
       unsubscribeGifts();
+      unsubscribeSalaryConfig();
     };
   }, [user, isAdmin]);
 
@@ -1615,6 +1628,15 @@ export default function App() {
     }
   };
 
+  const handleSalaryConfigUpdate = async (newConfig: SalaryApiConfig) => {
+    setSalaryApiConfig(newConfig);
+    try {
+      await setDoc(doc(db, 'config', 'salary_api_config'), cleanObject(newConfig));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'config/salary_api_config');
+    }
+  };
+
   const handleAddProduct = async (name: string, price: number, wholesalePrice?: number, wholesaleThreshold?: number) => {
     if (!user) {
       alert("Please sign in to modify the product library.");
@@ -1756,6 +1778,7 @@ export default function App() {
   const canWriteToTab = (tab: typeof activeTab) => {
     if (user?.email === 'khantaousi@gmail.com') return true;
     if (userProfile?.role === 'admin') return true;
+    if (tab === 'salary') return true;
     const key = tab === 'validation' ? 'dashboard' : tab;
     return (userProfile?.permissions?.[key as keyof UserProfile['permissions']] || 'none') === 'write';
   };
@@ -1766,6 +1789,7 @@ export default function App() {
     if (tab === 'users') return false;
     if (tab === 'complaints') return true;
     if (tab === 'settings') return true;
+    if (tab === 'salary') return true;
     const key = tab === 'validation' ? 'dashboard' : tab;
     return (userProfile?.permissions?.[key as keyof UserProfile['permissions']] || 'none') !== 'none';
   };
@@ -2341,6 +2365,21 @@ export default function App() {
                   >
                     <Activity size={18} className="shrink-0" />
                     <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Product Tracking (PT)</span>
+                  </button>
+                )}
+
+                {userProfile && (
+                  <button 
+                    onClick={() => { setActiveTab('salary'); setIsSidebarOpen(false); }}
+                    title={isSidebarCollapsed ? "Salary Portal" : undefined}
+                    className={`w-full flex items-center gap-3 rounded-xl text-xs font-bold transition-all border ${isSidebarCollapsed ? 'justify-center py-3 px-0' : 'px-4 py-3'} ${
+                      activeTab === 'salary' 
+                        ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30 shadow-sm' 
+                        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <Banknote size={18} className="shrink-0 text-emerald-500" />
+                    <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Salary Portal (বেতন)</span>
                   </button>
                 )}
               </div>
@@ -4078,6 +4117,14 @@ export default function App() {
                           canWrite={true}
                         />
                       </div>
+
+                      <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none transition-colors duration-300">
+                        <SalarySettings 
+                          config={salaryApiConfig}
+                          onSave={handleSalaryConfigUpdate}
+                          canWrite={true}
+                        />
+                      </div>
                     </div>
                   ) : (
                     <div className="p-6 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-3xl text-center text-slate-400 dark:text-slate-500 text-xs font-bold flex flex-col items-center gap-2">
@@ -4098,6 +4145,25 @@ export default function App() {
                   className="max-w-3xl mx-auto pt-10"
                 >
                   <Complaints userProfile={userProfile} user={user} />
+                </motion.div>
+              )}
+
+              {activeTab === 'salary' && hasAccess('salary') && (
+                <motion.div
+                  key="salary"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="max-w-6xl mx-auto pt-8 px-2"
+                >
+                  <SalaryPortal
+                    currentUser={userProfile}
+                    allUsers={allUsers}
+                    apiConfig={salaryApiConfig}
+                    companyName={siteSettings.companyName}
+                    onNavigateToSettings={() => setActiveTab('settings')}
+                  />
                 </motion.div>
               )}
 

@@ -158,6 +158,64 @@ export const DEFAULT_DELIVERY_SETTINGS: DeliverySettings = {
   outsideDhaka: 140
 };
 
+export interface SalaryApiConfig {
+  apiUrl: string;
+  apiKey: string;
+  authHeaderType: 'Bearer' | 'ApiKey' | 'Custom';
+  customHeaderName?: string;
+  paramName: string;
+  httpMethod: 'GET' | 'POST';
+  idField: 'employeeId' | 'email' | 'loginHandle';
+  isActive: boolean;
+  notes?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export const DEFAULT_SALARY_API_CONFIG: SalaryApiConfig = {
+  apiUrl: '',
+  apiKey: '',
+  authHeaderType: 'ApiKey',
+  customHeaderName: 'X-API-KEY',
+  paramName: 'employee_id',
+  httpMethod: 'GET',
+  idField: 'employeeId',
+  isActive: true,
+  notes: ''
+};
+
+export interface SalaryBreakdownItem {
+  label: string;
+  amount: number;
+  type: 'earning' | 'deduction';
+}
+
+export interface SalaryRecord {
+  employeeId: string;
+  employeeName?: string;
+  month?: string;
+  year?: string | number;
+  basicSalary?: number;
+  grossSalary?: number;
+  netSalary: number;
+  totalEarnings?: number;
+  totalDeductions?: number;
+  bonuses?: number;
+  allowances?: number;
+  overtime?: number;
+  deductions?: number;
+  tax?: number;
+  providentFund?: number;
+  paymentStatus?: 'Paid' | 'Pending' | 'Processing' | 'On Hold';
+  paymentDate?: string;
+  paymentMethod?: string;
+  bankAccountOrMfs?: string;
+  breakdown?: SalaryBreakdownItem[];
+  slipUrl?: string;
+  remarks?: string;
+  rawResponse?: any;
+}
+
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   companyName: 'Parcel Intelligence',
   amountTolerance: 5,
