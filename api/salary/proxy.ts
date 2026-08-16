@@ -1,216 +1,150 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { IncomingMessage, ServerResponse } from 'http';
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Enable CORS
+export default async function handler(req: IncomingMessage & { body?: any; query?: any }, res: ServerResponse) {
+  // Set CORS headers
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-KEY, Authorization'
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-KEY, Authorization, x-api-key, api-key'
   );
+  res.setHeader('Content-Type', 'application/json');
 
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    res.statusCode = 200;
+    res.end();
+    return;
   }
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ ok: false, error: 'Method not allowed. Use POST.' });
+  // Helper to read request body stream if not parsed
+  let bodyData: any = {};
+  if (req.body && typeof req.body === 'object') {
+    bodyData = req.body;
+  } else {
+    try {
+      const buffers = [];
+      for await (const chunk of req) {
+        buffers.push(chunk);
+      }
+      const dataStr = Buffer.concat(buffers).toString();
+      if (dataStr) {
+        bodyData = JSON.parse(dataStr);
+      }
+    } catch {
+      bodyData = {};
+    }
   }
 
   const {
     apiUrl,
     apiKey,
-    authHeaderType,
-    customHeaderName,
-    queryParamName,
     paramName = 'employee_id',
     httpMethod = 'GET',
     employeeId,
     month,
     year,
     body: extraBody
-  } = req.body || {};
+  } = bodyData || {};
 
   if (!apiUrl) {
-    return res.status(400).json({
-      ok: false,
-      error: 'API URL is required'
+    res.statusCode = 400;
+    res.end(JSON.stringify({ ok: false, error: 'API URL is required' }));
+    return;
+  }
+
+  const cleanKey = String(apiKey || '').trim();
+  let targetUrl = String(apiUrl).trim()
+    .replace(/EMPLOYEE_ID/gi, String(employeeId || ''))
+    .replace(new RegExp(`\\{${paramName}\\}`, 'gi'), String(employeeId || ''))
+    .replace(new RegExp(`:${paramName}\\b`, 'gi'), String(employeeId || ''));
+
+  // Ensure employee_id query param
+  try {
+    const parsedUrl = new URL(targetUrl);
+    if (employeeId !== undefined && employeeId !== null && employeeId !== '') {
+      parsedUrl.searchParams.set(paramName, String(employeeId));
+    }
+    if (month) parsedUrl.searchParams.set('month', String(month));
+    if (year) parsedUrl.searchParams.set('year', String(year));
+    if (cleanKey) {
+      parsedUrl.searchParams.set('api_key', cleanKey);
+    }
+    targetUrl = parsedUrl.toString();
+  } catch {
+    const sep = targetUrl.includes('?') ? '&' : '?';
+    targetUrl += `${sep}${encodeURIComponent(paramName)}=${encodeURIComponent(String(employeeId || ''))}`;
+    if (cleanKey) {
+      targetUrl += `&api_key=${encodeURIComponent(cleanKey)}`;
+    }
+  }
+
+  const headers: Record<string, string> = {
+    'Accept': 'application/json, text/plain, */*',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) DA-Intelligence/2.0'
+  };
+
+  if (cleanKey) {
+    headers['X-API-KEY'] = cleanKey;
+    headers['x-api-key'] = cleanKey;
+    headers['api-key'] = cleanKey;
+    headers['apikey'] = cleanKey;
+    headers['Authorization'] = cleanKey.toLowerCase().startsWith('bearer ') ? cleanKey : `Bearer ${cleanKey}`;
+  }
+
+  const fetchOptions: RequestInit = {
+    method: (httpMethod || 'GET').toUpperCase(),
+    headers
+  };
+
+  if (fetchOptions.method === 'POST') {
+    headers['Content-Type'] = 'application/json';
+    fetchOptions.body = JSON.stringify({
+      [paramName]: employeeId,
+      api_key: cleanKey,
+      month,
+      year,
+      ...(extraBody || {})
     });
   }
 
-  const sanitizeHeaderName = (name: string, fallback: string) => {
-    if (!name || typeof name !== 'string') return fallback;
-    const sanitized = name.replace(/[^a-zA-Z0-9_-]/g, '').trim();
-    return sanitized || fallback;
-  };
-
-  const executeRequest = async (authMode: 'all' | 'x-api-key' | 'bearer' | 'custom' | 'query') => {
-    let targetUrl = String(apiUrl).trim()
-      .replace(/EMPLOYEE_ID/gi, String(employeeId || ''))
-      .replace(new RegExp(`\\{${paramName}\\}`, 'gi'), String(employeeId || ''))
-      .replace(new RegExp(`:${paramName}\\b`, 'gi'), String(employeeId || ''));
-
-    const cleanedKey = (apiKey || '').trim();
-    const qParamKey = (queryParamName || 'api_key').trim() || 'api_key';
-    const method = (httpMethod || 'GET').toUpperCase();
-
-    const headers: Record<string, string> = {
-      'Accept': 'application/json, text/plain, */*',
-      'User-Agent': 'DA-Team-Intelligence/2.0 (Vercel Serverless Proxy)'
-    };
-
-    if (cleanedKey) {
-      if (authMode === 'x-api-key') {
-        headers['X-API-KEY'] = cleanedKey;
-        headers['x-api-key'] = cleanedKey;
-      } else if (authMode === 'bearer') {
-        headers['Authorization'] = cleanedKey.toLowerCase().startsWith('bearer ') ? cleanedKey : `Bearer ${cleanedKey}`;
-      } else if (authMode === 'custom' && customHeaderName) {
-        const customName = sanitizeHeaderName(customHeaderName, 'X-API-KEY');
-        headers[customName] = cleanedKey;
-      } else if (authMode === 'all') {
-        const bearerVal = cleanedKey.toLowerCase().startsWith('bearer ') ? cleanedKey : `Bearer ${cleanedKey}`;
-        headers['Authorization'] = bearerVal;
-        headers['X-API-KEY'] = cleanedKey;
-        headers['x-api-key'] = cleanedKey;
-        headers['api-key'] = cleanedKey;
-        headers['apikey'] = cleanedKey;
-
-        if (customHeaderName && customHeaderName.trim()) {
-          const customName = sanitizeHeaderName(customHeaderName, 'X-API-KEY');
-          headers[customName] = cleanedKey;
-        }
-      }
-    }
-
-    const fetchOptions: RequestInit = {
-      method,
-      headers
-    };
-
-    const isQueryKey = (authMode === 'query' || authHeaderType === 'QueryParam') && Boolean(cleanedKey);
-
-    if (method === 'POST') {
-      headers['Content-Type'] = 'application/json';
-      const postBody: Record<string, any> = {
-        [paramName]: employeeId,
-        month,
-        year,
-        ...(extraBody || {})
-      };
-      if (isQueryKey) {
-        postBody[qParamKey] = cleanedKey;
-        postBody['apiKey'] = cleanedKey;
-        postBody['api_key'] = cleanedKey;
-      }
-      fetchOptions.body = JSON.stringify(postBody);
-
-      if (isQueryKey) {
-        try {
-          const parsedUrl = new URL(targetUrl);
-          parsedUrl.searchParams.set(qParamKey, cleanedKey);
-          targetUrl = parsedUrl.toString();
-        } catch {
-          const sep = targetUrl.includes('?') ? '&' : '?';
-          targetUrl += `${sep}${encodeURIComponent(qParamKey)}=${encodeURIComponent(cleanedKey)}`;
-        }
-      }
-    } else {
-      try {
-        const parsedUrl = new URL(targetUrl);
-        if (employeeId !== undefined && employeeId !== null && employeeId !== '') {
-          parsedUrl.searchParams.set(paramName, String(employeeId));
-        }
-        if (month) parsedUrl.searchParams.set('month', String(month));
-        if (year) parsedUrl.searchParams.set('year', String(year));
-        if (isQueryKey) {
-          parsedUrl.searchParams.set(qParamKey, cleanedKey);
-          parsedUrl.searchParams.set('api_key', cleanedKey);
-        }
-        targetUrl = parsedUrl.toString();
-      } catch {
-        const separator = targetUrl.includes('?') ? '&' : '?';
-        const params: string[] = [];
-        if (employeeId !== undefined && employeeId !== null && employeeId !== '') {
-          params.push(`${encodeURIComponent(paramName)}=${encodeURIComponent(String(employeeId))}`);
-        }
-        if (month) params.push(`month=${encodeURIComponent(String(month))}`);
-        if (year) params.push(`year=${encodeURIComponent(String(year))}`);
-        if (isQueryKey) {
-          params.push(`${encodeURIComponent(qParamKey)}=${encodeURIComponent(cleanedKey)}`);
-        }
-        if (params.length > 0) {
-          targetUrl += `${separator}${params.join('&')}`;
-        }
-      }
-    }
-
+  try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    const timer = setTimeout(() => controller.abort(), 25000);
 
+    const response = await fetch(targetUrl, {
+      ...fetchOptions,
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+
+    const rawText = await response.text();
+    let parsed: any = null;
     try {
-      const response = await fetch(targetUrl, {
-        ...fetchOptions,
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
+      parsed = JSON.parse(rawText);
+    } catch {
+      parsed = rawText;
+    }
 
-      const contentType = response.headers.get('content-type') || '';
-      const text = await response.text();
-
-      let parsedData: any = null;
-      try {
-        parsedData = JSON.parse(text);
-      } catch {
-        parsedData = null;
-      }
-
-      return {
+    res.statusCode = response.ok ? 200 : (response.status >= 200 && response.status < 600 ? response.status : 502);
+    res.end(
+      JSON.stringify({
         ok: response.ok,
         status: response.status,
-        statusText: response.statusText,
-        contentType,
-        data: parsedData || text,
-        urlUsed: targetUrl
-      };
-    } catch (err: any) {
-      clearTimeout(timeoutId);
-      return {
+        data: parsed,
+        urlUsed: targetUrl,
+        timestamp: new Date().toISOString()
+      })
+    );
+  } catch (err: any) {
+    res.statusCode = 500;
+    res.end(
+      JSON.stringify({
         ok: false,
         status: 500,
-        statusText: 'Fetch Error',
-        error: err.name === 'AbortError' ? 'Target external API timed out after 20 seconds' : (err.message || 'Network request failed'),
+        error: err.name === 'AbortError' ? 'Target API request timed out (25s)' : (err.message || 'Fetch failed'),
         urlUsed: targetUrl
-      };
-    }
-  };
-
-  try {
-    let modeToTry: 'all' | 'x-api-key' | 'bearer' | 'custom' | 'query' = 'x-api-key';
-    if (authHeaderType === 'Bearer') modeToTry = 'bearer';
-    else if (authHeaderType === 'Custom') modeToTry = 'custom';
-    else if (authHeaderType === 'QueryParam') modeToTry = 'query';
-    else if (authHeaderType === 'All') modeToTry = 'all';
-
-    let result = await executeRequest(modeToTry);
-
-    if (!result.ok && (result.status === 401 || result.status === 403)) {
-      // Try with query parameter and all headers combined
-      const fallbackResult = await executeRequest('all');
-      if (fallbackResult.ok) {
-        result = fallbackResult;
-      }
-    }
-
-    return res.status(result.ok ? 200 : (result.status >= 200 && result.status < 600 ? result.status : 502)).json({
-      ...result,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error: any) {
-    return res.status(500).json({
-      ok: false,
-      error: error.message || 'Internal proxy execution failed'
-    });
+      })
+    );
   }
 }

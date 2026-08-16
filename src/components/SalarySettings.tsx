@@ -318,36 +318,59 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
             };
           }
         } catch (directErr: any) {
-          // 3. Fallback: Public CORS proxy tunnel (handles Vercel browser CORS restrictions)
-          try {
-            const allOriginsUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(directUrl)}`;
-            const corsRes = await fetch(allOriginsUrl);
-            if (corsRes.ok) {
-              const corsData = await corsRes.json();
-              if (corsData.contents) {
+          // 3. Fallback: Multi-proxy CORS tunnels (handles Vercel browser CORS restrictions)
+          const corsProxies = [
+            `https://corsproxy.io/?url=${encodeURIComponent(directUrl)}`,
+            `https://api.allorigins.win/get?url=${encodeURIComponent(directUrl)}`,
+            `https://thingproxy.freeboard.io/fetch/${directUrl}`
+          ];
+
+          let tunnelSuccess = false;
+          for (const proxyUrl of corsProxies) {
+            try {
+              const corsRes = await fetch(proxyUrl, {
+                headers: {
+                  'Accept': 'application/json, text/plain, */*'
+                }
+              });
+
+              if (corsRes.ok) {
+                const corsText = await corsRes.text();
                 try {
-                  const parsedContents = JSON.parse(corsData.contents);
-                  result = {
-                    ok: true,
-                    status: corsData.status?.http_code || 200,
-                    data: parsedContents,
-                    urlUsed: `${directUrl} (via Secure CORS Tunnel)`
-                  };
+                  const corsJson = JSON.parse(corsText);
+                  let finalData = corsJson;
+                  if (corsJson.contents && typeof corsJson.contents === 'string') {
+                    try {
+                      finalData = JSON.parse(corsJson.contents);
+                    } catch {
+                      finalData = corsJson.contents;
+                    }
+                  }
+
+                  if (finalData && (finalData.success || finalData.employee || finalData.salaries || finalData.data)) {
+                    result = {
+                      ok: true,
+                      status: 200,
+                      data: finalData,
+                      urlUsed: `${directUrl} (via Secure Gateway)`
+                    };
+                    tunnelSuccess = true;
+                    break;
+                  }
                 } catch {
-                  result = {
-                    ok: true,
-                    status: 200,
-                    data: corsData.contents,
-                    urlUsed: `${directUrl} (via Secure CORS Tunnel)`
-                  };
+                  // try next proxy
                 }
               }
+            } catch {
+              // try next proxy
             }
-          } catch {
+          }
+
+          if (!tunnelSuccess) {
             result = {
               ok: false,
               status: 500,
-              error: `Connection error: ${directErr.message || 'Failed to fetch (CORS/Network error)'}`
+              error: `Connection error: ${directErr.message || 'Failed to fetch (CORS/Network restriction)'}`
             };
           }
         }

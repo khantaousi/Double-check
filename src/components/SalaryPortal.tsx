@@ -487,33 +487,55 @@ export function SalaryPortal({
             };
           }
         } catch (directErr: any) {
-          // Attempt 3: Public CORS proxy fallback for static Vercel deployments
-          try {
-            const allOriginsUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(directUrl)}`;
-            const corsRes = await fetch(allOriginsUrl);
-            if (corsRes.ok) {
-              const corsData = await corsRes.json();
-              if (corsData.contents) {
+          // Attempt 3: Multi-proxy CORS tunnels fallback for static Vercel deployments
+          const corsProxies = [
+            `https://corsproxy.io/?url=${encodeURIComponent(directUrl)}`,
+            `https://api.allorigins.win/get?url=${encodeURIComponent(directUrl)}`,
+            `https://thingproxy.freeboard.io/fetch/${directUrl}`
+          ];
+
+          let tunnelFound = false;
+          for (const proxyUrl of corsProxies) {
+            try {
+              const corsRes = await fetch(proxyUrl, {
+                headers: {
+                  'Accept': 'application/json, text/plain, */*'
+                }
+              });
+
+              if (corsRes.ok) {
+                const corsText = await corsRes.text();
                 try {
-                  const parsedContents = JSON.parse(corsData.contents);
-                  result = {
-                    ok: true,
-                    status: corsData.status?.http_code || 200,
-                    data: parsedContents,
-                    urlUsed: directUrl
-                  };
+                  const corsJson = JSON.parse(corsText);
+                  let finalData = corsJson;
+                  if (corsJson.contents && typeof corsJson.contents === 'string') {
+                    try {
+                      finalData = JSON.parse(corsJson.contents);
+                    } catch {
+                      finalData = corsJson.contents;
+                    }
+                  }
+
+                  if (finalData && (finalData.success || finalData.employee || finalData.salaries || finalData.data)) {
+                    result = {
+                      ok: true,
+                      status: 200,
+                      data: finalData,
+                      urlUsed: `${directUrl} (via Secure Gateway)`
+                    };
+                    tunnelFound = true;
+                    break;
+                  }
                 } catch {
-                  result = {
-                    ok: true,
-                    status: 200,
-                    data: corsData.contents,
-                    urlUsed: directUrl
-                  };
+                  // continue
                 }
               }
+            } catch {
+              // continue
             }
-          } catch {
-            // Keep direct error if allOrigins also fails
+          }
+
+          if (!tunnelFound) {
             result = {
               ok: false,
               status: 500,
