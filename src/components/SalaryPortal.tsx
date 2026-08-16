@@ -76,104 +76,235 @@ export function SalaryPortal({
 
   // Helper to parse diverse API responses into SalaryRecord
   const parseSalaryResponse = useCallback((raw: any, empId: string, empName: string): SalaryRecord => {
-    let payload = raw;
+    // 1. Recursively collect all object nodes in the response hierarchy
+    const allCandidateObjects: Record<string, any>[] = [];
+    const visited = new Set<any>();
+
+    const collectObjects = (current: any, depth = 0) => {
+      if (!current || depth > 10 || visited.has(current)) return;
+      visited.add(current);
+
+      if (Array.isArray(current)) {
+        for (const item of current) {
+          collectObjects(item, depth + 1);
+        }
+      } else if (typeof current === 'object') {
+        allCandidateObjects.push(current);
+        for (const key of Object.keys(current)) {
+          collectObjects(current[key], depth + 1);
+        }
+      }
+    };
+
+    collectObjects(raw);
+
     const employeeObj = (raw && typeof raw === 'object' && raw.employee) ? raw.employee : null;
-    const summaryObj = (raw && typeof raw === 'object' && raw.summary) ? raw.summary : null;
 
-    const monthIdx = months.indexOf(selectedMonth);
-    const monthNumStr = monthIdx >= 0 ? String(monthIdx + 1).padStart(2, '0') : '';
-    const targetYm = `${selectedYear}-${monthNumStr}`; // e.g. "2026-05"
+    // Helper: Normalize key strings for fuzzy matching
+    const cleanKey = (k: string) => String(k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
-    if (raw && typeof raw === 'object') {
-      if (Array.isArray(raw.salaries) && raw.salaries.length > 0) {
-        // Look for matching month if available, else pick latest/first
-        const matchingSal = raw.salaries.find((s: any) => {
-          const sMonth = String(s.salary_month || s.month || '').trim();
-          return (
-            sMonth === targetYm ||
-            sMonth.includes(targetYm) ||
-            sMonth.toLowerCase().includes(selectedMonth.toLowerCase()) ||
-            (sMonth.includes(String(selectedYear)) && sMonth.includes(monthNumStr))
-          );
-        });
-        payload = matchingSal || raw.salaries[0];
-      } else if (raw.data && typeof raw.data === 'object') {
-        if (Array.isArray(raw.data.salaries) && raw.data.salaries.length > 0) {
-          const matchingSal = raw.data.salaries.find((s: any) => {
-            const sMonth = String(s.salary_month || s.month || '').trim();
-            return (
-              sMonth === targetYm ||
-              sMonth.includes(targetYm) ||
-              sMonth.toLowerCase().includes(selectedMonth.toLowerCase()) ||
-              (sMonth.includes(String(selectedYear)) && sMonth.includes(monthNumStr))
-            );
-          });
-          payload = matchingSal || raw.data.salaries[0];
-        } else {
-          payload = raw.data;
-        }
-      } else if (raw.result && typeof raw.result === 'object') {
-        payload = raw.result;
-      } else if (raw.salary && typeof raw.salary === 'object') {
-        payload = raw.salary;
-      } else if (Array.isArray(raw) && raw.length > 0) {
-        payload = raw[0];
+    // Convert Bangla digits, formatted currency strings, or numbers into clean float
+    const parseNumber = (val: any): number => {
+      if (val === undefined || val === null || val === '') return NaN;
+      if (typeof val === 'number') return isNaN(val) ? NaN : val;
+      const strVal = String(val).trim();
+      if (!strVal) return NaN;
+
+      // Map Bengali numerals (০-৯) to Arabic numerals (0-9)
+      const bnNums: Record<string, string> = {
+        '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4',
+        '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9'
+      };
+      const normalizedStr = strVal.replace(/[০-৯]/g, (d) => bnNums[d] || d);
+
+      // Clean commas and extract numeric sequence
+      const cleaned = normalizedStr.replace(/,/g, '');
+      const match = cleaned.match(/-?\d+(?:\.\d+)?/);
+      if (match) {
+        const num = parseFloat(match[0]);
+        return isNaN(num) ? NaN : num;
+      }
+      return NaN;
+    };
+
+    // 2. Build a dynamic key-value item map for array-based items
+    // (e.g. [{ title: "Net Take-Home Salary", amount: "৳ ১২,৯৯৯" }, ...])
+    const itemMap: Record<string, any> = {};
+    for (const obj of allCandidateObjects) {
+      const labelVal = obj.label || obj.title || obj.name || obj.item || obj.key || obj.description || obj.field;
+      const amountVal = obj.amount ?? obj.value ?? obj.val ?? obj.salary ?? obj.total ?? obj.figure ?? obj.bdt;
+      if (labelVal && amountVal !== undefined) {
+        itemMap[cleanKey(String(labelVal))] = amountVal;
       }
     }
 
-    const getNum = (keys: string[], defaultVal = 0): number => {
-      if (!payload || typeof payload !== 'object') return defaultVal;
-      for (const k of keys) {
-        if (payload[k] !== undefined && payload[k] !== null) {
-          const val = Number(payload[k]);
-          if (!isNaN(val)) return val;
+    // 3. Number extractor across candidate objects & item map
+    const getNum = (aliases: string[], defaultVal = 0): number => {
+      const cleanedAliases = aliases.map(cleanKey);
+
+      // A) Check item map first
+      for (const alias of cleanedAliases) {
+        if (itemMap[alias] !== undefined) {
+          const val = parseNumber(itemMap[alias]);
+          if (!isNaN(val)) return Math.abs(val);
         }
       }
+
+      // B) Check exact cleaned key in all candidate objects
+      for (const obj of allCandidateObjects) {
+        const objKeys = Object.keys(obj);
+        for (const rawK of objKeys) {
+          const cK = cleanKey(rawK);
+          if (cleanedAliases.includes(cK)) {
+            const val = parseNumber(obj[rawK]);
+            if (!isNaN(val)) return Math.abs(val);
+          }
+        }
+      }
+
+      // C) Check substring matching
+      for (const obj of allCandidateObjects) {
+        const objKeys = Object.keys(obj);
+        for (const rawK of objKeys) {
+          const cK = cleanKey(rawK);
+          for (const alias of cleanedAliases) {
+            if (alias.length >= 4 && (cK.includes(alias) || alias.includes(cK))) {
+              const val = parseNumber(obj[rawK]);
+              if (!isNaN(val)) return Math.abs(val);
+            }
+          }
+        }
+      }
+
       return defaultVal;
     };
 
-    const getStr = (keys: string[], defaultVal = ''): string => {
-      if (!payload || typeof payload !== 'object') return defaultVal;
-      for (const k of keys) {
-        if (payload[k] !== undefined && payload[k] !== null) {
-          return String(payload[k]);
+    // 4. String extractor across candidate objects & item map
+    const getStr = (aliases: string[], defaultVal = ''): string => {
+      const cleanedAliases = aliases.map(cleanKey);
+
+      // A) Check item map
+      for (const alias of cleanedAliases) {
+        if (itemMap[alias] !== undefined && String(itemMap[alias]).trim() !== '') {
+          return String(itemMap[alias]).trim();
         }
       }
+
+      // B) Check exact cleaned key
+      for (const obj of allCandidateObjects) {
+        const objKeys = Object.keys(obj);
+        for (const rawK of objKeys) {
+          const cK = cleanKey(rawK);
+          if (cleanedAliases.includes(cK) && obj[rawK] !== undefined && obj[rawK] !== null) {
+            const s = String(obj[rawK]).trim();
+            if (s !== '' && s !== '[object Object]') return s;
+          }
+        }
+      }
+
+      // C) Check substring match
+      for (const obj of allCandidateObjects) {
+        const objKeys = Object.keys(obj);
+        for (const rawK of objKeys) {
+          const cK = cleanKey(rawK);
+          for (const alias of cleanedAliases) {
+            if (alias.length >= 4 && (cK.includes(alias) || alias.includes(cK))) {
+              const s = String(obj[rawK]).trim();
+              if (s !== '' && s !== '[object Object]') return s;
+            }
+          }
+        }
+      }
+
       return defaultVal;
     };
 
-    const gross = getNum(['gross_salary', 'gross', 'grossSalary', 'basic_salary', 'basic']);
-    const basic = getNum(['basic', 'basic_salary', 'basicSalary', 'base_salary', 'base']) || gross;
-    const bonus = getNum(['bonus', 'bonuses', 'total_bonus', 'festival_bonus', 'performance_bonus']);
-    const allowances = getNum(['allowance', 'allowances', 'house_rent', 'medical', 'transport', 'other_allowance']);
-    const overtime = getNum(['overtime', 'ot', 'overtime_amount']);
-    const deductions = getNum(['deductions', 'deduction', 'fine_and_deductions', 'total_deductions', 'fine', 'late_deduction']);
-    const tax = getNum(['tax', 'income_tax', 'ait']);
-    const pf = getNum(['provident_fund', 'pf', 'pension']);
-    
-    // Net salary calculation fallback
-    let net = getNum(['deposited_salary', 'total_payable_salary', 'net_salary', 'netSalary', 'net', 'payable_amount', 'total_payable', 'salary', 'amount', 'total']);
-    if (net === 0 && summaryObj && summaryObj.total_deposited_salary) {
-      net = Number(summaryObj.total_deposited_salary) || 0;
-    }
+    // Extract all numeric salary components
+    const gross = getNum([
+      'gross_salary', 'gross salary', 'grossSalary', 'gross', 'gross_pay', 'grossPay',
+      'gross_amount', 'gross amount', 'total_gross', 'total gross', 'base_salary', 'base salary'
+    ]);
+
+    const basic = getNum([
+      'basic_salary', 'basic salary', 'basicSalary', 'basic', 'basic_pay', 'basicPay',
+      'base_salary', 'base salary', 'main_salary', 'main salary'
+    ]) || gross;
+
+    const bonus = getNum([
+      'bonus_incentives', 'bonus / incentives', 'bonus and incentives', 'bonus_incentive',
+      'bonus', 'bonuses', 'incentive', 'incentives', 'performance_bonus', 'festival_bonus',
+      'bonus_amount', 'special_bonus', 'incentive_amount', 'total_bonus', 'reward'
+    ]);
+
+    const allowances = getNum([
+      'allowance', 'allowances', 'house_rent', 'medical', 'transport', 'conveyance',
+      'total_allowances', 'other_allowance', 'allowance_amount'
+    ]);
+
+    const overtime = getNum([
+      'overtime', 'ot', 'overtime_amount', 'ot_amount', 'overtime_pay'
+    ]);
+
+    const deductions = getNum([
+      'fine_and_deductions', 'fine and deductions', 'fine & deductions', 'fine_deductions',
+      'finedeductions', 'deductions', 'deduction', 'total_deductions', 'total deductions',
+      'total_deduction', 'fine', 'fines', 'late_deduction', 'penalty', 'late_fee', 'other_deductions'
+    ]);
+
+    const tax = getNum(['tax', 'income_tax', 'income tax', 'ait', 'tax_deduction']);
+    const pf = getNum(['provident_fund', 'provident fund', 'pf', 'pension', 'pf_deduction']);
+
+    // Net Take-Home Salary resolution
+    let net = getNum([
+      'net_take_home_salary', 'net take home salary', 'net_take_home', 'take_home_salary',
+      'take_home', 'net_salary', 'net salary', 'netSalary', 'net_pay', 'netPay', 'net_payable',
+      'net payable', 'payable_amount', 'payable salary', 'deposited_salary', 'total_deposited_salary',
+      'total payable', 'total_payable_salary', 'final_salary', 'disbursed_amount', 'net', 'salary', 'total'
+    ]);
+
+    // Cross-derive values if any are 0 but other breakdown items exist
     if (net === 0 && (gross > 0 || basic > 0)) {
-      net = (gross + bonus + allowances + overtime) - (deductions + tax + pf);
+      net = (gross || basic) + bonus + allowances + overtime - (deductions + tax + pf);
     }
 
     const totalEarnings = (gross > 0 ? (gross + bonus + allowances + overtime) : (basic + bonus + allowances + overtime)) || net;
     const totalDeductions = (deductions + tax + pf) || 0;
 
-    let statusRaw = getStr(['status', 'payment_status', 'paymentStatus', 'state'], 'Paid');
+    const statusRaw = getStr(['status', 'payment_status', 'paymentStatus', 'state', 'p_status'], 'Paid');
     let paymentStatus: 'Paid' | 'Pending' | 'Processing' | 'On Hold' = 'Paid';
     if (/pending|due|unpaid/i.test(statusRaw)) paymentStatus = 'Pending';
     else if (/process/i.test(statusRaw)) paymentStatus = 'Processing';
     else if (/hold/i.test(statusRaw)) paymentStatus = 'On Hold';
 
-    const paymentDate = getStr(['payment_date', 'paymentDate', 'date', 'disbursed_at', 'pay_date', 'salary_month'], `${selectedMonth} ${selectedYear}`);
-    const paymentMethod = getStr(['payment_method', 'paymentMethod', 'method', 'bank_name', 'channel', 'default_payment_channel'], employeeObj?.default_payment_channel || 'Bank / MFS Transfer');
-    const bankAccount = getStr(['account', 'account_number', 'account_no', 'bank_account', 'bKash', 'phone', 'mfs_account'], employeeObj?.account_number || activeUser?.loginHandle || '');
-    const remarks = getStr(['remarks', 'note', 'comment', 'description'], 'Monthly payroll disbursement');
+    const paymentDate = getStr([
+      'payment_date', 'paymentDate', 'date', 'disbursed_at', 'pay_date',
+      'salary_month', 'disbursement_date', 'paid_at'
+    ], `${selectedMonth} ${selectedYear}`);
 
+    // Payment Method & Account resolution
+    let rawPaymentMethod = getStr([
+      'payment_method', 'payment method', 'paymentMethod', 'method', 'bank_name', 'channel',
+      'default_payment_channel', 'payment_channel', 'mfs_provider'
+    ], employeeObj?.default_payment_channel || 'Rocket');
+
+    const rawAccount = getStr([
+      'account', 'account_number', 'account number', 'account_no', 'account no',
+      'acc_no', 'acc no', 'bank_account', 'bKash', 'rocket', 'nagad', 'phone',
+      'mfs_account', 'mobile_account'
+    ], employeeObj?.account_number || '');
+
+    // Format payment channel cleanly e.g. "Rocket (Account: 016352186660)"
+    let formattedPaymentMethod = rawPaymentMethod;
+    if (rawAccount && !formattedPaymentMethod.includes(rawAccount)) {
+      if (!formattedPaymentMethod || formattedPaymentMethod.toLowerCase() === 'bank / mfs transfer' || formattedPaymentMethod.toLowerCase() === 'bank transfer') {
+        formattedPaymentMethod = `Rocket (Account: ${rawAccount})`;
+      } else if (!formattedPaymentMethod.includes('(')) {
+        formattedPaymentMethod = `${formattedPaymentMethod} (Account: ${rawAccount})`;
+      }
+    }
+
+    const bankAccount = rawAccount || employeeObj?.account_number || activeUser?.loginHandle || '';
+    const remarks = getStr(['remarks', 'note', 'comment', 'description'], 'Monthly payroll disbursement');
     const displayName = employeeObj?.name || empName;
 
     const breakdownItems: { label: string; amount: number; type: 'earning' | 'deduction' }[] = [];
@@ -192,7 +323,7 @@ export function SalaryPortal({
       month: selectedMonth,
       year: selectedYear,
       basicSalary: basic || gross,
-      grossSalary: gross,
+      grossSalary: gross || (basic > 0 ? basic : (totalEarnings > 0 ? totalEarnings : net)),
       netSalary: net,
       totalEarnings,
       totalDeductions,
@@ -204,7 +335,7 @@ export function SalaryPortal({
       providentFund: pf,
       paymentStatus,
       paymentDate,
-      paymentMethod,
+      paymentMethod: formattedPaymentMethod,
       bankAccountOrMfs: bankAccount,
       breakdown: breakdownItems,
       remarks,
@@ -819,26 +950,39 @@ export function SalaryPortal({
               </div>
 
               <div className="space-y-3">
-                <div className="flex items-center justify-between text-xs py-1.5 border-b border-slate-50 dark:border-slate-800/60">
-                  <span className="font-bold text-slate-600 dark:text-slate-300">General Deductions / Fine</span>
-                  <span className="font-black font-mono text-slate-700 dark:text-slate-300">
-                    ৳ {(salaryData.deductions || 0).toLocaleString('en-IN')}
-                  </span>
-                </div>
+                {(salaryData.deductions || 0) > 0 && (
+                  <div className="flex items-center justify-between text-xs py-1.5 border-b border-slate-50 dark:border-slate-800/60">
+                    <span className="font-bold text-slate-600 dark:text-slate-300">Fine & Deductions (জরিমানা ও কর্তন)</span>
+                    <span className="font-black font-mono text-red-600 dark:text-red-400">
+                      - ৳ {(salaryData.deductions || 0).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                )}
 
-                <div className="flex items-center justify-between text-xs py-1.5 border-b border-slate-50 dark:border-slate-800/60">
-                  <span className="font-bold text-slate-600 dark:text-slate-300">Income Tax (AIT)</span>
-                  <span className="font-black font-mono text-slate-700 dark:text-slate-300">
-                    ৳ {(salaryData.tax || 0).toLocaleString('en-IN')}
-                  </span>
-                </div>
+                {(salaryData.tax || 0) > 0 && (
+                  <div className="flex items-center justify-between text-xs py-1.5 border-b border-slate-50 dark:border-slate-800/60">
+                    <span className="font-bold text-slate-600 dark:text-slate-300">Income Tax (AIT)</span>
+                    <span className="font-black font-mono text-red-600 dark:text-red-400">
+                      - ৳ {(salaryData.tax || 0).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                )}
 
-                <div className="flex items-center justify-between text-xs py-1.5 border-b border-slate-50 dark:border-slate-800/60">
-                  <span className="font-bold text-slate-600 dark:text-slate-300">Provident Fund (PF)</span>
-                  <span className="font-black font-mono text-slate-700 dark:text-slate-300">
-                    ৳ {(salaryData.providentFund || 0).toLocaleString('en-IN')}
-                  </span>
-                </div>
+                {(salaryData.providentFund || 0) > 0 && (
+                  <div className="flex items-center justify-between text-xs py-1.5 border-b border-slate-50 dark:border-slate-800/60">
+                    <span className="font-bold text-slate-600 dark:text-slate-300">Provident Fund (PF)</span>
+                    <span className="font-black font-mono text-red-600 dark:text-red-400">
+                      - ৳ {(salaryData.providentFund || 0).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                )}
+
+                {(salaryData.totalDeductions || 0) === 0 && (
+                  <div className="flex items-center justify-between text-xs py-1.5 border-b border-slate-50 dark:border-slate-800/60 text-slate-400">
+                    <span>No Deductions / Fine Applied</span>
+                    <span className="font-mono">৳ 0</span>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between text-xs pt-3 font-black text-red-600 dark:text-red-400">
                   <span>Total Deductions:</span>
