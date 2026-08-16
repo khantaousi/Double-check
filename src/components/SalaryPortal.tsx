@@ -201,42 +201,118 @@ export function SalaryPortal({
     setRawResponse(null);
 
     try {
-      // Use server-side proxy to bypass CORS restrictions and provide clear diagnostic info
-      const proxyRes = await fetch('/api/salary/proxy', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          apiUrl: apiConfig.apiUrl,
-          apiKey: apiConfig.apiKey,
-          authHeaderType: apiConfig.authHeaderType,
-          customHeaderName: apiConfig.customHeaderName,
-          queryParamName: apiConfig.queryParamName,
-          paramName: apiConfig.paramName || 'employee_id',
-          httpMethod: apiConfig.httpMethod || 'GET',
-          employeeId: empId,
-          month: selectedMonth,
-          year: selectedYear
-        })
-      });
+      let result: any = null;
+      let usedDirectFetch = false;
 
-      const result = await proxyRes.json();
-      setRawResponse(result.data || result);
+      // Attempt 1: Server-side proxy (bypasses CORS & handles headers)
+      try {
+        const proxyRes = await fetch('/api/salary/proxy', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            apiUrl: apiConfig.apiUrl,
+            apiKey: apiConfig.apiKey,
+            authHeaderType: apiConfig.authHeaderType,
+            customHeaderName: apiConfig.customHeaderName,
+            queryParamName: apiConfig.queryParamName,
+            paramName: apiConfig.paramName || 'employee_id',
+            httpMethod: apiConfig.httpMethod || 'GET',
+            employeeId: empId,
+            month: selectedMonth,
+            year: selectedYear
+          })
+        });
 
-      if (!proxyRes.ok || !result.ok) {
-        const statusCode = result.status || proxyRes.status;
-        const remoteMsg = typeof result.data === 'string' ? result.data : (result.data?.message || result.data?.error || result.error);
+        const rawText = await proxyRes.text();
+        try {
+          result = JSON.parse(rawText);
+        } catch {
+          // If proxy returned HTML or invalid JSON (e.g. 404 from static hosting or proxy error)
+          if (!proxyRes.ok || rawText.includes('<!DOCTYPE') || rawText.includes('The page')) {
+            result = null; // trigger fallback
+          } else {
+            result = { ok: false, status: proxyRes.status, error: rawText };
+          }
+        }
+      } catch {
+        result = null;
+      }
+
+      // Attempt 2: Direct browser fetch fallback (if proxy is not present in deployed static build)
+      if (!result) {
+        usedDirectFetch = true;
+        let directUrl = apiConfig.apiUrl.trim()
+          .replace(/EMPLOYEE_ID/gi, String(empId))
+          .replace(new RegExp(`\\{${apiConfig.paramName || 'employee_id'}\\}`, 'gi'), String(empId))
+          .replace(new RegExp(`:${apiConfig.paramName || 'employee_id'}\\b`, 'gi'), String(empId));
+
+        const directHeaders: Record<string, string> = {
+          'Accept': 'application/json, text/plain, */*'
+        };
+
+        const cleanKey = (apiConfig.apiKey || '').trim();
+        if (cleanKey) {
+          directHeaders['X-API-KEY'] = cleanKey;
+          directHeaders['Authorization'] = `Bearer ${cleanKey}`;
+        }
+
+        try {
+          const directUrlObj = new URL(directUrl);
+          if (!directUrlObj.searchParams.has(apiConfig.paramName || 'employee_id')) {
+            directUrlObj.searchParams.set(apiConfig.paramName || 'employee_id', String(empId));
+          }
+          if (cleanKey && apiConfig.authHeaderType === 'QueryParam') {
+            directUrlObj.searchParams.set(apiConfig.queryParamName || 'api_key', cleanKey);
+          }
+          directUrl = directUrlObj.toString();
+        } catch {
+          const sep = directUrl.includes('?') ? '&' : '?';
+          directUrl += `${sep}${encodeURIComponent(apiConfig.paramName || 'employee_id')}=${encodeURIComponent(String(empId))}`;
+        }
+
+        const directRes = await fetch(directUrl, {
+          method: 'GET',
+          headers: directHeaders
+        });
+
+        const directText = await directRes.text();
+        try {
+          const parsedJson = JSON.parse(directText);
+          result = {
+            ok: directRes.ok,
+            status: directRes.status,
+            data: parsedJson,
+            urlUsed: directUrl
+          };
+        } catch {
+          result = {
+            ok: false,
+            status: directRes.status,
+            error: directText.length > 150 ? `API returned non-JSON page (HTTP ${directRes.status})` : directText,
+            data: directText
+          };
+        }
+      }
+
+      setRawResponse(result?.data || result);
+
+      if (!result || !result.ok) {
+        const statusCode = result?.status || 500;
+        const remoteMsg = typeof result?.data === 'string' ? result.data : (result?.data?.message || result?.data?.error || result?.error);
         
         let errMsg = '';
-        if (statusCode === 404) {
+        if (typeof remoteMsg === 'string' && (remoteMsg.includes('The page') || remoteMsg.includes('<!DOCTYPE') || remoteMsg.includes('Not Found'))) {
+          errMsg = `External API Endpoint পাওয়া যায়নি (HTTP ${statusCode}). API URL ভুল বা সার্ভার নিষ্ক্রিয়। দয়া করে Settings-এ গিয়ে সঠিক API Link প্রদান করুন।`;
+        } else if (statusCode === 404) {
           errMsg = `Employee ID "${empId}" was not found in the payroll system (HTTP 404 Not Found).`;
         } else if (statusCode === 401 || statusCode === 403) {
-          errMsg = `Authentication failed with external API (HTTP ${statusCode}). ${remoteMsg ? `Server response: "${remoteMsg}". ` : ''}Please check your API Key & Authentication Method in Settings.`;
+          errMsg = `Authentication failed with external API (HTTP ${statusCode}). ${remoteMsg ? `Server response: "${remoteMsg}". ` : ''}Please check your API Key in Settings.`;
         } else if (statusCode === 502) {
-          errMsg = `Cannot connect to API server (${apiConfig.apiUrl}). Error: ${result.error || 'Server unreachable'}`;
+          errMsg = `Cannot connect to API server (${apiConfig.apiUrl}). Error: ${result?.error || 'Server unreachable'}`;
         } else {
-          errMsg = remoteMsg || result.error || `API returned status ${statusCode}`;
+          errMsg = remoteMsg || result?.error || `API returned status ${statusCode}`;
         }
 
         throw new Error(errMsg);

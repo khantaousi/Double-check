@@ -203,49 +203,120 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
 
     try {
       const startTime = performance.now();
-      const proxyRes = await fetch('/api/salary/proxy', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          apiUrl: formData.apiUrl,
-          apiKey: formData.apiKey,
-          authHeaderType: formData.authHeaderType,
-          customHeaderName: formData.customHeaderName,
-          queryParamName: formData.queryParamName,
-          paramName: formData.paramName || 'employee_id',
-          httpMethod: formData.httpMethod || 'GET',
-          employeeId: testEmployeeId.trim(),
-          month: 'Current',
-          year: new Date().getFullYear()
-        })
-      });
-      const endTime = performance.now();
+      let result: any = null;
 
-      const result = await proxyRes.json();
+      try {
+        const proxyRes = await fetch('/api/salary/proxy', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            apiUrl: formData.apiUrl,
+            apiKey: formData.apiKey,
+            authHeaderType: formData.authHeaderType,
+            customHeaderName: formData.customHeaderName,
+            queryParamName: formData.queryParamName,
+            paramName: formData.paramName || 'employee_id',
+            httpMethod: formData.httpMethod || 'GET',
+            employeeId: testEmployeeId.trim(),
+            month: 'Current',
+            year: new Date().getFullYear()
+          })
+        });
+
+        const rawText = await proxyRes.text();
+        try {
+          result = JSON.parse(rawText);
+        } catch {
+          if (!proxyRes.ok || rawText.includes('<!DOCTYPE') || rawText.includes('The page')) {
+            result = null;
+          } else {
+            result = { ok: false, status: proxyRes.status, error: rawText };
+          }
+        }
+      } catch {
+        result = null;
+      }
+
+      // Direct fallback
+      if (!result) {
+        let directUrl = formData.apiUrl.trim()
+          .replace(/EMPLOYEE_ID/gi, testEmployeeId.trim())
+          .replace(new RegExp(`\\{${formData.paramName || 'employee_id'}\\}`, 'gi'), testEmployeeId.trim())
+          .replace(new RegExp(`:${formData.paramName || 'employee_id'}\\b`, 'gi'), testEmployeeId.trim());
+
+        const directHeaders: Record<string, string> = {
+          'Accept': 'application/json, text/plain, */*'
+        };
+
+        const cleanKey = (formData.apiKey || '').trim();
+        if (cleanKey) {
+          directHeaders['X-API-KEY'] = cleanKey;
+          directHeaders['Authorization'] = `Bearer ${cleanKey}`;
+        }
+
+        try {
+          const directUrlObj = new URL(directUrl);
+          if (!directUrlObj.searchParams.has(formData.paramName || 'employee_id')) {
+            directUrlObj.searchParams.set(formData.paramName || 'employee_id', testEmployeeId.trim());
+          }
+          if (cleanKey && formData.authHeaderType === 'QueryParam') {
+            directUrlObj.searchParams.set(formData.queryParamName || 'api_key', cleanKey);
+          }
+          directUrl = directUrlObj.toString();
+        } catch {
+          const sep = directUrl.includes('?') ? '&' : '?';
+          directUrl += `${sep}${encodeURIComponent(formData.paramName || 'employee_id')}=${encodeURIComponent(testEmployeeId.trim())}`;
+        }
+
+        const directRes = await fetch(directUrl, {
+          method: 'GET',
+          headers: directHeaders
+        });
+
+        const directText = await directRes.text();
+        try {
+          const parsedJson = JSON.parse(directText);
+          result = {
+            ok: directRes.ok,
+            status: directRes.status,
+            data: parsedJson,
+            urlUsed: directUrl
+          };
+        } catch {
+          result = {
+            ok: false,
+            status: directRes.status,
+            error: directText.length > 200 ? `HTTP ${directRes.status}: Response is not JSON (Possible 404/500 HTML page)` : directText,
+            data: directText
+          };
+        }
+      }
+
+      const endTime = performance.now();
       const duration = Math.round(endTime - startTime);
 
-      if (!proxyRes.ok || !result.ok) {
+      if (!result || !result.ok) {
         setTestResult({
           success: false,
-          status: result.status || proxyRes.status,
-          data: result.data || result,
-          error: result.error || `HTTP ${result.status || proxyRes.status}: Request to external API failed.`,
-          urlUsed: `${result.urlUsed || formData.apiUrl} (${duration}ms)`
+          status: result?.status || 500,
+          data: result?.data || result,
+          error: result?.error || `HTTP ${result?.status || 500}: Request to external API failed.`,
+          urlUsed: `${result?.urlUsed || formData.apiUrl} (${duration}ms)`
         });
       } else {
         setTestResult({
           success: true,
-          status: result.status || 200,
-          data: result.data,
-          urlUsed: `${result.urlUsed || formData.apiUrl} (${duration}ms)`
+          status: result?.status || 200,
+          data: result?.data,
+          urlUsed: `${result?.urlUsed || formData.apiUrl} (${duration}ms)`
         });
       }
     } catch (err: any) {
       setTestResult({
         success: false,
-        error: `Server proxy connection error: ${err.message || 'Failed to reach local server proxy'}.`,
+        error: `Connection error: ${err.message || 'Failed to reach API endpoint'}.`,
         urlUsed: formData.apiUrl
       });
     } finally {

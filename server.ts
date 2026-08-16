@@ -306,10 +306,14 @@ async function startServer() {
         }
       });
 
+      const isHtmlResponse = typeof result.data === 'string' && (result.data.includes('<!DOCTYPE') || result.data.includes('<html') || result.data.includes('The page'));
+      const cleanData = isHtmlResponse ? { error: `Server returned non-JSON/HTML page (HTTP ${result.res.status})` } : result.data;
+
       return res.status(result.res.status).json({
         status: result.res.status,
-        ok: result.res.ok,
-        data: result.data,
+        ok: result.res.ok && !isHtmlResponse,
+        data: cleanData,
+        error: !result.res.ok || isHtmlResponse ? (isHtmlResponse ? `External API endpoint returned HTML error (HTTP ${result.res.status})` : (result.data?.message || result.data?.error || `HTTP ${result.res.status}`)) : undefined,
         urlUsed: result.url,
         headersSent: safeHeadersSent
       });
