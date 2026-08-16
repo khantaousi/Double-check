@@ -270,27 +270,62 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
           directUrl += `${sep}${encodeURIComponent(formData.paramName || 'employee_id')}=${encodeURIComponent(testEmployeeId.trim())}`;
         }
 
-        const directRes = await fetch(directUrl, {
-          method: 'GET',
-          headers: directHeaders
-        });
-
-        const directText = await directRes.text();
         try {
-          const parsedJson = JSON.parse(directText);
-          result = {
-            ok: directRes.ok,
-            status: directRes.status,
-            data: parsedJson,
-            urlUsed: directUrl
-          };
-        } catch {
-          result = {
-            ok: false,
-            status: directRes.status,
-            error: directText.length > 200 ? `HTTP ${directRes.status}: Response is not JSON (Possible 404/500 HTML page)` : directText,
-            data: directText
-          };
+          const directRes = await fetch(directUrl, {
+            method: 'GET',
+            headers: directHeaders
+          });
+
+          const directText = await directRes.text();
+          try {
+            const parsedJson = JSON.parse(directText);
+            result = {
+              ok: directRes.ok,
+              status: directRes.status,
+              data: parsedJson,
+              urlUsed: directUrl
+            };
+          } catch {
+            result = {
+              ok: false,
+              status: directRes.status,
+              error: directText.length > 200 ? `HTTP ${directRes.status}: Response is not JSON (Possible 404/500 HTML page)` : directText,
+              data: directText
+            };
+          }
+        } catch (directErr: any) {
+          // Public CORS proxy fallback
+          try {
+            const allOriginsUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(directUrl)}`;
+            const corsRes = await fetch(allOriginsUrl);
+            if (corsRes.ok) {
+              const corsData = await corsRes.json();
+              if (corsData.contents) {
+                try {
+                  const parsedContents = JSON.parse(corsData.contents);
+                  result = {
+                    ok: true,
+                    status: corsData.status?.http_code || 200,
+                    data: parsedContents,
+                    urlUsed: `${directUrl} (via CORS Tunnel)`
+                  };
+                } catch {
+                  result = {
+                    ok: true,
+                    status: 200,
+                    data: corsData.contents,
+                    urlUsed: `${directUrl} (via CORS Tunnel)`
+                  };
+                }
+              }
+            }
+          } catch {
+            result = {
+              ok: false,
+              status: 500,
+              error: `Connection error: ${directErr.message || 'Failed to fetch (CORS/Network error)'}`
+            };
+          }
         }
       }
 

@@ -410,7 +410,7 @@ export function SalaryPortal({
       }
 
       // Attempt 2: Direct browser fetch fallback (if proxy is not present in deployed static build)
-      if (!result) {
+      if (!result || (!result.ok && result.status === 0)) {
         usedDirectFetch = true;
         let directUrl = apiConfig.apiUrl.trim()
           .replace(/EMPLOYEE_ID/gi, String(empId))
@@ -441,27 +441,63 @@ export function SalaryPortal({
           directUrl += `${sep}${encodeURIComponent(apiConfig.paramName || 'employee_id')}=${encodeURIComponent(String(empId))}`;
         }
 
-        const directRes = await fetch(directUrl, {
-          method: 'GET',
-          headers: directHeaders
-        });
-
-        const directText = await directRes.text();
         try {
-          const parsedJson = JSON.parse(directText);
-          result = {
-            ok: directRes.ok,
-            status: directRes.status,
-            data: parsedJson,
-            urlUsed: directUrl
-          };
-        } catch {
-          result = {
-            ok: false,
-            status: directRes.status,
-            error: directText.length > 150 ? `API returned non-JSON page (HTTP ${directRes.status})` : directText,
-            data: directText
-          };
+          const directRes = await fetch(directUrl, {
+            method: 'GET',
+            headers: directHeaders
+          });
+
+          const directText = await directRes.text();
+          try {
+            const parsedJson = JSON.parse(directText);
+            result = {
+              ok: directRes.ok,
+              status: directRes.status,
+              data: parsedJson,
+              urlUsed: directUrl
+            };
+          } catch {
+            result = {
+              ok: false,
+              status: directRes.status,
+              error: directText.length > 150 ? `API returned non-JSON page (HTTP ${directRes.status})` : directText,
+              data: directText
+            };
+          }
+        } catch (directErr: any) {
+          // Attempt 3: Public CORS proxy fallback for static Vercel deployments
+          try {
+            const allOriginsUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(directUrl)}`;
+            const corsRes = await fetch(allOriginsUrl);
+            if (corsRes.ok) {
+              const corsData = await corsRes.json();
+              if (corsData.contents) {
+                try {
+                  const parsedContents = JSON.parse(corsData.contents);
+                  result = {
+                    ok: true,
+                    status: corsData.status?.http_code || 200,
+                    data: parsedContents,
+                    urlUsed: directUrl
+                  };
+                } catch {
+                  result = {
+                    ok: true,
+                    status: 200,
+                    data: corsData.contents,
+                    urlUsed: directUrl
+                  };
+                }
+              }
+            }
+          } catch {
+            // Keep direct error if allOrigins also fails
+            result = {
+              ok: false,
+              status: 500,
+              error: directErr.message || 'Failed to fetch (CORS/Network error)'
+            };
+          }
         }
       }
 
