@@ -77,19 +77,38 @@ export function SalaryPortal({
   // Helper to parse diverse API responses into SalaryRecord
   const parseSalaryResponse = useCallback((raw: any, empId: string, empName: string): SalaryRecord => {
     let payload = raw;
-    let employeeObj = (raw && typeof raw === 'object' && raw.employee) ? raw.employee : null;
+    const employeeObj = (raw && typeof raw === 'object' && raw.employee) ? raw.employee : null;
+    const summaryObj = (raw && typeof raw === 'object' && raw.summary) ? raw.summary : null;
+
+    const monthIdx = months.indexOf(selectedMonth);
+    const monthNumStr = monthIdx >= 0 ? String(monthIdx + 1).padStart(2, '0') : '';
+    const targetYm = `${selectedYear}-${monthNumStr}`; // e.g. "2026-05"
 
     if (raw && typeof raw === 'object') {
       if (Array.isArray(raw.salaries) && raw.salaries.length > 0) {
         // Look for matching month if available, else pick latest/first
         const matchingSal = raw.salaries.find((s: any) => {
-          const sMonth = String(s.salary_month || s.month || '');
-          return sMonth.includes(selectedMonth) || sMonth.includes(String(selectedYear));
+          const sMonth = String(s.salary_month || s.month || '').trim();
+          return (
+            sMonth === targetYm ||
+            sMonth.includes(targetYm) ||
+            sMonth.toLowerCase().includes(selectedMonth.toLowerCase()) ||
+            (sMonth.includes(String(selectedYear)) && sMonth.includes(monthNumStr))
+          );
         });
         payload = matchingSal || raw.salaries[0];
       } else if (raw.data && typeof raw.data === 'object') {
         if (Array.isArray(raw.data.salaries) && raw.data.salaries.length > 0) {
-          payload = raw.data.salaries[0];
+          const matchingSal = raw.data.salaries.find((s: any) => {
+            const sMonth = String(s.salary_month || s.month || '').trim();
+            return (
+              sMonth === targetYm ||
+              sMonth.includes(targetYm) ||
+              sMonth.toLowerCase().includes(selectedMonth.toLowerCase()) ||
+              (sMonth.includes(String(selectedYear)) && sMonth.includes(monthNumStr))
+            );
+          });
+          payload = matchingSal || raw.data.salaries[0];
         } else {
           payload = raw.data;
         }
@@ -123,7 +142,8 @@ export function SalaryPortal({
       return defaultVal;
     };
 
-    const basic = getNum(['basic', 'basic_salary', 'basicSalary', 'base_salary', 'base']);
+    const gross = getNum(['gross_salary', 'gross', 'grossSalary', 'basic_salary', 'basic']);
+    const basic = getNum(['basic', 'basic_salary', 'basicSalary', 'base_salary', 'base']) || gross;
     const bonus = getNum(['bonus', 'bonuses', 'total_bonus', 'festival_bonus', 'performance_bonus']);
     const allowances = getNum(['allowance', 'allowances', 'house_rent', 'medical', 'transport', 'other_allowance']);
     const overtime = getNum(['overtime', 'ot', 'overtime_amount']);
@@ -133,12 +153,14 @@ export function SalaryPortal({
     
     // Net salary calculation fallback
     let net = getNum(['deposited_salary', 'total_payable_salary', 'net_salary', 'netSalary', 'net', 'payable_amount', 'total_payable', 'salary', 'amount', 'total']);
-    if (net === 0 && basic > 0) {
-      net = (basic + bonus + allowances + overtime) - (deductions + tax + pf);
+    if (net === 0 && summaryObj && summaryObj.total_deposited_salary) {
+      net = Number(summaryObj.total_deposited_salary) || 0;
+    }
+    if (net === 0 && (gross > 0 || basic > 0)) {
+      net = (gross + bonus + allowances + overtime) - (deductions + tax + pf);
     }
 
-    const gross = getNum(['gross_salary', 'gross', 'grossSalary']) || (basic + bonus + allowances + overtime) || net;
-    const totalEarnings = (basic + bonus + allowances + overtime) || gross;
+    const totalEarnings = (gross > 0 ? (gross + bonus + allowances + overtime) : (basic + bonus + allowances + overtime)) || net;
     const totalDeductions = (deductions + tax + pf) || 0;
 
     let statusRaw = getStr(['status', 'payment_status', 'paymentStatus', 'state'], 'Paid');
@@ -155,12 +177,12 @@ export function SalaryPortal({
     const displayName = employeeObj?.name || empName;
 
     const breakdownItems: { label: string; amount: number; type: 'earning' | 'deduction' }[] = [];
-    if (basic > 0) breakdownItems.push({ label: 'Basic Salary (মূল বেতন)', amount: basic, type: 'earning' });
-    else if (gross > 0) breakdownItems.push({ label: 'Gross Salary (মোট বেতন)', amount: gross, type: 'earning' });
-    if (allowances > 0) breakdownItems.push({ label: 'Allowances & House Rent (ভাতা)', amount: allowances, type: 'earning' });
+    if (gross > 0) breakdownItems.push({ label: 'Gross Salary (মোট মূল বেতন)', amount: gross, type: 'earning' });
+    else if (basic > 0) breakdownItems.push({ label: 'Basic Salary (মূল বেতন)', amount: basic, type: 'earning' });
     if (bonus > 0) breakdownItems.push({ label: 'Bonus / Incentives (বোনাস)', amount: bonus, type: 'earning' });
+    if (allowances > 0) breakdownItems.push({ label: 'Allowances & House Rent (ভাতা)', amount: allowances, type: 'earning' });
     if (overtime > 0) breakdownItems.push({ label: 'Overtime Pay (ওভারটাইম)', amount: overtime, type: 'earning' });
-    if (deductions > 0) breakdownItems.push({ label: 'Fine & Deductions (কর্তন)', amount: deductions, type: 'deduction' });
+    if (deductions > 0) breakdownItems.push({ label: 'Fine & Deductions (জরিমানা ও কর্তন)', amount: deductions, type: 'deduction' });
     if (tax > 0) breakdownItems.push({ label: 'Tax Deduction (আয়কর)', amount: tax, type: 'deduction' });
     if (pf > 0) breakdownItems.push({ label: 'Provident Fund (পিএফ)', amount: pf, type: 'deduction' });
 
