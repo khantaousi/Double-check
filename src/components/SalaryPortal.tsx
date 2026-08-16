@@ -77,9 +77,22 @@ export function SalaryPortal({
   // Helper to parse diverse API responses into SalaryRecord
   const parseSalaryResponse = useCallback((raw: any, empId: string, empName: string): SalaryRecord => {
     let payload = raw;
+    let employeeObj = (raw && typeof raw === 'object' && raw.employee) ? raw.employee : null;
+
     if (raw && typeof raw === 'object') {
-      if (raw.data && typeof raw.data === 'object') {
-        payload = raw.data;
+      if (Array.isArray(raw.salaries) && raw.salaries.length > 0) {
+        // Look for matching month if available, else pick latest/first
+        const matchingSal = raw.salaries.find((s: any) => {
+          const sMonth = String(s.salary_month || s.month || '');
+          return sMonth.includes(selectedMonth) || sMonth.includes(String(selectedYear));
+        });
+        payload = matchingSal || raw.salaries[0];
+      } else if (raw.data && typeof raw.data === 'object') {
+        if (Array.isArray(raw.data.salaries) && raw.data.salaries.length > 0) {
+          payload = raw.data.salaries[0];
+        } else {
+          payload = raw.data;
+        }
       } else if (raw.result && typeof raw.result === 'object') {
         payload = raw.result;
       } else if (raw.salary && typeof raw.salary === 'object') {
@@ -111,20 +124,20 @@ export function SalaryPortal({
     };
 
     const basic = getNum(['basic', 'basic_salary', 'basicSalary', 'base_salary', 'base']);
-    const bonus = getNum(['bonus', 'bonuses', 'festival_bonus', 'performance_bonus']);
+    const bonus = getNum(['bonus', 'bonuses', 'total_bonus', 'festival_bonus', 'performance_bonus']);
     const allowances = getNum(['allowance', 'allowances', 'house_rent', 'medical', 'transport', 'other_allowance']);
     const overtime = getNum(['overtime', 'ot', 'overtime_amount']);
-    const deductions = getNum(['deductions', 'deduction', 'total_deductions', 'fine', 'late_deduction']);
+    const deductions = getNum(['deductions', 'deduction', 'fine_and_deductions', 'total_deductions', 'fine', 'late_deduction']);
     const tax = getNum(['tax', 'income_tax', 'ait']);
     const pf = getNum(['provident_fund', 'pf', 'pension']);
     
     // Net salary calculation fallback
-    let net = getNum(['net_salary', 'netSalary', 'net', 'payable_amount', 'total_payable', 'salary', 'amount', 'total']);
+    let net = getNum(['deposited_salary', 'total_payable_salary', 'net_salary', 'netSalary', 'net', 'payable_amount', 'total_payable', 'salary', 'amount', 'total']);
     if (net === 0 && basic > 0) {
       net = (basic + bonus + allowances + overtime) - (deductions + tax + pf);
     }
 
-    const gross = getNum(['gross_salary', 'gross', 'grossSalary']) || (basic + bonus + allowances + overtime);
+    const gross = getNum(['gross_salary', 'gross', 'grossSalary']) || (basic + bonus + allowances + overtime) || net;
     const totalEarnings = (basic + bonus + allowances + overtime) || gross;
     const totalDeductions = (deductions + tax + pf) || 0;
 
@@ -134,26 +147,29 @@ export function SalaryPortal({
     else if (/process/i.test(statusRaw)) paymentStatus = 'Processing';
     else if (/hold/i.test(statusRaw)) paymentStatus = 'On Hold';
 
-    const paymentDate = getStr(['payment_date', 'paymentDate', 'date', 'disbursed_at', 'pay_date'], `${selectedMonth} ${selectedYear}`);
-    const paymentMethod = getStr(['payment_method', 'paymentMethod', 'method', 'bank_name', 'channel'], 'Bank / MFS Transfer');
-    const bankAccount = getStr(['account', 'account_no', 'bank_account', 'bKash', 'phone', 'mfs_account'], activeUser?.loginHandle || '');
+    const paymentDate = getStr(['payment_date', 'paymentDate', 'date', 'disbursed_at', 'pay_date', 'salary_month'], `${selectedMonth} ${selectedYear}`);
+    const paymentMethod = getStr(['payment_method', 'paymentMethod', 'method', 'bank_name', 'channel', 'default_payment_channel'], employeeObj?.default_payment_channel || 'Bank / MFS Transfer');
+    const bankAccount = getStr(['account', 'account_number', 'account_no', 'bank_account', 'bKash', 'phone', 'mfs_account'], employeeObj?.account_number || activeUser?.loginHandle || '');
     const remarks = getStr(['remarks', 'note', 'comment', 'description'], 'Monthly payroll disbursement');
+
+    const displayName = employeeObj?.name || empName;
 
     const breakdownItems: { label: string; amount: number; type: 'earning' | 'deduction' }[] = [];
     if (basic > 0) breakdownItems.push({ label: 'Basic Salary (মূল বেতন)', amount: basic, type: 'earning' });
+    else if (gross > 0) breakdownItems.push({ label: 'Gross Salary (মোট বেতন)', amount: gross, type: 'earning' });
     if (allowances > 0) breakdownItems.push({ label: 'Allowances & House Rent (ভাতা)', amount: allowances, type: 'earning' });
     if (bonus > 0) breakdownItems.push({ label: 'Bonus / Incentives (বোনাস)', amount: bonus, type: 'earning' });
     if (overtime > 0) breakdownItems.push({ label: 'Overtime Pay (ওভারটাইম)', amount: overtime, type: 'earning' });
-    if (deductions > 0) breakdownItems.push({ label: 'General Deductions (কর্তন)', amount: deductions, type: 'deduction' });
+    if (deductions > 0) breakdownItems.push({ label: 'Fine & Deductions (কর্তন)', amount: deductions, type: 'deduction' });
     if (tax > 0) breakdownItems.push({ label: 'Tax Deduction (আয়কর)', amount: tax, type: 'deduction' });
     if (pf > 0) breakdownItems.push({ label: 'Provident Fund (পিএফ)', amount: pf, type: 'deduction' });
 
     return {
-      employeeId: empId,
-      employeeName: empName,
+      employeeId: employeeObj?.employee_id || empId,
+      employeeName: displayName,
       month: selectedMonth,
       year: selectedYear,
-      basicSalary: basic,
+      basicSalary: basic || gross,
       grossSalary: gross,
       netSalary: net,
       totalEarnings,
