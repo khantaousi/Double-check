@@ -187,15 +187,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   };
 
   try {
-    let modeToTry: 'all' | 'x-api-key' | 'bearer' | 'custom' | 'query' = 'all';
-    if (authHeaderType === 'X-API-KEY') modeToTry = 'x-api-key';
-    else if (authHeaderType === 'Bearer') modeToTry = 'bearer';
+    let modeToTry: 'all' | 'x-api-key' | 'bearer' | 'custom' | 'query' = 'x-api-key';
+    if (authHeaderType === 'Bearer') modeToTry = 'bearer';
     else if (authHeaderType === 'Custom') modeToTry = 'custom';
     else if (authHeaderType === 'QueryParam') modeToTry = 'query';
+    else if (authHeaderType === 'All') modeToTry = 'all';
 
     let result = await executeRequest(modeToTry);
 
-    if (!result.ok && modeToTry !== 'all' && (result.status === 401 || result.status === 403)) {
+    if (!result.ok && (result.status === 401 || result.status === 403)) {
+      // Try with query parameter and all headers combined
       const fallbackResult = await executeRequest('all');
       if (fallbackResult.ok) {
         result = fallbackResult;

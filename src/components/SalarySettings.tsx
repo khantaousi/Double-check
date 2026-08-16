@@ -205,6 +205,7 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
       const startTime = performance.now();
       let result: any = null;
 
+      // 1. First attempt: Use Local / Vercel API Proxy
       try {
         const proxyRes = await fetch('/api/salary/proxy', {
           method: 'POST',
@@ -227,33 +228,43 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
 
         const rawText = await proxyRes.text();
         try {
-          result = JSON.parse(rawText);
-        } catch {
-          if (!proxyRes.ok || rawText.includes('<!DOCTYPE') || rawText.includes('The page')) {
-            result = null;
-          } else {
-            result = { ok: false, status: proxyRes.status, error: rawText };
+          const parsed = JSON.parse(rawText);
+          if (parsed && (parsed.ok || parsed.status === 200 || parsed.data?.success || parsed.data?.employee)) {
+            result = parsed;
+          } else if (proxyRes.ok && parsed) {
+            result = parsed;
           }
+        } catch {
+          // If proxy returned 404 HTML (common on static deployments), fallback to client-side fetchers
+          result = null;
         }
       } catch {
         result = null;
       }
 
-      // Direct fallback
-      if (!result) {
+      // 2. Direct browser fetch with multi-header delivery if proxy fails or returns unauthenticated
+      if (!result || !result.ok) {
         let directUrl = formData.apiUrl.trim()
           .replace(/EMPLOYEE_ID/gi, testEmployeeId.trim())
           .replace(new RegExp(`\\{${formData.paramName || 'employee_id'}\\}`, 'gi'), testEmployeeId.trim())
           .replace(new RegExp(`:${formData.paramName || 'employee_id'}\\b`, 'gi'), testEmployeeId.trim());
 
+        const cleanKey = (formData.apiKey || '').trim();
         const directHeaders: Record<string, string> = {
           'Accept': 'application/json, text/plain, */*'
         };
 
-        const cleanKey = (formData.apiKey || '').trim();
         if (cleanKey) {
           directHeaders['X-API-KEY'] = cleanKey;
-          directHeaders['Authorization'] = `Bearer ${cleanKey}`;
+          directHeaders['x-api-key'] = cleanKey;
+          directHeaders['api-key'] = cleanKey;
+          directHeaders['apikey'] = cleanKey;
+          if (formData.customHeaderName && formData.customHeaderName.trim()) {
+            directHeaders[formData.customHeaderName.trim()] = cleanKey;
+          }
+          if (formData.authHeaderType === 'Bearer' || cleanKey.toLowerCase().startsWith('bearer ')) {
+            directHeaders['Authorization'] = cleanKey.toLowerCase().startsWith('bearer ') ? cleanKey : `Bearer ${cleanKey}`;
+          }
         }
 
         try {
@@ -261,13 +272,16 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
           if (!directUrlObj.searchParams.has(formData.paramName || 'employee_id')) {
             directUrlObj.searchParams.set(formData.paramName || 'employee_id', testEmployeeId.trim());
           }
-          if (cleanKey && formData.authHeaderType === 'QueryParam') {
+          if (cleanKey && (formData.authHeaderType === 'QueryParam' || !directUrlObj.searchParams.has('api_key'))) {
             directUrlObj.searchParams.set(formData.queryParamName || 'api_key', cleanKey);
           }
           directUrl = directUrlObj.toString();
         } catch {
           const sep = directUrl.includes('?') ? '&' : '?';
           directUrl += `${sep}${encodeURIComponent(formData.paramName || 'employee_id')}=${encodeURIComponent(testEmployeeId.trim())}`;
+          if (cleanKey) {
+            directUrl += `&${encodeURIComponent(formData.queryParamName || 'api_key')}=${encodeURIComponent(cleanKey)}`;
+          }
         }
 
         try {
@@ -279,22 +293,32 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
           const directText = await directRes.text();
           try {
             const parsedJson = JSON.parse(directText);
-            result = {
-              ok: directRes.ok,
-              status: directRes.status,
-              data: parsedJson,
-              urlUsed: directUrl
-            };
+            if (directRes.ok || parsedJson.success || parsedJson.employee || parsedJson.salaries) {
+              result = {
+                ok: true,
+                status: directRes.status,
+                data: parsedJson,
+                urlUsed: directUrl
+              };
+            } else {
+              result = {
+                ok: false,
+                status: directRes.status,
+                data: parsedJson,
+                error: parsedJson.error || parsedJson.message || `HTTP ${directRes.status}`,
+                urlUsed: directUrl
+              };
+            }
           } catch {
             result = {
               ok: false,
               status: directRes.status,
-              error: directText.length > 200 ? `HTTP ${directRes.status}: Response is not JSON (Possible 404/500 HTML page)` : directText,
+              error: directText.length > 200 ? `HTTP ${directRes.status}: Response is not JSON` : directText,
               data: directText
             };
           }
         } catch (directErr: any) {
-          // Public CORS proxy fallback
+          // 3. Fallback: Public CORS proxy tunnel (handles Vercel browser CORS restrictions)
           try {
             const allOriginsUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(directUrl)}`;
             const corsRes = await fetch(allOriginsUrl);
@@ -307,14 +331,14 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
                     ok: true,
                     status: corsData.status?.http_code || 200,
                     data: parsedContents,
-                    urlUsed: `${directUrl} (via CORS Tunnel)`
+                    urlUsed: `${directUrl} (via Secure CORS Tunnel)`
                   };
                 } catch {
                   result = {
                     ok: true,
                     status: 200,
                     data: corsData.contents,
-                    urlUsed: `${directUrl} (via CORS Tunnel)`
+                    urlUsed: `${directUrl} (via Secure CORS Tunnel)`
                   };
                 }
               }

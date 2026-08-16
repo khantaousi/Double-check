@@ -396,21 +396,22 @@ export function SalaryPortal({
 
         const rawText = await proxyRes.text();
         try {
-          result = JSON.parse(rawText);
+          const parsed = JSON.parse(rawText);
+          if (parsed && (parsed.ok || parsed.status === 200 || parsed.data?.success || parsed.data?.employee)) {
+            result = parsed;
+          } else if (proxyRes.ok && parsed) {
+            result = parsed;
+          }
         } catch {
           // If proxy returned HTML or invalid JSON (e.g. 404 from static hosting or proxy error)
-          if (!proxyRes.ok || rawText.includes('<!DOCTYPE') || rawText.includes('The page')) {
-            result = null; // trigger fallback
-          } else {
-            result = { ok: false, status: proxyRes.status, error: rawText };
-          }
+          result = null; // trigger fallback
         }
       } catch {
         result = null;
       }
 
       // Attempt 2: Direct browser fetch fallback (if proxy is not present in deployed static build)
-      if (!result || (!result.ok && result.status === 0)) {
+      if (!result || !result.ok) {
         usedDirectFetch = true;
         let directUrl = apiConfig.apiUrl.trim()
           .replace(/EMPLOYEE_ID/gi, String(empId))
@@ -424,7 +425,15 @@ export function SalaryPortal({
         const cleanKey = (apiConfig.apiKey || '').trim();
         if (cleanKey) {
           directHeaders['X-API-KEY'] = cleanKey;
-          directHeaders['Authorization'] = `Bearer ${cleanKey}`;
+          directHeaders['x-api-key'] = cleanKey;
+          directHeaders['api-key'] = cleanKey;
+          directHeaders['apikey'] = cleanKey;
+          if (apiConfig.customHeaderName && apiConfig.customHeaderName.trim()) {
+            directHeaders[apiConfig.customHeaderName.trim()] = cleanKey;
+          }
+          if (apiConfig.authHeaderType === 'Bearer' || cleanKey.toLowerCase().startsWith('bearer ')) {
+            directHeaders['Authorization'] = cleanKey.toLowerCase().startsWith('bearer ') ? cleanKey : `Bearer ${cleanKey}`;
+          }
         }
 
         try {
@@ -432,13 +441,16 @@ export function SalaryPortal({
           if (!directUrlObj.searchParams.has(apiConfig.paramName || 'employee_id')) {
             directUrlObj.searchParams.set(apiConfig.paramName || 'employee_id', String(empId));
           }
-          if (cleanKey && apiConfig.authHeaderType === 'QueryParam') {
+          if (cleanKey && (apiConfig.authHeaderType === 'QueryParam' || !directUrlObj.searchParams.has('api_key'))) {
             directUrlObj.searchParams.set(apiConfig.queryParamName || 'api_key', cleanKey);
           }
           directUrl = directUrlObj.toString();
         } catch {
           const sep = directUrl.includes('?') ? '&' : '?';
           directUrl += `${sep}${encodeURIComponent(apiConfig.paramName || 'employee_id')}=${encodeURIComponent(String(empId))}`;
+          if (cleanKey) {
+            directUrl += `&${encodeURIComponent(apiConfig.queryParamName || 'api_key')}=${encodeURIComponent(cleanKey)}`;
+          }
         }
 
         try {
@@ -450,12 +462,22 @@ export function SalaryPortal({
           const directText = await directRes.text();
           try {
             const parsedJson = JSON.parse(directText);
-            result = {
-              ok: directRes.ok,
-              status: directRes.status,
-              data: parsedJson,
-              urlUsed: directUrl
-            };
+            if (directRes.ok || parsedJson.success || parsedJson.employee || parsedJson.salaries) {
+              result = {
+                ok: true,
+                status: directRes.status,
+                data: parsedJson,
+                urlUsed: directUrl
+              };
+            } else {
+              result = {
+                ok: false,
+                status: directRes.status,
+                data: parsedJson,
+                error: parsedJson.error || parsedJson.message || `HTTP ${directRes.status}`,
+                urlUsed: directUrl
+              };
+            }
           } catch {
             result = {
               ok: false,
