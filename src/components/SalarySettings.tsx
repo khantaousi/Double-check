@@ -14,7 +14,9 @@ import {
   RefreshCw, 
   Sliders, 
   Lock,
-  Layers
+  Layers,
+  Sparkles,
+  Wand2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -33,9 +35,10 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [autoDetectMsg, setAutoDetectMsg] = useState<string | null>(null);
 
   // Test Tool State
-  const [testEmployeeId, setTestEmployeeId] = useState('EMP-001');
+  const [testEmployeeId, setTestEmployeeId] = useState('2266');
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{
     success: boolean;
@@ -44,6 +47,125 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
     error?: string;
     urlUsed?: string;
   } | null>(null);
+
+  // Smart Auto-Parser: Automatically extracts and detects endpoints, params, and keys
+  const autoParseApiInput = (input: string) => {
+    if (!input || !input.trim()) return;
+    const raw = input.trim();
+
+    let detectedUrl = formData.apiUrl;
+    let detectedKey = formData.apiKey;
+    let detectedParam = formData.paramName || 'employee_id';
+    let detectedMethod: 'GET' | 'POST' = formData.httpMethod || 'GET';
+    let detectedAuthType: 'Bearer' | 'ApiKey' | 'Token' | 'RawAuth' | 'QueryParam' | 'Custom' | 'None' = formData.authHeaderType || 'ApiKey';
+    let detectedHeaderName = formData.customHeaderName || 'X-API-KEY';
+    let detectedQueryParam = formData.queryParamName || 'api_key';
+    const autoDetectedDetails: string[] = [];
+
+    // Check if user pasted a curl command
+    if (raw.toLowerCase().startsWith('curl')) {
+      if (raw.includes('-X POST') || raw.includes('--request POST')) {
+        detectedMethod = 'POST';
+        autoDetectedDetails.push('Method: POST');
+      }
+      const headerMatches = [...raw.matchAll(/-H\s+["']([^"']+)["']/gi)];
+      for (const match of headerMatches) {
+        const headerStr = match[1];
+        const colonIdx = headerStr.indexOf(':');
+        if (colonIdx > -1) {
+          const hName = headerStr.slice(0, colonIdx).trim();
+          const hVal = headerStr.slice(colonIdx + 1).trim();
+          if (hName.toLowerCase() === 'authorization') {
+            if (hVal.toLowerCase().startsWith('bearer ')) {
+              detectedAuthType = 'Bearer';
+              detectedKey = hVal.slice(7).trim();
+              autoDetectedDetails.push('Bearer Auth');
+            } else {
+              detectedAuthType = 'RawAuth';
+              detectedKey = hVal;
+              autoDetectedDetails.push('Raw Auth');
+            }
+          } else if (hName.toLowerCase().includes('key') || hName.toLowerCase().includes('token')) {
+            detectedAuthType = 'ApiKey';
+            detectedHeaderName = hName;
+            detectedKey = hVal;
+            autoDetectedDetails.push(`Header "${hName}"`);
+          }
+        }
+      }
+      const urlMatch = raw.match(/https?:\/\/[^\s"']+/);
+      if (urlMatch) {
+        detectedUrl = urlMatch[0];
+      }
+    } else if (raw.startsWith('http://') || raw.startsWith('https://')) {
+      detectedUrl = raw;
+    }
+
+    // Parse URL query parameters if present
+    if (detectedUrl.startsWith('http://') || detectedUrl.startsWith('https://')) {
+      try {
+        const urlObj = new URL(detectedUrl);
+        const params = urlObj.searchParams;
+
+        // Detect employee id param name
+        for (const p of ['employee_id', 'employeeId', 'emp_id', 'empId', 'id', 'user_id', 'userId']) {
+          if (params.has(p)) {
+            detectedParam = p;
+            autoDetectedDetails.push(`Parameter: "${p}"`);
+            break;
+          }
+        }
+
+        // Detect API key inside query params if present
+        for (const k of ['api_key', 'apiKey', 'key', 'token', 'access_token', 'secret']) {
+          if (params.has(k)) {
+            const foundKey = params.get(k);
+            if (foundKey && !['YOUR_KEY', 'API_KEY', 'SECRET_KEY'].includes(foundKey.toUpperCase())) {
+              detectedKey = foundKey;
+              detectedAuthType = 'QueryParam';
+              detectedQueryParam = k;
+              autoDetectedDetails.push(`API Key found in URL`);
+            }
+          }
+        }
+
+        // Clean the base URL by stripping placeholder query params
+        const cleanedSearchParams = new URLSearchParams();
+        params.forEach((val, key) => {
+          const isEmpParam = ['employee_id', 'employeeid', 'empid', 'emp_id', 'id'].includes(key.toLowerCase());
+          const isPlaceholderVal = ['employee_id', '{employee_id}', ':employee_id', 'employeeid', 'xyz', '123', ''].includes(val.toLowerCase());
+          const isKeyParam = ['api_key', 'apikey', 'key', 'token', 'access_token'].includes(key.toLowerCase());
+          
+          if (!(isEmpParam && isPlaceholderVal) && !isKeyParam) {
+            cleanedSearchParams.append(key, val);
+          }
+        });
+
+        const cleanQuery = cleanedSearchParams.toString();
+        detectedUrl = `${urlObj.origin}${urlObj.pathname}${cleanQuery ? `?${cleanQuery}` : ''}`;
+        autoDetectedDetails.push(`Clean Endpoint URL`);
+      } catch {
+        // url fallback
+      }
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      apiUrl: detectedUrl,
+      apiKey: detectedKey,
+      paramName: detectedParam,
+      httpMethod: detectedMethod,
+      authHeaderType: detectedAuthType,
+      customHeaderName: detectedHeaderName,
+      queryParamName: detectedQueryParam,
+      isActive: true
+    }));
+
+    if (autoDetectedDetails.length > 0) {
+      setAutoDetectMsg(`✨ স্বয়ংক্রিয়ভাবে শনাক্ত ও সেট করা হয়েছে: ${autoDetectedDetails.join(' | ')}`);
+      setTimeout(() => setAutoDetectMsg(null), 5000);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,6 +282,17 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
         </div>
       </div>
 
+      {autoDetectMsg && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs font-bold flex items-center gap-3 shadow-sm"
+        >
+          <Sparkles size={18} className="shrink-0 text-blue-600 dark:text-blue-400" />
+          <span>{autoDetectMsg}</span>
+        </motion.div>
+      )}
+
       {saveSuccess && (
         <motion.div 
           initial={{ opacity: 0, y: -10 }}
@@ -182,21 +315,38 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* API URL */}
           <div className="md:col-span-2">
-            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5">
-              <Globe size={13} className="text-blue-500" />
-              External Salary Portal API Endpoint URL (এপিআই লিংক)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                <Globe size={13} className="text-blue-500" />
+                External Salary Portal API Endpoint URL (এপিআই লিংক)
+              </label>
+              <button
+                type="button"
+                onClick={() => autoParseApiInput(formData.apiUrl)}
+                className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 cursor-pointer"
+              >
+                <Wand2 size={12} />
+                <span>Auto-Format & Clean URL (স্বয়ংক্রিয় ফরম্যাট)</span>
+              </button>
+            </div>
             <input
-              type="url"
+              type="text"
               required
               placeholder="https://your-payroll-portal.com/api/employee-salary"
               value={formData.apiUrl}
-              onChange={(e) => setFormData({ ...formData, apiUrl: e.target.value })}
+              onChange={(e) => {
+                const val = e.target.value;
+                setFormData(prev => ({ ...prev, apiUrl: val }));
+                // Auto-detect settings on paste or input
+                if (val.includes('?') || val.includes('curl') || val.startsWith('http')) {
+                  autoParseApiInput(val);
+                }
+              }}
               disabled={!canWrite || isSaving}
               className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
             />
             <p className="text-[10px] text-slate-400 mt-1">
-              Example: https://your-portal.com/api/salary or https://hrm.example.com/api/v1/payroll
+              Example: https://ais-dev-...run.app/api/external/salary or https://hrm.example.com/api/v1/payroll (You can paste full URL with params)
             </p>
           </div>
 
@@ -209,16 +359,16 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
             <div className="relative">
               <input
                 type={showKey ? 'text' : 'password'}
-                placeholder="sk_live_..."
+                placeholder="sal_salary_... or sk_live_..."
                 value={formData.apiKey}
-                onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, apiKey: e.target.value.trim() })}
                 disabled={!canWrite || isSaving}
                 className="w-full px-4 py-3 pr-12 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
               />
               <button
                 type="button"
                 onClick={() => setShowKey(!showKey)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
               >
                 {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
@@ -237,9 +387,9 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
               disabled={!canWrite || isSaving}
               className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
             >
+              <option value="ApiKey">X-API-KEY: {'<key>'} (Default Header - Recommended)</option>
               <option value="Bearer">Authorization: Bearer {'<token>'} (Standard Bearer)</option>
               <option value="Token">Authorization: Token {'<token>'} (Token Style)</option>
-              <option value="ApiKey">X-API-KEY: {'<key>'} (Default Header)</option>
               <option value="RawAuth">Authorization: {'<key>'} (Raw Auth Header)</option>
               <option value="QueryParam">URL Query Parameter (?api_key={'<key>'})</option>
               <option value="Custom">Custom Header Name (e.g. api-key / x-token)</option>
@@ -418,7 +568,7 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
           <div className="flex flex-col sm:flex-row gap-3">
             <input
               type="text"
-              placeholder="Enter Employee ID (e.g. EMP001)"
+              placeholder="Enter Employee ID (e.g. 2266)"
               value={testEmployeeId}
               onChange={(e) => setTestEmployeeId(e.target.value)}
               className="flex-1 px-4 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -451,7 +601,7 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
                   <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-700/50">
                     <span className="font-bold flex items-center gap-1.5">
                       {testResult.success ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
-                      {testResult.success ? `Status: ${testResult.status || 200} OK` : 'Test Request Failed'}
+                      {testResult.success ? `Status: ${testResult.status || 200} OK (Connected)` : 'Test Request Failed'}
                     </span>
                     {testResult.urlUsed && (
                       <span className="text-[10px] text-slate-400 truncate max-w-xs font-sans">

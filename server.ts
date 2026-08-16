@@ -132,157 +132,185 @@ async function startServer() {
         return res.status(400).json({ ok: false, error: "Missing required 'apiUrl' parameter" });
       }
 
-      const headers: Record<string, string> = {
-        'Accept': 'application/json, text/plain, */*',
-        'User-Agent': 'ParcelIntelligence-PayrollProxy/1.0'
-      };
-
-      // Sanitize API key (remove accidental quotes or whitespace)
+      // Sanitize API key (remove accidental quotes, newlines, or extra whitespace)
       let cleanedKey = (apiKey && typeof apiKey === 'string') ? apiKey.trim() : '';
       if ((cleanedKey.startsWith('"') && cleanedKey.endsWith('"')) || (cleanedKey.startsWith("'") && cleanedKey.endsWith("'"))) {
         cleanedKey = cleanedKey.slice(1, -1).trim();
       }
 
-      let isQueryAuth = false;
+      // Helper to build request options and URL
+      const buildRequest = (authMode: 'standard' | 'query' | 'raw' | 'all') => {
+        let targetUrl = apiUrl.trim();
 
-      let targetUrl = apiUrl.trim();
-
-      // Clean template placeholders like EMPLOYEE_ID, {employee_id}, :employee_id
-      if (employeeId !== undefined && employeeId !== null && employeeId !== '') {
-        targetUrl = targetUrl
-          .replace(/EMPLOYEE_ID/gi, String(employeeId))
-          .replace(new RegExp(`\\{${paramName}\\}`, 'gi'), String(employeeId))
-          .replace(new RegExp(`:${paramName}\\b`, 'gi'), String(employeeId));
-      }
-
-      if (cleanedKey && authHeaderType !== 'None') {
-        if (authHeaderType === 'Bearer') {
-          const authVal = cleanedKey.toLowerCase().startsWith('bearer ') ? cleanedKey : `Bearer ${cleanedKey}`;
-          headers['Authorization'] = authVal;
-          // Also set X-API-KEY for maximum compatibility with AI Studio Express routes
-          headers['X-API-KEY'] = cleanedKey;
-        } else if (authHeaderType === 'Token') {
-          const authVal = cleanedKey.toLowerCase().startsWith('token ') ? cleanedKey : `Token ${cleanedKey}`;
-          headers['Authorization'] = authVal;
-        } else if (authHeaderType === 'RawAuth') {
-          headers['Authorization'] = cleanedKey;
-        } else if (authHeaderType === 'ApiKey') {
-          const headerName = sanitizeHeaderName(customHeaderName, 'X-API-KEY');
-          try {
-            headers[headerName] = cleanedKey;
-            // Also provide Authorization Bearer fallback
-            headers['Authorization'] = `Bearer ${cleanedKey}`;
-          } catch {
-            headers['X-API-KEY'] = cleanedKey;
-          }
-        } else if (authHeaderType === 'Custom') {
-          const headerName = sanitizeHeaderName(customHeaderName, 'X-API-KEY');
-          try {
-            headers[headerName] = cleanedKey;
-          } catch {
-            headers['X-API-KEY'] = cleanedKey;
-          }
-        } else if (authHeaderType === 'QueryParam') {
-          isQueryAuth = true;
+        // Clean template placeholders like EMPLOYEE_ID, {employee_id}, :employee_id, [employee_id]
+        if (employeeId !== undefined && employeeId !== null && employeeId !== '') {
+          targetUrl = targetUrl
+            .replace(/EMPLOYEE_ID/gi, String(employeeId))
+            .replace(new RegExp(`\\{${paramName}\\}`, 'gi'), String(employeeId))
+            .replace(new RegExp(`:${paramName}\\b`, 'gi'), String(employeeId))
+            .replace(new RegExp(`\\[${paramName}\\]`, 'gi'), String(employeeId));
         }
-      }
-      const method = (httpMethod || 'GET').toUpperCase();
-      const fetchOptions: RequestInit = {
-        method,
-        headers
-      };
 
-      const qParamKey = queryParamName && queryParamName.trim() ? queryParamName.trim() : 'api_key';
-
-      if (method === 'POST') {
-        headers['Content-Type'] = 'application/json';
-        const postBody: Record<string, any> = {
-          [paramName]: employeeId,
-          month,
-          year,
-          ...(extraBody || {})
+        const headers: Record<string, string> = {
+          'Accept': 'application/json, text/plain, */*',
+          'User-Agent': 'ParcelIntelligence-PayrollProxy/1.0'
         };
-        if (isQueryAuth && cleanedKey) {
-          postBody[qParamKey] = cleanedKey;
-        }
-        fetchOptions.body = JSON.stringify(postBody);
 
-        if (isQueryAuth && cleanedKey) {
+        const method = (httpMethod || 'GET').toUpperCase();
+        let qParamKey = queryParamName && queryParamName.trim() ? queryParamName.trim() : 'api_key';
+
+        if (cleanedKey && authHeaderType !== 'None') {
+          if (authMode === 'query' || authHeaderType === 'QueryParam') {
+            // Apply key as query param
+          } else if (authMode === 'raw' || authHeaderType === 'RawAuth') {
+            headers['Authorization'] = cleanedKey;
+            headers['X-API-KEY'] = cleanedKey;
+          } else {
+            // Universal Auth Delivery: Send standard headers together so any server implementation accepts it
+            const bearerVal = cleanedKey.toLowerCase().startsWith('bearer ') ? cleanedKey : `Bearer ${cleanedKey}`;
+            headers['Authorization'] = bearerVal;
+            headers['X-API-KEY'] = cleanedKey;
+            headers['x-api-key'] = cleanedKey;
+            headers['api-key'] = cleanedKey;
+            headers['apikey'] = cleanedKey;
+
+            if (customHeaderName && customHeaderName.trim()) {
+              const customName = sanitizeHeaderName(customHeaderName, 'X-API-KEY');
+              headers[customName] = cleanedKey;
+            }
+          }
+        }
+
+        const fetchOptions: RequestInit = {
+          method,
+          headers
+        };
+
+        const isQueryKey = (authMode === 'query' || authHeaderType === 'QueryParam') && Boolean(cleanedKey);
+
+        if (method === 'POST') {
+          headers['Content-Type'] = 'application/json';
+          const postBody: Record<string, any> = {
+            [paramName]: employeeId,
+            month,
+            year,
+            ...(extraBody || {})
+          };
+          if (isQueryKey) {
+            postBody[qParamKey] = cleanedKey;
+            postBody['apiKey'] = cleanedKey;
+            postBody['api_key'] = cleanedKey;
+          }
+          fetchOptions.body = JSON.stringify(postBody);
+
+          if (isQueryKey) {
+            try {
+              const parsedUrl = new URL(targetUrl);
+              parsedUrl.searchParams.set(qParamKey, cleanedKey);
+              targetUrl = parsedUrl.toString();
+            } catch {
+              const sep = targetUrl.includes('?') ? '&' : '?';
+              targetUrl += `${sep}${encodeURIComponent(qParamKey)}=${encodeURIComponent(cleanedKey)}`;
+            }
+          }
+        } else {
+          // GET method: Attach params cleanly without duplicate query separators
           try {
             const parsedUrl = new URL(targetUrl);
-            parsedUrl.searchParams.set(qParamKey, cleanedKey);
+            if (employeeId !== undefined && employeeId !== null && employeeId !== '') {
+              parsedUrl.searchParams.set(paramName, String(employeeId));
+            }
+            if (month) parsedUrl.searchParams.set('month', String(month));
+            if (year) parsedUrl.searchParams.set('year', String(year));
+            if (isQueryKey) {
+              parsedUrl.searchParams.set(qParamKey, cleanedKey);
+              parsedUrl.searchParams.set('api_key', cleanedKey);
+            }
             targetUrl = parsedUrl.toString();
           } catch {
-            const sep = targetUrl.includes('?') ? '&' : '?';
-            targetUrl += `${sep}${encodeURIComponent(qParamKey)}=${encodeURIComponent(cleanedKey)}`;
+            const separator = targetUrl.includes('?') ? '&' : '?';
+            const params: string[] = [];
+            if (employeeId !== undefined && employeeId !== null && employeeId !== '') {
+              params.push(`${encodeURIComponent(paramName)}=${encodeURIComponent(String(employeeId))}`);
+            }
+            if (month) params.push(`month=${encodeURIComponent(String(month))}`);
+            if (year) params.push(`year=${encodeURIComponent(String(year))}`);
+            if (isQueryKey) {
+              params.push(`${encodeURIComponent(qParamKey)}=${encodeURIComponent(cleanedKey)}`);
+            }
+            if (params.length > 0) {
+              targetUrl += `${separator}${params.join('&')}`;
+            }
           }
         }
-      } else {
+
+        return { targetUrl, fetchOptions, headers };
+      };
+
+      // Execution Function
+      const executeFetch = async (targetUrl: string, fetchOptions: RequestInit) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        fetchOptions.signal = controller.signal;
+
         try {
-          const parsedUrl = new URL(targetUrl);
-          if (employeeId !== undefined && employeeId !== null && employeeId !== '') {
-            parsedUrl.searchParams.set(paramName, String(employeeId));
+          const remoteRes = await fetch(targetUrl, fetchOptions);
+          clearTimeout(timeoutId);
+
+          const contentType = remoteRes.headers.get('content-type') || '';
+          let responseData: any;
+          if (contentType.includes('application/json')) {
+            responseData = await remoteRes.json();
+          } else {
+            const text = await remoteRes.text();
+            try {
+              responseData = JSON.parse(text);
+            } catch {
+              responseData = text;
+            }
           }
-          if (month) parsedUrl.searchParams.set('month', String(month));
-          if (year) parsedUrl.searchParams.set('year', String(year));
-          if (isQueryAuth && cleanedKey) {
-            parsedUrl.searchParams.set(qParamKey, cleanedKey);
-          }
-          targetUrl = parsedUrl.toString();
-        } catch {
-          const separator = targetUrl.includes('?') ? '&' : '?';
-          const params: string[] = [];
-          if (employeeId !== undefined && employeeId !== null && employeeId !== '') {
-            params.push(`${encodeURIComponent(paramName)}=${encodeURIComponent(String(employeeId))}`);
-          }
-          if (month) params.push(`month=${encodeURIComponent(String(month))}`);
-          if (year) params.push(`year=${encodeURIComponent(String(year))}`);
-          if (isQueryAuth && cleanedKey) {
-            params.push(`${encodeURIComponent(qParamKey)}=${encodeURIComponent(cleanedKey)}`);
-          }
-          if (params.length > 0) {
-            targetUrl += `${separator}${params.join('&')}`;
-          }
+          return { res: remoteRes, data: responseData, url: targetUrl };
+        } catch (err) {
+          clearTimeout(timeoutId);
+          throw err;
         }
-      }
+      };
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
-      fetchOptions.signal = controller.signal;
+      // Attempt 1: Standard Universal Multi-Auth
+      let req1 = buildRequest('all');
+      let result = await executeFetch(req1.targetUrl, req1.fetchOptions);
 
-      const remoteRes = await fetch(targetUrl, fetchOptions);
-      clearTimeout(timeoutId);
-
-      const contentType = remoteRes.headers.get('content-type') || '';
-      let responseData: any;
-      if (contentType.includes('application/json')) {
-        responseData = await remoteRes.json();
-      } else {
-        const text = await remoteRes.text();
+      // Attempt 2: Auto-Recovery Fallback (If 401 or 403 received, try Query Parameter auth)
+      if ((result.res.status === 401 || result.res.status === 403) && cleanedKey) {
         try {
-          responseData = JSON.parse(text);
+          const req2 = buildRequest('query');
+          const result2 = await executeFetch(req2.targetUrl, req2.fetchOptions);
+          if (result2.res.ok || result2.res.status === 200) {
+            result = result2;
+            req1 = req2;
+          }
         } catch {
-          responseData = text;
+          // Keep initial result if fallback threw network error
         }
       }
 
       // Safe debug header summary
       const safeHeadersSent: Record<string, string> = {};
-      Object.keys(headers).forEach(k => {
+      Object.keys(req1.headers).forEach(k => {
         if (k.toLowerCase() === 'authorization') {
-          safeHeadersSent[k] = headers[k].length > 15 ? `${headers[k].slice(0, 10)}...${headers[k].slice(-4)}` : '***';
+          safeHeadersSent[k] = req1.headers[k].length > 15 ? `${req1.headers[k].slice(0, 10)}...${req1.headers[k].slice(-4)}` : '***';
         } else if (k.toLowerCase().includes('key')) {
-          safeHeadersSent[k] = headers[k].length > 10 ? `${headers[k].slice(0, 4)}...${headers[k].slice(-4)}` : '***';
+          safeHeadersSent[k] = req1.headers[k].length > 10 ? `${req1.headers[k].slice(0, 4)}...${req1.headers[k].slice(-4)}` : '***';
         } else {
-          safeHeadersSent[k] = headers[k];
+          safeHeadersSent[k] = req1.headers[k];
         }
       });
 
-      return res.status(remoteRes.status).json({
-        status: remoteRes.status,
-        ok: remoteRes.ok,
-        data: responseData,
-        urlUsed: targetUrl,
+      return res.status(result.res.status).json({
+        status: result.res.status,
+        ok: result.res.ok,
+        data: result.data,
+        urlUsed: result.url,
         headersSent: safeHeadersSent
       });
     } catch (error: any) {
