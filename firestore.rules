@@ -133,19 +133,20 @@ service cloud.firestore {
       return data.userId is string && data.userId.size() <= 128 &&
              data.title is string && data.title.size() <= 200 &&
              data.message is string && data.message.size() <= 1000 &&
-             data.type in ['task_assigned', 'task_approved', 'task_needs_approval', 'task_resent', 'system'] &&
+             data.type in ['task_assigned', 'task_approved', 'task_needs_approval', 'task_resent', 'system', 'phone_handover'] &&
              data.isRead is bool &&
              data.createdAt is string;
     }
 
     match /notifications/{notificationId} {
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && isValidNotification(incoming());
-      allow update: if isSignedIn() && isOwner(existing().userId) && 
-                    incoming().diff(existing()).affectedKeys().hasOnly(['isRead']) &&
-                    incoming().userId == existing().userId;
-      allow delete: if isSignedIn() && isOwner(existing().userId);
+      allow update: if isSignedIn() && (
+        (isOwner(existing().userId) && incoming().diff(existing()).affectedKeys().hasOnly(['isRead'])) ||
+        isAdmin()
+      );
+      allow delete: if isSignedIn() && (isOwner(existing().userId) || isAdmin());
     }
 
     // 6. Connection Test
@@ -178,6 +179,20 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
         isAdmin() || incoming().diff(existing()).affectedKeys().hasOnly(['viewers'])
       );
+    }
+
+    // 10. Phone Devices Inventory
+    match /phone_devices/{phoneId} {
+      allow read: if isSignedIn();
+      allow create, delete: if isAdmin();
+      allow update: if isSignedIn(); // allow agents to update currentHolder/status/pendingHandover
+    }
+
+    // 11. Phone Usage Logs
+    match /phone_usage_logs/{logId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isAdmin();
     }
   }
 }

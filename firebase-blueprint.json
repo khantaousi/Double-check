@@ -126,14 +126,55 @@
         "userId": { "type": "string" },
         "title": { "type": "string" },
         "message": { "type": "string" },
-        "type": { "type": "string", "enum": ["task_assigned", "task_approved", "task_needs_approval", "system"] },
+        "type": { "type": "string", "enum": ["task_assigned", "task_approved", "task_needs_approval", "system", "phone_handover"] },
         "isRead": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" },
-        "taskId": { "type": "string" }
+        "taskId": { "type": "string" },
+        "phoneId": { "type": "string" }
       }
+    },
+    "PhoneDevice": {
+      "title": "Phone Device",
+      "description": "Phone / device asset managed in office",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "modelNumber": { "type": "string" },
+        "simNumber": { "type": "string" },
+        "currentHolderId": { "type": "string" },
+        "currentHolderName": { "type": "string" },
+        "currentHolderEmpId": { "type": "string" },
+        "status": { "type": "string", "enum": ["available", "in_use", "pending_handover", "maintenance"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "status"]
+    },
+    "PhoneUsageLog": {
+      "title": "Phone Usage Log",
+      "description": "Historical timeline records of device handover and usage durations",
+      "type": "object",
+      "properties": {
+        "phoneId": { "type": "string" },
+        "phoneName": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": "string", "format": "date-time" },
+        "durationMinutes": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "completed", "handed_over"] }
+      },
+      "required": ["phoneId", "phoneName", "userId", "startTime", "status"]
     }
   },
   "firestore": {
+    "/phone_devices/{phoneId}": {
+      "schema": "PhoneDevice",
+      "description": "Phone inventory documents"
+    },
+    "/phone_usage_logs/{logId}": {
+      "schema": "PhoneUsageLog",
+      "description": "Phone handover and usage history"
+    },
     "/notifications/{notificationId}": {
       "schema": "AppNotification",
       "description": "In-app notifications for users"

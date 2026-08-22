@@ -98,15 +98,55 @@ export interface AppNotice {
   viewers: { userId: string; userName: string; viewedAt: string }[];
 }
 
+export interface PhoneDevice {
+  id: string;
+  name: string; // e.g. "Phone A (Redmi Note 12)", "Phone 1", "iPhone 13"
+  modelNumber?: string;
+  simNumber?: string;
+  currentHolderId?: string; // userId of current active holder
+  currentHolderName?: string;
+  currentHolderEmpId?: string;
+  status: 'available' | 'in_use' | 'pending_handover' | 'maintenance';
+  pendingHandoverToId?: string;
+  pendingHandoverToName?: string;
+  pendingHandoverToEmpId?: string;
+  pendingHandoverAt?: string;
+  pendingHandoverNote?: string;
+  currentSessionStart?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface PhoneUsageLog {
+  id: string;
+  phoneId: string;
+  phoneName: string;
+  userId: string;
+  userName: string;
+  userEmpId?: string;
+  startTime: string; // ISO string
+  endTime?: string; // ISO string when handed over or released
+  durationMinutes?: number;
+  status: 'active' | 'completed' | 'handed_over';
+  handoverToId?: string;
+  handoverToName?: string;
+  handoverToEmpId?: string;
+  handoverApprovedAt?: string;
+  note?: string;
+  createdAt: string;
+}
+
 export interface AppNotification {
   id?: string;
   userId: string;
   title: string;
   message: string;
-  type: 'task_assigned' | 'task_approved' | 'task_needs_approval' | 'task_resent' | 'system';
+  type: 'task_assigned' | 'task_approved' | 'task_needs_approval' | 'task_resent' | 'system' | 'phone_handover';
   isRead: boolean;
   createdAt: string;
   taskId?: string;
+  phoneId?: string;
+  logId?: string;
 }
 
 export interface TeamTask {

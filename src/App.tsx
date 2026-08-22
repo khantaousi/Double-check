@@ -29,7 +29,7 @@ import { UserManagement } from './components/UserManagement';
 import { NoticeBoard } from './components/NoticeBoard';
 import WelcomeScreen from './components/WelcomeScreen';
 import { LiveTenureTracker } from './components/LiveTenureTracker';
-import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera, Shield, ArrowRight, Barcode, QrCode, Coins, Eye, EyeOff, Palette, Power, PowerOff, Banknote, Wallet } from 'lucide-react';
+import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera, Shield, ArrowRight, Barcode, QrCode, Coins, Eye, EyeOff, Palette, Power, PowerOff, Banknote, Wallet, Smartphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toPng } from 'html-to-image';
 import { db, auth, logInWithEmail, signOut, signInWithGoogle } from './lib/firebase';
@@ -43,9 +43,10 @@ import { onAuthStateChanged, User as FirebaseUser, reauthenticateWithCredential,
 import { getInitials, getAvatarColor } from './lib/avatar';
 import { PrintSlips } from './components/PrintSlips';
 import { Complaints } from './components/Complaints';
+import { PhoneTracker } from './components/PhoneTracker';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'validation' | 'rules' | 'products' | 'settings' | 'users' | 'tracker' | 'printSlips' | 'team' | 'complaints' | 'notices' | 'salary'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'validation' | 'rules' | 'products' | 'settings' | 'users' | 'tracker' | 'printSlips' | 'team' | 'complaints' | 'notices' | 'salary' | 'phones'>('dashboard');
   const [data, setData] = useState<DataRow[]>([]);
   const [rules, setRules] = useState<ValidationRule[]>(DEFAULT_RULES);
   const [delivery, setDelivery] = useState<IDeliverySettings>(DEFAULT_DELIVERY_SETTINGS);
@@ -1778,7 +1779,7 @@ export default function App() {
   const canWriteToTab = (tab: typeof activeTab) => {
     if (user?.email === 'khantaousi@gmail.com') return true;
     if (userProfile?.role === 'admin') return true;
-    if (tab === 'salary') return true;
+    if (tab === 'salary' || tab === 'phones') return true;
     const key = tab === 'validation' ? 'dashboard' : tab;
     return (userProfile?.permissions?.[key as keyof UserProfile['permissions']] || 'none') === 'write';
   };
@@ -1789,7 +1790,7 @@ export default function App() {
     if (tab === 'users') return false;
     if (tab === 'complaints') return true;
     if (tab === 'settings') return true;
-    if (tab === 'salary') return true;
+    if (tab === 'salary' || tab === 'phones') return true;
     const key = tab === 'validation' ? 'dashboard' : tab;
     return (userProfile?.permissions?.[key as keyof UserProfile['permissions']] || 'none') !== 'none';
   };
@@ -2382,6 +2383,21 @@ export default function App() {
                     <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Salary Portal (বেতন)</span>
                   </button>
                 )}
+
+                {userProfile && (
+                  <button 
+                    onClick={() => { setActiveTab('phones'); setIsSidebarOpen(false); }}
+                    title={isSidebarCollapsed ? "Phone Tracker" : undefined}
+                    className={`w-full flex items-center gap-3 rounded-xl text-xs font-bold transition-all border text-left ${isSidebarCollapsed ? 'justify-center py-3 px-0' : 'px-4 py-3'} ${
+                      activeTab === 'phones' 
+                        ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900/30 shadow-sm' 
+                        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <Smartphone size={18} className="shrink-0 text-indigo-500" />
+                    <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Phone Tracker</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -2605,7 +2621,7 @@ export default function App() {
             </div>
             <div className="h-4 w-px bg-slate-200 dark:bg-slate-800" />
             <h2 className="text-slate-400 dark:text-slate-500 text-sm font-bold tracking-tight uppercase">
-              {activeTab === 'dashboard' ? 'Performance Dashboard' : activeTab === 'validation' ? 'Double Check' : activeTab === 'complaints' ? 'Anonymous Feedback' : `Config / ${activeTab}`}
+              {activeTab === 'dashboard' ? 'Performance Dashboard' : activeTab === 'validation' ? 'Double Check' : activeTab === 'complaints' ? 'Anonymous Feedback' : activeTab === 'salary' ? 'Salary Portal' : activeTab === 'phones' ? 'Phone Tracker' : `Config / ${activeTab}`}
             </h2>
           </div>
           
@@ -2745,6 +2761,9 @@ export default function App() {
                                   // @ts-ignore
                                   if (n.taskId) {
                                     setActiveTab('team');
+                                    setShowNotifications(false);
+                                  } else if (n.type === 'phone_handover') {
+                                    setActiveTab('phones');
                                     setShowNotifications(false);
                                   }
                                 }}
@@ -4163,6 +4182,23 @@ export default function App() {
                     apiConfig={salaryApiConfig}
                     companyName={siteSettings.companyName}
                     onNavigateToSettings={() => setActiveTab('settings')}
+                  />
+                </motion.div>
+              )}
+
+              {activeTab === 'phones' && hasAccess('phones') && (
+                <motion.div
+                  key="phones"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="max-w-6xl mx-auto pt-8 px-2"
+                >
+                  <PhoneTracker
+                    currentUser={userProfile}
+                    allUsers={allUsers}
+                    isAdmin={isAdmin}
                   />
                 </motion.div>
               )}
