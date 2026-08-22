@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   PhoneDevice, 
   PhoneUsageLog, 
+  PhoneDeletionAuditLog,
   UserProfile 
 } from '../types';
 import { db } from '../lib/firebase';
@@ -12,7 +13,6 @@ import {
   setDoc, 
   updateDoc, 
   deleteDoc, 
-  addDoc, 
   query, 
   orderBy, 
   getDocs,
@@ -29,20 +29,23 @@ import {
   XCircle, 
   Download, 
   Search, 
-  Filter, 
   UserCheck, 
   History, 
   PowerOff, 
   Trash2, 
   Edit3, 
-  AlertCircle, 
-  ShieldCheck, 
   SmartphoneCharging, 
-  Users,
-  Calendar,
-  Sparkles,
   PhoneForwarded,
-  Timer
+  Timer,
+  PhoneMissed,
+  PhoneCall,
+  AlertTriangle,
+  CheckCheck,
+  Shield,
+  ShieldAlert,
+  ShieldCheck,
+  Lock,
+  FileSpreadsheet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
@@ -60,10 +63,20 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 }) => {
   const [devices, setDevices] = useState<PhoneDevice[]>([]);
   const [logs, setLogs] = useState<PhoneUsageLog[]>([]);
+  const [deletionLogs, setDeletionLogs] = useState<PhoneDeletionAuditLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeSubTab, setActiveSubTab] = useState<'devices' | 'history' | 'my_phones'>('devices');
+  const [activeSubTab, setActiveSubTab] = useState<'devices' | 'history' | 'my_phones' | 'deletion_logs'>('devices');
 
-  // Modal States
+  // Super-Admin 2146 Identity Check (Only this user can delete the audit logs)
+  const isSuperAdmin2146 = useMemo(() => {
+    if (!currentUser) return false;
+    const empId = String(currentUser.employeeId || '').trim();
+    const handle = String(currentUser.loginHandle || '').trim();
+    const email = String(currentUser.email || '').trim().toLowerCase();
+    return empId === '2146' || handle === '2146' || email === 'khantaousi@gmail.com';
+  }, [currentUser]);
+
+  // Modal States - Add/Edit Device (Admin Only)
   const [showAddDeviceModal, setShowAddDeviceModal] = useState(false);
   const [editingDevice, setEditingDevice] = useState<PhoneDevice | null>(null);
   const [deviceNameInput, setDeviceNameInput] = useState('');
@@ -71,12 +84,21 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
   const [deviceSimInput, setDeviceSimInput] = useState('');
   const [deviceActionLoading, setDeviceActionLoading] = useState(false);
 
-  // Handover Modal State
+  // Modal States - Sender Handover Modal
   const [handoverDevice, setHandoverDevice] = useState<PhoneDevice | null>(null);
   const [selectedTargetUser, setSelectedTargetUser] = useState<string>('');
   const [targetEmpIdInput, setTargetEmpIdInput] = useState('');
+  const [senderMissedCallsInput, setSenderMissedCallsInput] = useState<string>('0');
+  const [senderReturnedCallsInput, setSenderReturnedCallsInput] = useState<string>('0');
   const [handoverNote, setHandoverNote] = useState('');
   const [handoverLoading, setHandoverLoading] = useState(false);
+
+  // Modal States - Receiver Approval Verification Modal
+  const [approvingDevice, setApprovingDevice] = useState<PhoneDevice | null>(null);
+  const [receiverMissedCallsInput, setReceiverMissedCallsInput] = useState<string>('0');
+  const [receiverReturnedCallsInput, setReceiverReturnedCallsInput] = useState<string>('0');
+  const [receiverVerificationNote, setReceiverVerificationNote] = useState('');
+  const [approveLoading, setApproveLoading] = useState(false);
 
   // Filter & Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -85,12 +107,84 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
   const [startDateFilter, setStartDateFilter] = useState<string>('');
   const [endDateFilter, setEndDateFilter] = useState<string>('');
 
-  // Realtime Live Timer Tick
+  // Realtime Live Timer Tick & 24h Auto-Unassign Check
   const [, setTick] = useState(0);
+
+  // Helper: Auto-unassign phones after 24 hours of usage so that any agent can take/assign them
+  const checkAndAutoUnassignExpiredDevices = useCallback(async (devList: PhoneDevice[]) => {
+    if (!currentUser) return;
+    const nowMs = Date.now();
+    const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+    const expired = devList.filter(dev => {
+      if (dev.status === 'available') return false;
+      if (!dev.currentSessionStart) return false;
+      const startMs = new Date(dev.currentSessionStart).getTime();
+      return !isNaN(startMs) && (nowMs - startMs >= TWENTY_FOUR_HOURS_MS);
+    });
+
+    if (expired.length === 0) return;
+
+    try {
+      const now = getBSTISOString();
+      const batch = writeBatch(db);
+
+      for (const dev of expired) {
+        const devRef = doc(db, 'phone_devices', dev.id);
+        batch.update(devRef, {
+          status: 'available',
+          currentHolderId: null,
+          currentHolderName: null,
+          currentHolderEmpId: null,
+          currentSessionStart: null,
+          pendingHandoverToId: null,
+          pendingHandoverToName: null,
+          pendingHandoverToEmpId: null,
+          pendingHandoverAt: null,
+          pendingHandoverNote: null,
+          pendingSenderMissedCalls: null,
+          pendingSenderReturnedCalls: null,
+          updatedAt: now
+        });
+
+        const activeLogsSnap = await getDocs(query(
+          collection(db, 'phone_usage_logs'),
+          where('phoneId', '==', dev.id),
+          where('status', '==', 'active')
+        ));
+
+        activeLogsSnap.forEach(docSnap => {
+          const logData = docSnap.data() as PhoneUsageLog;
+          const startMs = new Date(logData.startTime).getTime();
+          const endMs = new Date(now).getTime();
+          const durationMins = Math.round(Math.max(0, endMs - startMs) / 60000);
+
+          batch.update(docSnap.ref, cleanObject({
+            endTime: now,
+            durationMinutes: durationMins,
+            status: 'completed',
+            note: logData.note 
+              ? `${logData.note} (Auto-unassigned after 24h)` 
+              : 'Auto-unassigned after 24 hours (২৪ ঘণ্টা পর দিন শেষে স্বয়ংক্রিয় আন-অ্যাসাইন)'
+          }));
+        });
+      }
+
+      await batch.commit();
+    } catch (err) {
+      console.error("Error during auto-unassign of expired devices:", err);
+    }
+  }, [currentUser]);
+
   useEffect(() => {
-    const timer = setInterval(() => setTick(t => t + 1), 30000); // refresh every 30s for duration rendering
+    const timer = setInterval(() => {
+      setTick(t => t + 1);
+      if (devices.length > 0) {
+        checkAndAutoUnassignExpiredDevices(devices);
+      }
+    }, 30000);
     return () => clearInterval(timer);
-  }, []);
+  }, [devices, checkAndAutoUnassignExpiredDevices]);
 
   // Listen to Phone Devices
   useEffect(() => {
@@ -102,13 +196,14 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
       })) as PhoneDevice[];
       setDevices(list);
       setLoading(false);
+      checkAndAutoUnassignExpiredDevices(list);
     }, (err) => {
       console.error("Error fetching phone devices:", err);
       setLoading(false);
     });
 
     return () => unsubDevices();
-  }, []);
+  }, [checkAndAutoUnassignExpiredDevices]);
 
   // Listen to Phone Usage Logs
   useEffect(() => {
@@ -125,6 +220,23 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
     return () => unsubLogs();
   }, []);
+
+  // Listen to Deletion Audit Logs (Admin only)
+  useEffect(() => {
+    if (!isAdmin) return;
+    const qAudit = query(collection(db, 'phone_deletion_logs'), orderBy('timestamp', 'desc'));
+    const unsubAudit = onSnapshot(qAudit, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as PhoneDeletionAuditLog[];
+      setDeletionLogs(list);
+    }, (err) => {
+      console.error("Error fetching phone deletion audit logs:", err);
+    });
+
+    return () => unsubAudit();
+  }, [isAdmin]);
 
   // Helper: calculate live duration in minutes and format
   const formatDuration = (startTimeStr: string, endTimeStr?: string) => {
@@ -144,9 +256,13 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
     }
   };
 
-  // 1. Admin: Create or Update Phone Device
+  // 1. Admin: Create or Update Phone Device (Admin Only)
   const handleSaveDevice = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) {
+      alert("Only admins are authorized to add or edit phone devices.");
+      return;
+    }
     if (!deviceNameInput.trim()) return;
     setDeviceActionLoading(true);
 
@@ -187,13 +303,147 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
     }
   };
 
+  // Helper: Record an Audit Log when an Admin Deletes Something
+  const recordDeletionAudit = async (
+    actionType: 'delete_history_log' | 'bulk_delete_history_logs' | 'delete_device',
+    deletedSummary: string,
+    deletedDetails?: string,
+    itemCount: number = 1
+  ) => {
+    if (!currentUser) return;
+    try {
+      const auditRef = doc(collection(db, 'phone_deletion_logs'));
+      const adminName = currentUser.displayName || currentUser.loginHandle || currentUser.email.split('@')[0];
+      const adminEmpId = currentUser.employeeId || currentUser.loginHandle || '';
+      const now = getBSTISOString();
+      const auditLog: PhoneDeletionAuditLog = {
+        id: auditRef.id,
+        adminId: currentUser.id || currentUser.email,
+        adminName,
+        adminEmpId,
+        adminEmail: currentUser.email,
+        actionType,
+        deletedSummary,
+        deletedDetails: deletedDetails || '',
+        itemCount,
+        timestamp: now,
+        createdAt: now
+      };
+      await setDoc(auditRef, cleanObject(auditLog));
+    } catch (err) {
+      console.error("Error recording deletion audit log:", err);
+    }
+  };
+
   const handleDeleteDevice = async (deviceId: string, name: string) => {
+    if (!isAdmin) {
+      alert("Only admins are authorized to delete phone devices.");
+      return;
+    }
     if (!window.confirm(`Are you sure you want to delete "${name}" from devices?`)) return;
     try {
+      const targetDev = devices.find(d => d.id === deviceId);
+      const summary = `Deleted Phone Device: "${name}" (Model: ${targetDev?.modelNumber || 'N/A'}, SIM: ${targetDev?.simNumber || 'N/A'}, Status: ${targetDev?.status || 'N/A'})`;
+      const details = targetDev ? `Device ID: ${targetDev.id} | Holder: ${targetDev.currentHolderName || 'None'} (${targetDev.currentHolderEmpId || 'N/A'})` : '';
+
       await deleteDoc(doc(db, 'phone_devices', deviceId));
+
+      await recordDeletionAudit('delete_device', summary, details, 1);
     } catch (err) {
       console.error("Error deleting device:", err);
       alert("Failed to delete device.");
+    }
+  };
+
+  // Admin: Delete History Usage Log
+  const handleDeleteLog = async (logId: string, phoneName?: string, agentName?: string) => {
+    if (!isAdmin) {
+      alert("Only admins can delete history logs.");
+      return;
+    }
+    const targetLog = logs.find(l => l.id === logId);
+    if (!window.confirm(`Are you sure you want to delete this history log for "${phoneName || targetLog?.phoneName || 'Phone'}" (${agentName || targetLog?.userName || 'Agent'})?`)) {
+      return;
+    }
+    try {
+      const pName = targetLog?.phoneName || phoneName || 'Phone';
+      const aName = targetLog?.userName || agentName || 'Agent';
+      const aId = targetLog?.userEmpId || 'N/A';
+      const durationStr = targetLog?.durationMinutes ? `${Math.floor(targetLog.durationMinutes / 60)}h ${targetLog.durationMinutes % 60}m` : 'N/A';
+      const startStr = targetLog?.startTime ? formatBST(targetLog.startTime) : 'N/A';
+      const summary = `Deleted History Record: [${pName}] Used by ${aName} (ID: ${aId}) | Duration: ${durationStr} | Start: ${startStr}`;
+      
+      const details = targetLog 
+        ? `Handover To: ${targetLog.handoverToName || 'None'} (${targetLog.handoverToEmpId || 'N/A'}) | Status: ${targetLog.status} | Sender Missed/Back: ${targetLog.senderMissedCalls ?? '-'}/${targetLog.senderReturnedCalls ?? '-'} | Receiver Missed/Back: ${targetLog.receiverMissedCalls ?? '-'}/${targetLog.receiverReturnedCalls ?? '-'}`
+        : '';
+
+      await deleteDoc(doc(db, 'phone_usage_logs', logId));
+
+      await recordDeletionAudit('delete_history_log', summary, details, 1);
+    } catch (err) {
+      console.error("Error deleting history log:", err);
+      alert("Failed to delete history log.");
+    }
+  };
+
+  // Admin: Bulk Delete Filtered History Logs
+  const handleBulkDeleteFilteredLogs = async () => {
+    if (!isAdmin) return;
+    if (filteredLogs.length === 0) return;
+    if (!window.confirm(`Are you sure you want to delete all ${filteredLogs.length} filtered history logs? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      const count = filteredLogs.length;
+      const sampleNames = filteredLogs.slice(0, 3).map(l => `${l.phoneName} (${l.userName})`).join(', ') + (count > 3 ? ` and ${count - 3} more...` : '');
+      const summary = `Bulk Deleted ${count} History Records: Including ${sampleNames}`;
+      const details = filteredLogs.map(l => `[${l.phoneName} | Agent: ${l.userName} (${l.userEmpId}) | Start: ${formatBST(l.startTime)} | Duration: ${l.durationMinutes || 0}m]`).join('\n');
+
+      const batch = writeBatch(db);
+      filteredLogs.forEach(log => {
+        batch.delete(doc(db, 'phone_usage_logs', log.id));
+      });
+      await batch.commit();
+
+      await recordDeletionAudit('bulk_delete_history_logs', summary, details, count);
+    } catch (err) {
+      console.error("Error deleting filtered history logs:", err);
+      alert("Failed to delete history logs.");
+    }
+  };
+
+  // Super-Admin 2146 ONLY: Delete a Deletion Audit Log
+  const handleDeleteAuditLog = async (auditLogId: string) => {
+    if (!isSuperAdmin2146) {
+      alert("Permission Denied: Only user 2146 is authorized to delete deletion audit records (শুধুমাত্র 2146 ইউজার এই অডিট লগ ডিলিট করতে পারবেন)।");
+      return;
+    }
+    if (!window.confirm("Are you sure you want to delete this deletion audit record?")) return;
+    try {
+      await deleteDoc(doc(db, 'phone_deletion_logs', auditLogId));
+    } catch (err) {
+      console.error("Error deleting audit log:", err);
+      alert("Failed to delete audit record.");
+    }
+  };
+
+  // Super-Admin 2146 ONLY: Bulk Delete All Deletion Audit Logs
+  const handleBulkDeleteAuditLogs = async () => {
+    if (!isSuperAdmin2146) {
+      alert("Permission Denied: Only user 2146 is authorized to delete deletion audit records.");
+      return;
+    }
+    if (deletionLogs.length === 0) return;
+    if (!window.confirm(`Are you sure you want to delete all ${deletionLogs.length} deletion audit records?`)) return;
+    try {
+      const batch = writeBatch(db);
+      deletionLogs.forEach(l => {
+        batch.delete(doc(db, 'phone_deletion_logs', l.id));
+      });
+      await batch.commit();
+    } catch (err) {
+      console.error("Error clearing audit logs:", err);
+      alert("Failed to delete audit logs.");
     }
   };
 
@@ -240,6 +490,8 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
         pendingHandoverToEmpId: null,
         pendingHandoverAt: null,
         pendingHandoverNote: null,
+        pendingSenderMissedCalls: null,
+        pendingSenderReturnedCalls: null,
         updatedAt: now
       }));
 
@@ -250,7 +502,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
     }
   };
 
-  // 3. Action: Initiate Handover to another Agent (by Employee ID or Selection)
+  // 3. Action: Initiate Handover to another Agent (by Employee ID or Selection) with Missed Calls & Back Given count
   const handleInitiateHandover = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!handoverDevice || !currentUser) return;
@@ -278,6 +530,9 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
       return;
     }
 
+    const missedCallsNum = Math.max(0, parseInt(senderMissedCallsInput, 10) || 0);
+    const returnedCallsNum = Math.max(0, parseInt(senderReturnedCallsInput, 10) || 0);
+
     setHandoverLoading(true);
     try {
       const now = getBSTISOString();
@@ -287,7 +542,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
       const batch = writeBatch(db);
 
-      // 1. Update Device status to pending_handover
+      // 1. Update Device status to pending_handover with Missed Calls & Back given info
       const devRef = doc(db, 'phone_devices', handoverDevice.id);
       batch.update(devRef, cleanObject({
         status: 'pending_handover',
@@ -296,16 +551,18 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
         pendingHandoverToEmpId: targetEmpId,
         pendingHandoverAt: now,
         pendingHandoverNote: handoverNote.trim() || null,
+        pendingSenderMissedCalls: missedCallsNum,
+        pendingSenderReturnedCalls: returnedCallsNum,
         updatedAt: now
       }));
 
-      // 2. Send in-app notification to the target recipient
+      // 2. Send in-app notification to the target recipient with call details
       if (targetUser.id) {
         const notifRef = doc(collection(db, 'notifications'));
         batch.set(notifRef, {
           userId: targetUser.id,
-          title: `📱 Phone Handover Request: ${handoverDevice.name}`,
-          message: `${currentSenderName} wants to hand over ${handoverDevice.name} to you. Please open Phone Tracker to Accept or Decline.`,
+          title: `📱 Phone Handover: ${handoverDevice.name}`,
+          message: `${currentSenderName} wants to hand over ${handoverDevice.name} to you (Missed Calls: ${missedCallsNum}, Back Given: ${returnedCallsNum}). Open Phone Tracker to verify & accept.`,
           type: 'phone_handover',
           isRead: false,
           createdAt: now,
@@ -318,6 +575,8 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
       setHandoverDevice(null);
       setSelectedTargetUser('');
       setTargetEmpIdInput('');
+      setSenderMissedCallsInput('0');
+      setSenderReturnedCallsInput('0');
       setHandoverNote('');
     } catch (err) {
       console.error("Error initiating handover:", err);
@@ -327,25 +586,40 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
     }
   };
 
-  // 4. Action: Target Agent Approves Handover
-  const handleApproveHandover = async (device: PhoneDevice) => {
-    if (!currentUser) return;
-    if (device.pendingHandoverToId !== currentUser.id && !isAdmin) {
+  // Open Receiver Verification Dialog
+  const openApproveModal = (device: PhoneDevice) => {
+    setApprovingDevice(device);
+    setReceiverMissedCallsInput(String(device.pendingSenderMissedCalls ?? 0));
+    setReceiverReturnedCallsInput(String(device.pendingSenderReturnedCalls ?? 0));
+    setReceiverVerificationNote('');
+  };
+
+  // 4. Action: Target Agent Approves Handover after Verifying Missed Calls & Back Given
+  const handleConfirmApproveHandover = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!approvingDevice || !currentUser) return;
+    if (approvingDevice.pendingHandoverToId !== currentUser.id && !isAdmin) {
       alert("You are not authorized to approve this handover.");
       return;
     }
 
+    setApproveLoading(true);
     try {
       const now = getBSTISOString();
       const batch = writeBatch(db);
 
-      // 1. Find the active log for the old holder and close it
-      const oldHolderId = device.currentHolderId;
+      const senderMissed = approvingDevice.pendingSenderMissedCalls ?? 0;
+      const senderReturned = approvingDevice.pendingSenderReturnedCalls ?? 0;
+      const receiverMissed = Math.max(0, parseInt(receiverMissedCallsInput, 10) || 0);
+      const receiverReturned = Math.max(0, parseInt(receiverReturnedCallsInput, 10) || 0);
+      const isMismatch = (senderMissed !== receiverMissed) || (senderReturned !== receiverReturned);
+
+      // 1. Find the active log for the old holder and close it with complete handover details
+      const oldHolderId = approvingDevice.currentHolderId;
       if (oldHolderId) {
-        // Find active log for this device
         const activeLogsSnap = await getDocs(query(
           collection(db, 'phone_usage_logs'),
-          where('phoneId', '==', device.id),
+          where('phoneId', '==', approvingDevice.id),
           where('status', '==', 'active')
         ));
 
@@ -362,7 +636,13 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
             handoverToId: currentUser.id,
             handoverToName: currentUser.displayName || currentUser.loginHandle || currentUser.email.split('@')[0],
             handoverToEmpId: currentUser.employeeId || currentUser.loginHandle || '',
-            handoverApprovedAt: now
+            handoverApprovedAt: now,
+            senderMissedCalls: senderMissed,
+            senderReturnedCalls: senderReturned,
+            receiverMissedCalls: receiverMissed,
+            receiverReturnedCalls: receiverReturned,
+            verificationMismatch: isMismatch,
+            receiverNote: receiverVerificationNote.trim() || undefined
           }));
         });
       }
@@ -374,20 +654,20 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
       const newLog: PhoneUsageLog = {
         id: newLogRef.id,
-        phoneId: device.id,
-        phoneName: device.name,
+        phoneId: approvingDevice.id,
+        phoneName: approvingDevice.name,
         userId: currentUser.id || '',
         userName: newReceiverName,
         userEmpId: newReceiverEmpId,
         startTime: now,
         status: 'active',
-        note: device.pendingHandoverNote ? `Handover note: ${device.pendingHandoverNote}` : undefined,
+        note: approvingDevice.pendingHandoverNote ? `Handover note: ${approvingDevice.pendingHandoverNote}` : undefined,
         createdAt: now
       };
       batch.set(newLogRef, cleanObject(newLog));
 
       // 3. Update device document with new holder
-      const devRef = doc(db, 'phone_devices', device.id);
+      const devRef = doc(db, 'phone_devices', approvingDevice.id);
       batch.update(devRef, cleanObject({
         status: 'in_use',
         currentHolderId: currentUser.id || '',
@@ -399,27 +679,36 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
         pendingHandoverToEmpId: null,
         pendingHandoverAt: null,
         pendingHandoverNote: null,
+        pendingSenderMissedCalls: null,
+        pendingSenderReturnedCalls: null,
         updatedAt: now
       }));
 
-      // 4. Notify old holder
+      // 4. Notify old holder with verification confirmation
       if (oldHolderId) {
         const notifRef = doc(collection(db, 'notifications'));
+        const mismatchMsg = isMismatch 
+          ? ` (⚠️ Verification note: Receiver verified Missed: ${receiverMissed}, Back: ${receiverReturned})` 
+          : ' (✅ Call counts verified & matched)';
+
         batch.set(notifRef, {
           userId: oldHolderId,
-          title: `✅ Handover Accepted: ${device.name}`,
-          message: `${newReceiverName} has accepted and received ${device.name}. Your session has ended.`,
+          title: `✅ Handover Accepted: ${approvingDevice.name}`,
+          message: `${newReceiverName} has accepted ${approvingDevice.name}.${mismatchMsg}`,
           type: 'system',
           isRead: false,
           createdAt: now,
-          phoneId: device.id
+          phoneId: approvingDevice.id
         });
       }
 
       await batch.commit();
+      setApprovingDevice(null);
     } catch (err) {
       console.error("Error approving handover:", err);
       alert("Failed to complete handover approval.");
+    } finally {
+      setApproveLoading(false);
     }
   };
 
@@ -438,6 +727,8 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
         pendingHandoverToEmpId: null,
         pendingHandoverAt: null,
         pendingHandoverNote: null,
+        pendingSenderMissedCalls: null,
+        pendingSenderReturnedCalls: null,
         updatedAt: now
       });
 
@@ -512,6 +803,8 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
         pendingHandoverToEmpId: null,
         pendingHandoverAt: null,
         pendingHandoverNote: null,
+        pendingSenderMissedCalls: null,
+        pendingSenderReturnedCalls: null,
         updatedAt: now
       });
 
@@ -522,10 +815,17 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
     }
   };
 
-  // 7. Filtered Logs for History
+  // 7. Base Accessible Logs (AGENT ONLY SEES OWN HISTORY; ADMIN SEES ALL)
+  const accessibleLogs = useMemo(() => {
+    if (isAdmin) return logs;
+    if (!currentUser) return [];
+    return logs.filter(log => log.userId === currentUser.id || log.handoverToId === currentUser.id);
+  }, [logs, isAdmin, currentUser]);
+
+  // 8. Filtered Logs for History Table
   const filteredLogs = useMemo(() => {
-    return logs.filter(log => {
-      // Search query (phone name, agent name, emp id)
+    return accessibleLogs.filter(log => {
+      // Search query (phone name, agent name, emp id, handover target)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchName = log.phoneName?.toLowerCase().includes(q);
@@ -540,8 +840,8 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
         return false;
       }
 
-      // User Filter
-      if (selectedUserFilter !== 'all' && log.userId !== selectedUserFilter) {
+      // User Filter (Admin only can filter by other users)
+      if (isAdmin && selectedUserFilter !== 'all' && log.userId !== selectedUserFilter) {
         return false;
       }
 
@@ -557,9 +857,9 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
       return true;
     });
-  }, [logs, searchQuery, selectedPhoneFilter, selectedUserFilter, startDateFilter, endDateFilter]);
+  }, [accessibleLogs, searchQuery, selectedPhoneFilter, selectedUserFilter, startDateFilter, endDateFilter, isAdmin]);
 
-  // 8. Excel Export Functionality
+  // 9. Excel Export Functionality
   const handleExportExcel = () => {
     if (filteredLogs.length === 0) {
       alert("No records to export.");
@@ -571,6 +871,13 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
         ? `${Math.floor(log.durationMinutes / 60)}h ${log.durationMinutes % 60}m (${log.durationMinutes} mins)`
         : formatDuration(log.startTime, log.endTime);
 
+      const hasCallData = log.senderMissedCalls !== undefined || log.receiverMissedCalls !== undefined;
+      const matchStatus = log.verificationMismatch 
+        ? '⚠️ Discrepancy (অমিল)' 
+        : hasCallData 
+          ? '✅ Matched (সঠিক)' 
+          : 'N/A';
+
       return {
         'SL': index + 1,
         'Device Name': log.phoneName || 'Unknown Phone',
@@ -581,14 +888,19 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
         'Total Duration': durationFormatted,
         'Session Status': log.status === 'active' ? 'Active (In Use)' : log.status === 'handed_over' ? 'Handed Over' : 'Returned / Completed',
         'Handed Over To': log.handoverToName ? `${log.handoverToName} (${log.handoverToEmpId || 'N/A'})` : 'N/A',
+        'Sender Missed Calls': log.senderMissedCalls !== undefined ? log.senderMissedCalls : '-',
+        'Sender Back Given Calls': log.senderReturnedCalls !== undefined ? log.senderReturnedCalls : '-',
+        'Receiver Verified Missed': log.receiverMissedCalls !== undefined ? log.receiverMissedCalls : '-',
+        'Receiver Verified Back': log.receiverReturnedCalls !== undefined ? log.receiverReturnedCalls : '-',
+        'Count Match Status': matchStatus,
+        'Receiver Verification Note': log.receiverNote || '',
         'Handover Approved Time': log.handoverApprovedAt ? formatBST(log.handoverApprovedAt, 'yyyy-MM-dd hh:mm:ss a') : 'N/A',
-        'Notes / Remarks': log.note || ''
+        'General Notes': log.note || ''
       };
     });
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
 
-    // Style column widths
     const columnWidths = [
       { wch: 6 },  // SL
       { wch: 22 }, // Device Name
@@ -596,18 +908,27 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
       { wch: 14 }, // Employee ID
       { wch: 24 }, // Start Time
       { wch: 24 }, // End Time
-      { wch: 20 }, // Total Duration
+      { wch: 18 }, // Total Duration
       { wch: 18 }, // Session Status
-      { wch: 24 }, // Handed Over To
+      { wch: 22 }, // Handed Over To
+      { wch: 18 }, // Sender Missed Calls
+      { wch: 20 }, // Sender Back Given Calls
+      { wch: 22 }, // Receiver Verified Missed
+      { wch: 22 }, // Receiver Verified Back
+      { wch: 20 }, // Count Match Status
+      { wch: 26 }, // Receiver Note
       { wch: 24 }, // Handover Approved Time
-      { wch: 25 }  // Notes
+      { wch: 22 }  // General Notes
     ];
     worksheet['!cols'] = columnWidths;
 
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Phone Usage Report');
+    XLSX.utils.book_append_sheet(workbook, worksheet, isAdmin ? 'All Phone Usage Report' : 'My Phone Usage Report');
 
-    const fileName = `Phone_Handover_History_${formatBST(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`;
+    const fileName = isAdmin 
+      ? `Phone_Handover_History_Admin_${formatBST(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`
+      : `My_Phone_Handover_History_${currentUser?.loginHandle || 'agent'}_${formatBST(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`;
+    
     XLSX.writeFile(workbook, fileName);
   };
 
@@ -633,12 +954,17 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-xs font-black tracking-widest uppercase">
               <Smartphone size={14} className="text-cyan-200" />
               <span>Device & Phone Handover Tracker</span>
+              {!isAdmin && (
+                <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px] text-white">
+                  Agent View (নিজস্ব হিস্ট্রি)
+                </span>
+              )}
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
               ফোন হ্যান্ডওভার ও ডিউটি ট্র্যাকিং সিস্টেম
             </h1>
             <p className="text-blue-100 text-xs sm:text-sm max-w-2xl leading-relaxed">
-              অফিসের কোন ফোন কার কাছে আছে, কতক্ষণ ধরে ব্যবহার হচ্ছে এবং হ্যান্ডওভারের রিকোয়েস্ট ও সম্পূর্ণ হিস্ট্রি এক্সেল রিপোর্টে ডাউনলোড করুন।
+              হ্যান্ডওভারের সময় কতগুলো মিসকল ছিল এবং কতগুলো ব্যাক দেওয়া হয়েছে তা উভয় পক্ষের নিখুঁত ভেরিফিকেশনসহ রেকর্ড রাখুন।
             </p>
           </div>
 
@@ -655,7 +981,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                 className="flex items-center gap-2 bg-white text-blue-700 hover:bg-blue-50 px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg transition-all active:scale-95"
               >
                 <Plus size={16} />
-                <span>Add New Phone (নতুন ফোন যুক্ত করুন)</span>
+                <span>Add New Phone</span>
               </button>
             )}
 
@@ -664,7 +990,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
               className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg transition-all active:scale-95"
             >
               <Download size={16} />
-              <span>Download Excel (রিপোর্ট ডাউনলোড)</span>
+              <span>{isAdmin ? 'Export All (Excel)' : 'Export My History'}</span>
             </button>
           </div>
         </div>
@@ -686,28 +1012,42 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                 আপনার কাছে ফোন হ্যান্ডওভার রিকোয়েস্ট এসেছে ({incomingHandovers.length} টি)
               </h3>
               <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
-                অনুমোদন (Approve) করলে ফোনটি আপনার দায়িত্বে ট্রান্সফার হয়ে যাবে।
+                প্রেরকের মিসকল ও ব্যাক কল চেক করে আপনার ভেরিফিকেশন দিয়ে হ্যান্ডওভার গ্রহণ (Approve) করুন।
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {incomingHandovers.map(dev => (
               <div 
                 key={dev.id} 
-                className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-amber-200 dark:border-amber-900/40 shadow-sm flex flex-col justify-between gap-3"
+                className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-amber-200 dark:border-amber-900/40 shadow-sm flex flex-col justify-between gap-3.5"
               >
                 <div>
                   <div className="flex items-center justify-between">
                     <span className="font-black text-sm text-slate-800 dark:text-slate-100">{dev.name}</span>
                     <span className="px-2.5 py-0.5 text-[10px] font-black uppercase rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400">
-                      Pending Approval
+                      Pending Verification
                     </span>
                   </div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 space-y-0.5">
+
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-2 space-y-1">
                     <p>প্রেরক: <strong className="text-slate-700 dark:text-slate-200">{dev.currentHolderName}</strong> (ID: {dev.currentHolderEmpId || 'N/A'})</p>
+                    
+                    {/* Sender Declared Missed / Back Calls */}
+                    <div className="mt-2 grid grid-cols-2 gap-2 p-2.5 bg-amber-50/80 dark:bg-amber-950/30 rounded-xl border border-amber-200/60 dark:border-amber-900/30">
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-rose-700 dark:text-rose-400">
+                        <PhoneMissed size={13} />
+                        <span>মিসকল ছিল: {dev.pendingSenderMissedCalls ?? 0} টি</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
+                        <PhoneCall size={13} />
+                        <span>ব্যাক দেওয়া হয়েছে: {dev.pendingSenderReturnedCalls ?? 0} টি</span>
+                      </div>
+                    </div>
+
                     {dev.pendingHandoverNote && (
-                      <p className="italic text-slate-600 dark:text-slate-300">নোট: "{dev.pendingHandoverNote}"</p>
+                      <p className="italic text-slate-600 dark:text-slate-300 pt-1">নোট: "{dev.pendingHandoverNote}"</p>
                     )}
                     <p className="text-[10px] text-slate-400">
                       অনুরোধের সময়: {dev.pendingHandoverAt ? formatBST(dev.pendingHandoverAt, 'hh:mm a, dd MMM') : ''}
@@ -717,15 +1057,15 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
                 <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                   <button
-                    onClick={() => handleApproveHandover(dev)}
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
+                    onClick={() => openApproveModal(dev)}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
                   >
                     <CheckCircle2 size={15} />
-                    <span>গ্রহণ করুন (Approve)</span>
+                    <span>চেক করে গ্রহণ করুন (Approve)</span>
                   </button>
                   <button
                     onClick={() => handleCancelOrDeclineHandover(dev)}
-                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold active:scale-95 transition-all"
+                    className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold active:scale-95 transition-all"
                   >
                     বাতিল (Decline)
                   </button>
@@ -774,8 +1114,27 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
           }`}
         >
           <History size={16} />
-          <span>Handover Records & History ({logs.length})</span>
+          <span>
+            {isAdmin ? `Handover History (All: ${accessibleLogs.length})` : `My History (${accessibleLogs.length})`}
+          </span>
         </button>
+
+        {isAdmin && (
+          <button
+            onClick={() => setActiveSubTab('deletion_logs')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all relative ${
+              activeSubTab === 'deletion_logs'
+                ? 'bg-rose-600 text-white shadow-lg shadow-rose-500/25'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <ShieldAlert size={16} />
+            <span>Deletion Audit Logs ({deletionLogs.length})</span>
+            {deletionLogs.length > 0 && (
+              <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse" />
+            )}
+          </button>
+        )}
       </div>
 
       {/* TAB 1: ALL DEVICES / LIVE STATUS */}
@@ -788,7 +1147,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
               </div>
               <h3 className="text-lg font-black text-slate-800 dark:text-slate-100">কোনো ফোন এখনও এন্ট্রি করা হয়নি</h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                অ্যাডমিন প্যানেল থেকে "Add New Phone" বাটনে ক্লিক করে অফিসের ফোনগুলোর নাম (যেমন: Phone A, Phone B) যুক্ত করুন।
+                অ্যাডমিন প্যানেল থেকে "Add New Phone" বাটনে ক্লিক করে অফিসের ফোনগুলোর নাম যুক্ত করুন।
               </p>
               {isAdmin && (
                 <button
@@ -860,7 +1219,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                           )}
                           {isInUse && (
                             <span className="px-3 py-1 text-[10px] font-black uppercase rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
-                              In Use (ব্যবহৃত হচ্ছে)
+                              In Use
                             </span>
                           )}
                           {isPendingHandover && (
@@ -912,12 +1271,17 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                             )}
 
                             {isPendingHandover && (
-                              <div className="bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-xl border border-amber-200 dark:border-amber-900/40 text-[11px] text-amber-800 dark:text-amber-300 space-y-1">
+                              <div className="bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-xl border border-amber-200 dark:border-amber-900/40 text-[11px] text-amber-800 dark:text-amber-300 space-y-1.5">
                                 <p className="font-bold">
                                   হ্যান্ডওভার অপেক্ষারত: {device.pendingHandoverToName} ({device.pendingHandoverToEmpId || 'N/A'})
                                 </p>
+                                <div className="flex items-center gap-3 text-[10px] text-slate-600 dark:text-slate-300 font-semibold">
+                                  <span className="text-rose-600 dark:text-rose-400">মিসকল: {device.pendingSenderMissedCalls ?? 0}</span>
+                                  <span>•</span>
+                                  <span className="text-emerald-600 dark:text-emerald-400">ব্যাক কল: {device.pendingSenderReturnedCalls ?? 0}</span>
+                                </div>
                                 {device.pendingHandoverNote && (
-                                  <p className="italic text-slate-600 dark:text-slate-400">"{device.pendingHandoverNote}"</p>
+                                  <p className="italic text-slate-500 dark:text-slate-400">"{device.pendingHandoverNote}"</p>
                                 )}
                               </div>
                             )}
@@ -947,6 +1311,8 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                               setHandoverDevice(device);
                               setSelectedTargetUser('');
                               setTargetEmpIdInput('');
+                              setSenderMissedCallsInput('0');
+                              setSenderReturnedCallsInput('0');
                               setHandoverNote('');
                             }}
                             className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
@@ -969,11 +1335,11 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                       {isPendingHandover && device.pendingHandoverToId === currentUser?.id && (
                         <div className="w-full flex items-center gap-2">
                           <button
-                            onClick={() => handleApproveHandover(device)}
+                            onClick={() => openApproveModal(device)}
                             className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 active:scale-95 transition-all"
                           >
                             <CheckCircle2 size={15} />
-                            <span>Approve Handover</span>
+                            <span>Verify & Approve</span>
                           </button>
                           <button
                             onClick={() => handleCancelOrDeclineHandover(device)}
@@ -1006,7 +1372,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                           </button>
                           {isPendingHandover && (
                             <button
-                              onClick={() => handleApproveHandover(device)}
+                              onClick={() => openApproveModal(device)}
                               className="text-emerald-600 hover:underline font-bold"
                             >
                               Force Approve
@@ -1104,6 +1470,10 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                       <p className="text-xs font-bold text-amber-800 dark:text-amber-300">
                         হ্যান্ডওভার অনুরোধ পাঠানো হয়েছে: {device.pendingHandoverToName} ({device.pendingHandoverToEmpId || 'N/A'})
                       </p>
+                      <div className="flex items-center gap-4 text-xs text-slate-600 dark:text-slate-300 font-semibold">
+                        <span className="text-rose-600">মিসকল: {device.pendingSenderMissedCalls ?? 0}</span>
+                        <span className="text-emerald-600">ব্যাক কল: {device.pendingSenderReturnedCalls ?? 0}</span>
+                      </div>
                       <button
                         onClick={() => handleCancelOrDeclineHandover(device)}
                         className="w-full bg-amber-600 hover:bg-amber-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider"
@@ -1118,6 +1488,8 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                           setHandoverDevice(device);
                           setSelectedTargetUser('');
                           setTargetEmpIdInput('');
+                          setSenderMissedCallsInput('0');
+                          setSenderReturnedCallsInput('0');
                           setHandoverNote('');
                         }}
                         className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 active:scale-95 transition-all"
@@ -1142,7 +1514,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
         </div>
       )}
 
-      {/* TAB 3: HANDOVER & USAGE HISTORY */}
+      {/* TAB 3: HANDOVER & USAGE HISTORY (ACCESS RESTRICTED: AGENT SEES ONLY OWN HISTORY) */}
       {activeSubTab === 'history' && (
         <div className="space-y-6">
           {/* Search & Filters */}
@@ -1152,7 +1524,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 <input
                   type="text"
-                  placeholder="Search by Agent, Phone, Emp ID..."
+                  placeholder={isAdmin ? "Search by Agent, Phone, Emp ID..." : "Search in your records..."}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl py-2.5 pl-11 pr-4 text-xs font-medium focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100"
@@ -1172,19 +1544,21 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   ))}
                 </select>
 
-                {/* User Dropdown Filter */}
-                <select
-                  value={selectedUserFilter}
-                  onChange={(e) => setSelectedUserFilter(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl px-3 py-2.5 text-xs font-semibold focus:outline-none text-slate-700 dark:text-slate-200"
-                >
-                  <option value="all">All Agents (সব এজেন্ট)</option>
-                  {allUsers.map(u => (
-                    <option key={u.id} value={u.id}>
-                      {u.displayName || u.loginHandle || u.email} {u.employeeId ? `(${u.employeeId})` : ''}
-                    </option>
-                  ))}
-                </select>
+                {/* User Dropdown Filter - ADMIN ONLY */}
+                {isAdmin && (
+                  <select
+                    value={selectedUserFilter}
+                    onChange={(e) => setSelectedUserFilter(e.target.value)}
+                    className="bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl px-3 py-2.5 text-xs font-semibold focus:outline-none text-slate-700 dark:text-slate-200"
+                  >
+                    <option value="all">All Agents (সব এজেন্ট)</option>
+                    {allUsers.map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.displayName || u.loginHandle || u.email} {u.employeeId ? `(${u.employeeId})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
 
                 {/* Start Date */}
                 <input
@@ -1204,7 +1578,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   title="Filter To Date"
                 />
 
-                {(searchQuery || selectedPhoneFilter !== 'all' || selectedUserFilter !== 'all' || startDateFilter || endDateFilter) && (
+                {(searchQuery || selectedPhoneFilter !== 'all' || (isAdmin && selectedUserFilter !== 'all') || startDateFilter || endDateFilter) && (
                   <button
                     onClick={() => {
                       setSearchQuery('');
@@ -1220,22 +1594,43 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                 )}
               </div>
             </div>
+
+            {!isAdmin && (
+              <div className="flex items-center gap-2 text-[11px] text-slate-400 bg-slate-50 dark:bg-slate-850 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                <Shield size={14} className="text-blue-500" />
+                <span>প্রাইভেসি সুরক্ষায় এখানে শুধুমাত্র আপনার নিজের ফোন ব্যবহার ও হ্যান্ডওভার রেকর্ড প্রদর্শিত হচ্ছে।</span>
+              </div>
+            )}
           </div>
 
           {/* History Records Table */}
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
               <div>
-                <h3 className="font-black text-slate-800 dark:text-slate-100 text-base">হ্যান্ডওভার ও ব্যবহারের পূর্ণাঙ্গ রেকর্ড</h3>
+                <h3 className="font-black text-slate-800 dark:text-slate-100 text-base">
+                  {isAdmin ? 'হ্যান্ডওভার ও মিসকল ভেরিফিকেশনের পূর্ণাঙ্গ হিস্ট্রি' : 'আমার ফোন ব্যবহারের হিস্ট্রি ও হ্যান্ডওভার রেকর্ড'}
+                </h3>
                 <p className="text-xs text-slate-400">Total {filteredLogs.length} logs recorded</p>
               </div>
-              <button
-                onClick={handleExportExcel}
-                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl font-bold text-xs shadow-sm transition-all"
-              >
-                <Download size={14} />
-                <span>Export to Excel</span>
-              </button>
+              <div className="flex items-center gap-3">
+                {isAdmin && filteredLogs.length > 0 && (
+                  <button
+                    onClick={handleBulkDeleteFilteredLogs}
+                    title="ফিল্টার করা সকল হিস্ট্রি রেকর্ড মুছে ফেলুন"
+                    className="flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 px-3 py-2 rounded-xl font-bold text-xs shadow-sm transition-all"
+                  >
+                    <Trash2 size={14} />
+                    <span>Clear Filtered ({filteredLogs.length})</span>
+                  </button>
+                )}
+                <button
+                  onClick={handleExportExcel}
+                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl font-bold text-xs shadow-sm transition-all"
+                >
+                  <Download size={14} />
+                  <span>Export Excel</span>
+                </button>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -1243,24 +1638,27 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                 <thead className="bg-slate-50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
                   <tr>
                     <th className="py-4 px-5">Device</th>
-                    <th className="py-4 px-5">Agent (Employee ID)</th>
-                    <th className="py-4 px-5">Start Time</th>
-                    <th className="py-4 px-5">End Time</th>
-                    <th className="py-4 px-5">Duration</th>
-                    <th className="py-4 px-5">Handover / Release Details</th>
+                    <th className="py-4 px-5">Agent</th>
+                    <th className="py-4 px-5">Time & Duration</th>
+                    <th className="py-4 px-5">Handover To</th>
+                    <th className="py-4 px-5">Sender (Missed / Back)</th>
+                    <th className="py-4 px-5">Receiver Verification</th>
                     <th className="py-4 px-5">Status</th>
+                    {isAdmin && <th className="py-4 px-5 text-right">Action</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-200 font-medium">
                   {filteredLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-10 text-slate-400 text-xs font-semibold">
+                      <td colSpan={isAdmin ? 8 : 7} className="text-center py-10 text-slate-400 text-xs font-semibold">
                         কোনো রেকর্ড পাওয়া যায়নি।
                       </td>
                     </tr>
                   ) : (
                     filteredLogs.map(log => {
                       const isStillActive = log.status === 'active';
+                      const hasCallCounts = log.senderMissedCalls !== undefined || log.receiverMissedCalls !== undefined;
+
                       return (
                         <tr key={log.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-850/50 transition-colors">
                           <td className="py-4 px-5 font-bold text-slate-900 dark:text-slate-100">
@@ -1269,39 +1667,36 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                               <span>{log.phoneName}</span>
                             </div>
                           </td>
+
                           <td className="py-4 px-5">
                             <div>
                               <p className="font-bold text-slate-800 dark:text-slate-100">{log.userName}</p>
                               {log.userEmpId && <p className="text-[10px] text-slate-400">ID: {log.userEmpId}</p>}
                             </div>
                           </td>
+
                           <td className="py-4 px-5 whitespace-nowrap">
-                            {formatBST(log.startTime, 'dd MMM yyyy, hh:mm a')}
+                            <div className="space-y-0.5">
+                              <p className="text-slate-600 dark:text-slate-300">
+                                {formatBST(log.startTime, 'dd MMM, hh:mm a')}
+                              </p>
+                              <p className="text-[11px] font-black text-blue-600 dark:text-blue-400">
+                                Duration: {log.durationMinutes !== undefined 
+                                  ? `${Math.floor(log.durationMinutes / 60)}h ${log.durationMinutes % 60}m`
+                                  : formatDuration(log.startTime, log.endTime)}
+                              </p>
+                            </div>
                           </td>
-                          <td className="py-4 px-5 whitespace-nowrap">
-                            {log.endTime ? (
-                              formatBST(log.endTime, 'dd MMM yyyy, hh:mm a')
-                            ) : (
-                              <span className="text-emerald-600 font-bold flex items-center gap-1">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                Currently In Use
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-4 px-5 font-black text-blue-600 dark:text-blue-400 whitespace-nowrap">
-                            {log.durationMinutes !== undefined 
-                              ? `${Math.floor(log.durationMinutes / 60)}h ${log.durationMinutes % 60}m`
-                              : formatDuration(log.startTime, log.endTime)}
-                          </td>
+
                           <td className="py-4 px-5">
                             {log.handoverToName ? (
                               <div className="space-y-0.5">
                                 <p className="font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
                                   <ArrowRightLeft size={12} />
-                                  <span>Handed over to: {log.handoverToName}</span>
+                                  <span>{log.handoverToName}</span>
                                 </p>
                                 {log.handoverToEmpId && (
-                                  <p className="text-[10px] text-slate-400">Target ID: {log.handoverToEmpId}</p>
+                                  <p className="text-[10px] text-slate-400">ID: {log.handoverToEmpId}</p>
                                 )}
                               </div>
                             ) : log.note ? (
@@ -1310,6 +1705,57 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                               <span className="text-slate-400">Returned to Storage</span>
                             )}
                           </td>
+
+                          {/* Sender Declared Counts */}
+                          <td className="py-4 px-5 whitespace-nowrap">
+                            {log.senderMissedCalls !== undefined || log.senderReturnedCalls !== undefined ? (
+                              <div className="space-y-0.5">
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-lg">
+                                  <PhoneMissed size={11} />
+                                  <span>Missed: {log.senderMissedCalls ?? 0}</span>
+                                </span>
+                                <br />
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-lg mt-0.5">
+                                  <PhoneCall size={11} />
+                                  <span>Back: {log.senderReturnedCalls ?? 0}</span>
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 text-[11px]">-</span>
+                            )}
+                          </td>
+
+                          {/* Receiver Verified Counts */}
+                          <td className="py-4 px-5">
+                            {log.receiverMissedCalls !== undefined || log.receiverReturnedCalls !== undefined ? (
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200">
+                                    Missed: {log.receiverMissedCalls ?? 0} | Back: {log.receiverReturnedCalls ?? 0}
+                                  </span>
+                                  {log.verificationMismatch ? (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400 flex items-center gap-0.5">
+                                      <AlertTriangle size={10} />
+                                      Mismatch
+                                    </span>
+                                  ) : (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 flex items-center gap-0.5">
+                                      <CheckCheck size={10} />
+                                      Matched
+                                    </span>
+                                  )}
+                                </div>
+                                {log.receiverNote && (
+                                  <p className="text-[10px] italic text-slate-400">Note: "{log.receiverNote}"</p>
+                                )}
+                              </div>
+                            ) : hasCallCounts ? (
+                              <span className="text-amber-500 text-[10px] font-bold">Pending Check</span>
+                            ) : (
+                              <span className="text-slate-400 text-[11px]">-</span>
+                            )}
+                          </td>
+
                           <td className="py-4 px-5 whitespace-nowrap">
                             {isStillActive ? (
                               <span className="px-2.5 py-1 text-[10px] font-black uppercase rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
@@ -1322,6 +1768,197 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                             ) : (
                               <span className="px-2.5 py-1 text-[10px] font-black uppercase rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                                 Completed
+                              </span>
+                            )}
+                          </td>
+
+                          {isAdmin && (
+                            <td className="py-4 px-5 text-right whitespace-nowrap">
+                              <button
+                                onClick={() => handleDeleteLog(log.id, log.phoneName, log.userName)}
+                                title="Delete History Log (হিস্ট্রি মুছে ফেলুন)"
+                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-all inline-flex items-center gap-1.5 font-bold text-[11px]"
+                              >
+                                <Trash2 size={14} />
+                                <span className="hidden sm:inline">Delete</span>
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: DELETION AUDIT LOGS (ADMINS VIEW, ONLY 2146 CAN DELETE) */}
+      {isAdmin && activeSubTab === 'deletion_logs' && (
+        <div className="space-y-6">
+          {/* Security Banner */}
+          <div className="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-rose-600 text-white flex items-center justify-center shadow-lg shadow-rose-600/20 shrink-0">
+                <ShieldAlert size={22} />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-black text-rose-950 dark:text-rose-200">
+                    অ্যাডমিন ডিলিট অ্যাকশন অডিট লগ (Deletion Audit Logs)
+                  </h3>
+                  <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-full bg-rose-200/80 dark:bg-rose-900/60 text-rose-800 dark:text-rose-300">
+                    Audited
+                  </span>
+                </div>
+                <p className="text-xs text-rose-800/80 dark:text-rose-300/80 font-medium">
+                  কোন অ্যাডমিন কখন কোন ফোন বা হিস্ট্রি রেকর্ড মুছেছেন তার স্বয়ংক্রিয় অপরিবর্তনযোগ্য লগ।
+                </p>
+                <div className="flex items-center gap-2 pt-1 text-[11px] font-semibold text-rose-700 dark:text-rose-400">
+                  <Lock size={12} />
+                  <span>
+                    নিরাপত্তা নীতি: এই অডিট লগগুলো <strong>শুধুমাত্র ইউজার 2146</strong> দ্বারা ডিলিট করা সম্ভব।
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {isSuperAdmin2146 && deletionLogs.length > 0 && (
+              <button
+                onClick={handleBulkDeleteAuditLogs}
+                className="self-start sm:self-auto flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-rose-600/20 transition-all active:scale-95 shrink-0"
+              >
+                <Trash2 size={15} />
+                <span>Clear All Audit Logs ({deletionLogs.length})</span>
+              </button>
+            )}
+          </div>
+
+          {/* Audit Records Table */}
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h3 className="font-black text-slate-800 dark:text-slate-100 text-base">
+                  ডিলিট অ্যাক্টিভিটি ট্র্যাকিং হিস্ট্রি
+                </h3>
+                <p className="text-xs text-slate-400">মোট {deletionLogs.length} টি ডিলিট অ্যাকশন রেকর্ড করা হয়েছে</p>
+              </div>
+              <div className="flex items-center gap-2 text-xs font-bold">
+                {isSuperAdmin2146 ? (
+                  <span className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-1.5">
+                    <ShieldCheck size={14} />
+                    <span>Authorized as 2146 (Full Access)</span>
+                  </span>
+                ) : (
+                  <span className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                    <Lock size={14} />
+                    <span>View Only (Protected)</span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 uppercase tracking-wider font-black text-[11px] border-b border-slate-100 dark:border-slate-800">
+                    <th className="py-4 px-5">Admin (কে ডিলিট করেছে)</th>
+                    <th className="py-4 px-5">Time & Date (সময়)</th>
+                    <th className="py-4 px-5">Action Type</th>
+                    <th className="py-4 px-5">Deleted Content Summary (যা ডিলিট হয়েছে)</th>
+                    <th className="py-4 px-5 text-right">Audit Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-200 font-medium">
+                  {deletionLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="text-center py-12 text-slate-400 text-xs font-semibold">
+                        এখনও পর্যন্ত কোনো হিস্ট্রি বা ফোন ডিলিট করার রেকর্ড নেই।
+                      </td>
+                    </tr>
+                  ) : (
+                    deletionLogs.map(audit => {
+                      const actionLabel = 
+                        audit.actionType === 'delete_device' 
+                          ? 'Device Deleted' 
+                          : audit.actionType === 'bulk_delete_history_logs'
+                          ? 'Bulk History Clear'
+                          : 'History Log Deleted';
+                      
+                      const actionBadgeColor = 
+                        audit.actionType === 'delete_device'
+                          ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
+                          : audit.actionType === 'bulk_delete_history_logs'
+                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300';
+
+                      return (
+                        <tr key={audit.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                          {/* Admin Info */}
+                          <td className="py-4 px-5 whitespace-nowrap">
+                            <div className="space-y-0.5">
+                              <p className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-1.5">
+                                <span>{audit.adminName}</span>
+                                {audit.adminEmpId && (
+                                  <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded">
+                                    ID: {audit.adminEmpId}
+                                  </span>
+                                )}
+                              </p>
+                              {audit.adminEmail && (
+                                <p className="text-[11px] text-slate-400">{audit.adminEmail}</p>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Time */}
+                          <td className="py-4 px-5 whitespace-nowrap">
+                            <div className="space-y-0.5">
+                              <p className="font-bold text-slate-800 dark:text-slate-200">
+                                {formatBST(audit.timestamp || audit.createdAt)}
+                              </p>
+                              <p className="text-[10px] text-slate-400">Recorded BST</p>
+                            </div>
+                          </td>
+
+                          {/* Action Type */}
+                          <td className="py-4 px-5 whitespace-nowrap">
+                            <span className={`px-2.5 py-1 text-[10px] font-black uppercase rounded-full ${actionBadgeColor}`}>
+                              {actionLabel}
+                            </span>
+                          </td>
+
+                          {/* Deleted Summary & Details */}
+                          <td className="py-4 px-5">
+                            <div className="space-y-1 max-w-xl">
+                              <p className="font-bold text-slate-800 dark:text-slate-100 text-xs">
+                                {audit.deletedSummary}
+                              </p>
+                              {audit.deletedDetails && (
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono bg-slate-100/80 dark:bg-slate-800/80 p-2 rounded-xl border border-slate-200/50 dark:border-slate-700/50 whitespace-pre-wrap max-h-24 overflow-y-auto">
+                                  {audit.deletedDetails}
+                                </p>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Action: Only 2146 can delete this log */}
+                          <td className="py-4 px-5 text-right whitespace-nowrap">
+                            {isSuperAdmin2146 ? (
+                              <button
+                                onClick={() => handleDeleteAuditLog(audit.id)}
+                                title="Delete this audit log (2146 Authorize)"
+                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-all inline-flex items-center gap-1.5 font-bold text-[11px]"
+                              >
+                                <Trash2 size={14} />
+                                <span>Delete Log</span>
+                              </button>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full font-bold">
+                                <Lock size={11} />
+                                <span>2146 Only</span>
                               </span>
                             )}
                           </td>
@@ -1338,7 +1975,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
       {/* MODAL 1: ADD / EDIT PHONE DEVICE (ADMIN ONLY) */}
       <AnimatePresence>
-        {showAddDeviceModal && (
+        {isAdmin && showAddDeviceModal && (
           <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
@@ -1361,7 +1998,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   </div>
                   <div>
                     <h3 className="text-base font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
-                      {editingDevice ? 'Edit Phone Details' : 'Add New Phone (নতুন ফোন)'}
+                      {editingDevice ? 'Edit Phone Details' : 'Add New Phone'}
                     </h3>
                     <p className="text-xs text-slate-400">অফিসের ডিভাইসের নাম ও সিম তথ্য যুক্ত করুন</p>
                   </div>
@@ -1437,7 +2074,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
         )}
       </AnimatePresence>
 
-      {/* MODAL 2: INITIATE HANDOVER MODAL */}
+      {/* MODAL 2: INITIATE HANDOVER MODAL (SENDER ENTERS MISSED CALLS & BACK CALLS) */}
       <AnimatePresence>
         {handoverDevice && (
           <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
@@ -1464,7 +2101,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     <h3 className="text-base font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
                       Handover: {handoverDevice.name}
                     </h3>
-                    <p className="text-xs text-slate-400">অন্য এজেন্টের Employee ID দিয়ে হ্যান্ডওভার রিকোয়েস্ট পাঠান</p>
+                    <p className="text-xs text-slate-400">মিসকল ও ব্যাক কলের সংখ্যা উল্লেখ করে রিকোয়েস্ট পাঠান</p>
                   </div>
                 </div>
                 <button
@@ -1520,6 +2157,41 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   </div>
                 </div>
 
+                {/* SENDER MISSED CALLS & BACK CALLS INPUTS */}
+                <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                      <PhoneMissed size={12} />
+                      <span>Missed Calls (কতগুলো মিসকল ছিল) *</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      placeholder="0"
+                      value={senderMissedCallsInput}
+                      onChange={(e) => setSenderMissedCallsInput(e.target.value)}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-750 rounded-xl py-2.5 px-3 text-sm font-black text-rose-600 dark:text-rose-400 focus:outline-none focus:border-rose-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <PhoneCall size={12} />
+                      <span>Back Given (কতগুলো ব্যাক দেওয়া হয়েছে) *</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      placeholder="0"
+                      value={senderReturnedCallsInput}
+                      onChange={(e) => setSenderReturnedCallsInput(e.target.value)}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-750 rounded-xl py-2.5 px-3 text-sm font-black text-emerald-600 dark:text-emerald-400 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
                 {/* Handover Note / Remark */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
@@ -1534,14 +2206,6 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   />
                 </div>
 
-                <div className="p-3.5 bg-blue-50 dark:bg-blue-950/40 rounded-2xl border border-blue-100 dark:border-blue-900/30 text-[11px] text-blue-800 dark:text-blue-300 space-y-1">
-                  <p className="font-bold">প্রক্রিয়া কিভাবে কাজ করবে:</p>
-                  <ul className="list-disc list-inside space-y-0.5 text-slate-600 dark:text-slate-400">
-                    <li>আপনি সাবমিট করলে প্রাপক এজেন্টের কাছে নোটিশ যাবে।</li>
-                    <li>সে "Approve" করলেই ফোনটি তার নামে ট্রান্সফার হবে এবং সময় গণনা শুরু হবে।</li>
-                  </ul>
-                </div>
-
                 <div className="pt-3 flex items-center gap-3">
                   <button
                     type="submit"
@@ -1553,6 +2217,159 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   <button
                     type="button"
                     onClick={() => setHandoverDevice(null)}
+                    className="px-5 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-black text-xs uppercase tracking-wider hover:bg-slate-200 dark:hover:bg-slate-700"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 3: RECEIVER VERIFY & APPROVE HANDOVER MODAL */}
+      <AnimatePresence>
+        {approvingDevice && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setApprovingDevice(null)}
+              className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-6"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center">
+                    <CheckCircle2 size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+                      Verify & Accept Handover
+                    </h3>
+                    <p className="text-xs text-slate-400">হ্যান্ডওভার গ্রহণের পূর্বে কল রেকর্ড চেক করে সংখ্যা দিন</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setApprovingDevice(null)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <XCircle size={20} />
+                </button>
+              </div>
+
+              {/* Sender Details & Stated Counts */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Device Name:</span>
+                  <span className="font-black text-slate-800 dark:text-slate-100">{approvingDevice.name}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Sender (প্রেরক):</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-200">
+                    {approvingDevice.currentHolderName} ({approvingDevice.currentHolderEmpId || 'N/A'})
+                  </span>
+                </div>
+                
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-700 grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="p-2 bg-rose-50/80 dark:bg-rose-950/30 rounded-xl text-rose-700 dark:text-rose-400 font-bold flex items-center gap-1.5">
+                    <PhoneMissed size={13} />
+                    <span>প্রেরক বলেছে মিসকল: {approvingDevice.pendingSenderMissedCalls ?? 0}</span>
+                  </div>
+                  <div className="p-2 bg-emerald-50/80 dark:bg-emerald-950/30 rounded-xl text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1.5">
+                    <PhoneCall size={13} />
+                    <span>প্রেরক বলেছে ব্যাক: {approvingDevice.pendingSenderReturnedCalls ?? 0}</span>
+                  </div>
+                </div>
+
+                {approvingDevice.pendingHandoverNote && (
+                  <p className="italic text-slate-500 pt-1">নোট: "{approvingDevice.pendingHandoverNote}"</p>
+                )}
+              </div>
+
+              <form onSubmit={handleConfirmApproveHandover} className="space-y-4">
+                <div className="space-y-2">
+                  <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
+                    আপনার ভেরিফিকেশন (আপনি চেক করে কত পেলেন):
+                  </span>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                        <PhoneMissed size={12} />
+                        <span>Verified Missed *</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        placeholder="0"
+                        value={receiverMissedCallsInput}
+                        onChange={(e) => setReceiverMissedCallsInput(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl py-2.5 px-3 text-sm font-black text-slate-800 dark:text-slate-100 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <PhoneCall size={12} />
+                        <span>Verified Back *</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        placeholder="0"
+                        value={receiverReturnedCallsInput}
+                        onChange={(e) => setReceiverReturnedCallsInput(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl py-2.5 px-3 text-sm font-black text-slate-800 dark:text-slate-100 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Discrepancy warning banner if numbers differ */}
+                {(Number(receiverMissedCallsInput) !== (approvingDevice.pendingSenderMissedCalls ?? 0) || 
+                  Number(receiverReturnedCallsInput) !== (approvingDevice.pendingSenderReturnedCalls ?? 0)) && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-2 text-xs text-amber-800 dark:text-amber-300">
+                    <AlertTriangle size={16} className="shrink-0 text-amber-600" />
+                    <span>সতর্কতা: প্রেরকের দেওয়া সংখ্যার সাথে আপনার চেক করা সংখ্যার অমিল রয়েছে। এটি রেকর্ডে Discrepancy হিসেবে সংরক্ষিত হবে।</span>
+                  </div>
+                )}
+
+                {/* Receiver Comment / Discrepancy Note */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                    Receiver Note / Remarks (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Checked log book, 2 extra missed calls found, etc."
+                    value={receiverVerificationNote}
+                    onChange={(e) => setReceiverVerificationNote(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100"
+                  />
+                </div>
+
+                <div className="pt-3 flex items-center gap-3">
+                  <button
+                    type="submit"
+                    disabled={approveLoading}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
+                  >
+                    {approveLoading ? 'Approving...' : 'Confirm & Accept Handover'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setApprovingDevice(null)}
                     className="px-5 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-black text-xs uppercase tracking-wider hover:bg-slate-200 dark:hover:bg-slate-700"
                   >
                     Cancel

@@ -194,5 +194,20 @@ service cloud.firestore {
       allow create, update: if isSignedIn();
       allow delete: if isAdmin();
     }
+
+    // 12. Phone Deletion Audit Logs (Tracking which admin deleted what)
+    match /phone_deletion_logs/{logId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if false;
+      allow delete: if isSignedIn() && (
+        request.auth.token.email == 'khantaousi@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.employeeId == '2146' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.loginHandle == '2146' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == 'khantaousi@gmail.com'
+        ))
+      );
+    }
   }
 }

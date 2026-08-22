@@ -12,8 +12,12 @@ export const getBSTISOString = (date: Date = new Date()) => {
 /**
  * Formats a date specifically for Bangladesh Time.
  */
-export const formatBST = (date: Date | string | number, formatStr: string) => {
-  return formatInTimeZone(date, BANGLADESH_TZ, formatStr);
+export const formatBST = (date: Date | string | number, formatStr: string = 'dd MMM yyyy, hh:mm a') => {
+  try {
+    return formatInTimeZone(date, BANGLADESH_TZ, formatStr);
+  } catch {
+    return String(date);
+  }
 };
 
 /**

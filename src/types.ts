@@ -112,6 +112,8 @@ export interface PhoneDevice {
   pendingHandoverToEmpId?: string;
   pendingHandoverAt?: string;
   pendingHandoverNote?: string;
+  pendingSenderMissedCalls?: number;
+  pendingSenderReturnedCalls?: number;
   currentSessionStart?: string;
   createdAt: string;
   updatedAt?: string;
@@ -132,7 +134,27 @@ export interface PhoneUsageLog {
   handoverToName?: string;
   handoverToEmpId?: string;
   handoverApprovedAt?: string;
+  senderMissedCalls?: number;
+  senderReturnedCalls?: number;
+  receiverMissedCalls?: number;
+  receiverReturnedCalls?: number;
+  verificationMismatch?: boolean;
+  receiverNote?: string;
   note?: string;
+  createdAt: string;
+}
+
+export interface PhoneDeletionAuditLog {
+  id: string;
+  adminId: string;
+  adminName: string;
+  adminEmpId?: string;
+  adminEmail?: string;
+  actionType: 'delete_history_log' | 'bulk_delete_history_logs' | 'delete_device';
+  deletedSummary: string;
+  deletedDetails?: string;
+  itemCount: number;
+  timestamp: string;
   createdAt: string;
 }
 
