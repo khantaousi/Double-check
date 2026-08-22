@@ -1515,24 +1515,24 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                       </div>
 
                       {/* Current Status Body */}
-                      <div className="bg-slate-50 dark:bg-slate-850/60 p-4 rounded-2xl space-y-2 border border-slate-100 dark:border-slate-800">
+                      <div className="bg-slate-50 dark:bg-slate-800/70 p-4 rounded-2xl space-y-2 border border-slate-100 dark:border-slate-750">
                         {isAvailable ? (
-                          <div className="text-center py-2 text-xs font-bold text-slate-400 dark:text-slate-500">
+                          <div className="text-center py-2 text-xs font-bold text-slate-400 dark:text-slate-400">
                             ফোনটি বর্তমানে অফিসে জমা আছে। যে কেউ কাজ শুরু করতে এটি নিজের কাছে নিতে পারেন।
                           </div>
                         ) : (
                           <>
                             <div className="flex items-center justify-between text-xs">
-                              <span className="text-slate-400">বর্তমান ব্যবহারকারী:</span>
-                              <span className="font-black text-slate-700 dark:text-slate-200">
+                              <span className="text-slate-400 dark:text-slate-400">বর্তমান ব্যবহারকারী:</span>
+                              <span className="font-black text-slate-700 dark:text-slate-100">
                                 {device.currentHolderName} {device.currentHolderEmpId ? `(${device.currentHolderEmpId})` : ''}
-                                {isHeldByMe && <span className="ml-1 text-blue-600 font-bold">(You)</span>}
+                                {isHeldByMe && <span className="ml-1 text-blue-600 dark:text-blue-400 font-bold">(You)</span>}
                               </span>
                             </div>
 
                             {device.currentSessionStart && (
                               <div className="flex items-center justify-between text-xs">
-                                <span className="text-slate-400 flex items-center gap-1">
+                                <span className="text-slate-400 dark:text-slate-400 flex items-center gap-1">
                                   <Clock size={13} />
                                   <span>শুরু হয়েছে:</span>
                                 </span>
@@ -1543,8 +1543,8 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                             )}
 
                             {device.currentSessionStart && (
-                              <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/50 dark:border-slate-700/50">
-                                <span className="text-slate-400 flex items-center gap-1">
+                              <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/50 dark:border-slate-700/60">
+                                <span className="text-slate-400 dark:text-slate-400 flex items-center gap-1">
                                   <Timer size={13} className="text-blue-500" />
                                   <span>মোট সময়কাল:</span>
                                 </span>
@@ -1806,13 +1806,13 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
                   <div className="bg-blue-50/50 dark:bg-blue-950/20 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30 space-y-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Session Started (শুরুর সময়):</span>
+                      <span className="text-slate-600 dark:text-slate-300">Session Started (শুরুর সময়):</span>
                       <span className="font-bold text-slate-700 dark:text-slate-200">
                         {device.currentSessionStart ? formatBST(device.currentSessionStart, 'hh:mm a, dd MMM yyyy') : '--'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Duration (ব্যবহারকাল):</span>
+                      <span className="text-slate-600 dark:text-slate-300">Duration (ব্যবহারকাল):</span>
                       <span className="font-black text-blue-600 dark:text-blue-400 text-sm">
                         {device.currentSessionStart ? formatDuration(device.currentSessionStart) : '--'}
                       </span>
@@ -1915,7 +1915,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   placeholder={isAdmin ? "Search by Agent, Phone, Emp ID..." : "Search in your records..."}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl py-2.5 pl-11 pr-4 text-xs font-medium focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-2.5 pl-11 pr-4 text-xs font-medium focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 />
               </div>
 
@@ -1924,7 +1924,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                 <select
                   value={selectedPhoneFilter}
                   onChange={(e) => setSelectedPhoneFilter(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl px-3 py-2.5 text-xs font-semibold focus:outline-none text-slate-700 dark:text-slate-200"
+                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2.5 text-xs font-semibold focus:outline-none text-slate-700 dark:text-slate-200"
                 >
                   <option value="all">All Devices (সব ফোন)</option>
                   {devices.map(d => (
@@ -1937,7 +1937,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   <select
                     value={selectedUserFilter}
                     onChange={(e) => setSelectedUserFilter(e.target.value)}
-                    className="bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl px-3 py-2.5 text-xs font-semibold focus:outline-none text-slate-700 dark:text-slate-200"
+                    className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2.5 text-xs font-semibold focus:outline-none text-slate-700 dark:text-slate-200"
                   >
                     <option value="all">All Agents (সব এজেন্ট)</option>
                     {allUsers.map(u => (
@@ -1953,7 +1953,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   type="date"
                   value={startDateFilter}
                   onChange={(e) => setStartDateFilter(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl px-3 py-2 text-xs font-medium focus:outline-none text-slate-700 dark:text-slate-200"
+                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2 text-xs font-medium focus:outline-none text-slate-700 dark:text-slate-200"
                   title="Filter From Date"
                 />
 
@@ -1962,7 +1962,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   type="date"
                   value={endDateFilter}
                   onChange={(e) => setEndDateFilter(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl px-3 py-2 text-xs font-medium focus:outline-none text-slate-700 dark:text-slate-200"
+                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2 text-xs font-medium focus:outline-none text-slate-700 dark:text-slate-200"
                   title="Filter To Date"
                 />
 
@@ -1984,7 +1984,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
             </div>
 
             {!isAdmin && (
-              <div className="flex items-center gap-2 text-[11px] text-slate-400 bg-slate-50 dark:bg-slate-850 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2 text-[11px] text-slate-400 bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-100 dark:border-slate-750">
                 <Shield size={14} className="text-blue-500" />
                 <span>প্রাইভেসি সুরক্ষায় এখানে শুধুমাত্র আপনার নিজের ফোন ব্যবহার ও হ্যান্ডওভার রেকর্ড প্রদর্শিত হচ্ছে।</span>
               </div>
@@ -2023,7 +2023,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                   <tr>
                     <th className="py-4 px-5">Device</th>
                     <th className="py-4 px-5">Agent</th>
@@ -2048,7 +2048,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                       const hasCallCounts = log.senderMissedCalls !== undefined || log.receiverMissedCalls !== undefined;
 
                       return (
-                        <tr key={log.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-850/50 transition-colors">
+                        <tr key={log.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition-colors">
                           <td className="py-4 px-5 font-bold text-slate-900 dark:text-slate-100">
                             <div className="flex items-center gap-2">
                               <Smartphone size={14} className="text-blue-500 shrink-0" />
@@ -2401,7 +2401,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
               <form onSubmit={handleSaveDevice} className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
                     Phone Name / Label *
                   </label>
                   <input
@@ -2410,12 +2410,12 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     placeholder="e.g. Phone A, Phone 1 (Redmi 12)"
                     value={deviceNameInput}
                     onChange={(e) => setDeviceNameInput(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
                     Model / Brand (Optional)
                   </label>
                   <input
@@ -2423,12 +2423,12 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     placeholder="e.g. Xiaomi Redmi Note 12 / Samsung A15"
                     value={deviceModelInput}
                     onChange={(e) => setDeviceModelInput(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
                     SIM Number / Note (Optional)
                   </label>
                   <input
@@ -2436,7 +2436,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     placeholder="e.g. 017xxxxxxxx (Customer Care SIM)"
                     value={deviceSimInput}
                     onChange={(e) => setDeviceSimInput(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                   />
                 </div>
 
@@ -2503,7 +2503,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
               <form onSubmit={handleInitiateHandover} className="space-y-4">
                 {/* Employee ID Search / Input */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
                     Recipient Employee ID or Select Staff *
                   </label>
                   
@@ -2519,7 +2519,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                         }
                       }
                     }}
-                    className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100 mb-2"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100 mb-2"
                   >
                     <option value="">-- Select Agent from List --</option>
                     {allUsers.filter(u => u.id !== currentUser?.id).map(u => (
@@ -2530,7 +2530,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   </select>
 
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-slate-400 font-bold">OR Type Employee ID:</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">OR Type Employee ID:</span>
                     <input
                       type="text"
                       placeholder="e.g. EMP-101, 102"
@@ -2540,13 +2540,13 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                         const match = allUsers.find(u => u.employeeId?.toLowerCase() === e.target.value.trim().toLowerCase());
                         if (match?.id) setSelectedTargetUser(match.id);
                       }}
-                      className="flex-1 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-xl py-2 px-3 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100"
+                      className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                     />
                   </div>
                 </div>
 
                 {/* SENDER MISSED CALLS & BACK CALLS INPUTS (OPTIONAL) */}
-                <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 flex items-center gap-1">
                       <PhoneMissed size={12} />
@@ -2558,7 +2558,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                       placeholder="0"
                       value={senderMissedCallsInput}
                       onChange={(e) => setSenderMissedCallsInput(e.target.value)}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-750 rounded-xl py-2.5 px-3 text-sm font-black text-rose-600 dark:text-rose-400 focus:outline-none focus:border-rose-500"
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-sm font-black text-rose-600 dark:text-rose-400 focus:outline-none focus:border-rose-500"
                     />
                   </div>
 
@@ -2573,14 +2573,14 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                       placeholder="0"
                       value={senderReturnedCallsInput}
                       onChange={(e) => setSenderReturnedCallsInput(e.target.value)}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-750 rounded-xl py-2.5 px-3 text-sm font-black text-emerald-600 dark:text-emerald-400 focus:outline-none focus:border-emerald-500"
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-sm font-black text-emerald-600 dark:text-emerald-400 focus:outline-none focus:border-emerald-500"
                     />
                   </div>
                 </div>
 
                 {/* Handover Note / Remark */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
                     Handover Note (Optional)
                   </label>
                   <input
@@ -2588,7 +2588,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     placeholder="e.g. Shift change, break time, charging, etc."
                     value={handoverNote}
                     onChange={(e) => setHandoverNote(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                   />
                 </div>
 
@@ -2653,31 +2653,31 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
               </div>
 
               {/* Sender Details & Stated Counts */}
-              <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2.5 text-xs">
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2.5 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Device Name:</span>
+                  <span className="text-slate-500 dark:text-slate-400">Device Name:</span>
                   <span className="font-black text-slate-800 dark:text-slate-100">{approvingDevice.name}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Sender (প্রেরক):</span>
+                  <span className="text-slate-500 dark:text-slate-400">Sender (প্রেরক):</span>
                   <span className="font-bold text-slate-700 dark:text-slate-200">
                     {approvingDevice.currentHolderName} ({approvingDevice.currentHolderEmpId || 'N/A'})
                   </span>
                 </div>
                 
                 <div className="pt-2 border-t border-slate-200 dark:border-slate-700 grid grid-cols-2 gap-2 text-[11px]">
-                  <div className="p-2 bg-rose-50/80 dark:bg-rose-950/30 rounded-xl text-rose-700 dark:text-rose-400 font-bold flex items-center gap-1.5">
+                  <div className="p-2 bg-rose-50/80 dark:bg-rose-950/30 rounded-xl text-rose-700 dark:text-rose-400 font-bold flex items-center gap-1.5 border border-rose-100 dark:border-rose-900/40">
                     <PhoneMissed size={13} />
                     <span>প্রেরক বলেছে মিসকল: {approvingDevice.pendingSenderMissedCalls ?? 0}</span>
                   </div>
-                  <div className="p-2 bg-emerald-50/80 dark:bg-emerald-950/30 rounded-xl text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1.5">
+                  <div className="p-2 bg-emerald-50/80 dark:bg-emerald-950/30 rounded-xl text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1.5 border border-emerald-100 dark:border-emerald-900/40">
                     <PhoneCall size={13} />
                     <span>প্রেরক বলেছে ব্যাক: {approvingDevice.pendingSenderReturnedCalls ?? 0}</span>
                   </div>
                 </div>
 
                 {approvingDevice.pendingHandoverNote && (
-                  <p className="italic text-slate-500 pt-1">নোট: "{approvingDevice.pendingHandoverNote}"</p>
+                  <p className="italic text-slate-600 dark:text-slate-300 pt-1">নোট: "{approvingDevice.pendingHandoverNote}"</p>
                 )}
               </div>
 
@@ -2700,7 +2700,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                         placeholder="0"
                         value={receiverMissedCallsInput}
                         onChange={(e) => setReceiverMissedCallsInput(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl py-2.5 px-3 text-sm font-black text-slate-800 dark:text-slate-100 focus:outline-none focus:border-blue-500"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-sm font-black text-slate-800 dark:text-slate-100 focus:outline-none focus:border-blue-500"
                       />
                     </div>
 
@@ -2716,7 +2716,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                         placeholder="0"
                         value={receiverReturnedCallsInput}
                         onChange={(e) => setReceiverReturnedCallsInput(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl py-2.5 px-3 text-sm font-black text-slate-800 dark:text-slate-100 focus:outline-none focus:border-blue-500"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-sm font-black text-slate-800 dark:text-slate-100 focus:outline-none focus:border-blue-500"
                       />
                     </div>
                   </div>
@@ -2733,7 +2733,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
                 {/* Receiver Comment / Discrepancy Note */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
                     Receiver Note / Remarks (Optional)
                   </label>
                   <input
@@ -2741,7 +2741,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     placeholder="e.g. Checked log book, 2 extra missed calls found, etc."
                     value={receiverVerificationNote}
                     onChange={(e) => setReceiverVerificationNote(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                   />
                 </div>
 
@@ -2805,20 +2805,20 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
               </div>
 
               {/* Current Holder Information */}
-              <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Device Name:</span>
+                  <span className="text-slate-500 dark:text-slate-400">Device Name:</span>
                   <span className="font-black text-slate-800 dark:text-slate-100">{claimDevice.name}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Current Holder (কার কাছে আছে):</span>
+                  <span className="text-slate-500 dark:text-slate-400">Current Holder (কার কাছে আছে):</span>
                   <span className="font-bold text-slate-700 dark:text-slate-200">
                     {claimDevice.currentHolderName} ({claimDevice.currentHolderEmpId || 'N/A'})
                   </span>
                 </div>
                 {claimDevice.currentSessionStart && (
                   <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-700 text-[11px]">
-                    <span className="text-slate-400">কতক্ষণ ধরে ব্যবহার করছেন:</span>
+                    <span className="text-slate-500 dark:text-slate-400">কতক্ষণ ধরে ব্যবহার করছেন:</span>
                     <span className="font-bold text-blue-600 dark:text-blue-400">
                       {formatDuration(claimDevice.currentSessionStart)}
                     </span>
@@ -2828,7 +2828,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
               <form onSubmit={handleRequestClaimPhone} className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
                     Request Note / Reason (কারণ বা বার্তা)
                   </label>
                   <input
@@ -2836,11 +2836,11 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     placeholder="e.g. Shift starting, need this phone now for customer support..."
                     value={claimRequestNote}
                     onChange={(e) => setClaimRequestNote(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                   />
                 </div>
 
-                <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 rounded-2xl text-xs text-blue-800 dark:text-blue-300">
+                <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-2xl text-xs text-blue-900 dark:text-blue-200">
                   💡 আপনি রিকোয়েস্ট পাঠানোর পর বর্তমান ব্যবহারকারী ({claimDevice.currentHolderName}) মিসকল ও ব্যাক কলের সংখ্যা যাচাই করে অনুমোদন (Approve) করলেই ফোনটি সরাসরি আপনার নামে চলে আসবে।
                 </div>
 
@@ -2905,19 +2905,19 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
               </div>
 
               {/* Requester Details */}
-              <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Device Name:</span>
+                  <span className="text-slate-500 dark:text-slate-400">Device Name:</span>
                   <span className="font-black text-slate-800 dark:text-slate-100">{approvingClaimDevice.name}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Recipient (যিনি চেয়েছেন):</span>
+                  <span className="text-slate-500 dark:text-slate-400">Recipient (যিনি চেয়েছেন):</span>
                   <span className="font-bold text-slate-700 dark:text-slate-200">
                     {approvingClaimDevice.pendingHandoverToName} ({approvingClaimDevice.pendingHandoverToEmpId || 'N/A'})
                   </span>
                 </div>
                 {approvingClaimDevice.pendingHandoverNote && (
-                  <p className="italic text-slate-500 pt-1 border-t border-slate-200 dark:border-slate-700">
+                  <p className="italic text-slate-600 dark:text-slate-300 pt-1 border-t border-slate-200 dark:border-slate-700">
                     বার্তা: "{approvingClaimDevice.pendingHandoverNote}"
                   </p>
                 )}
@@ -2925,7 +2925,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
               <form onSubmit={handleConfirmHolderApproval} className="space-y-4">
                 {/* HOLDER MISSED CALLS & BACK CALLS INPUTS (OPTIONAL) */}
-                <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 flex items-center gap-1">
                       <PhoneMissed size={12} />
@@ -2937,7 +2937,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                       placeholder="0"
                       value={holderMissedCallsInput}
                       onChange={(e) => setHolderMissedCallsInput(e.target.value)}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-750 rounded-xl py-2.5 px-3 text-sm font-black text-rose-600 dark:text-rose-400 focus:outline-none focus:border-rose-500"
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-sm font-black text-rose-600 dark:text-rose-400 focus:outline-none focus:border-rose-500"
                     />
                   </div>
 
@@ -2952,14 +2952,14 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                       placeholder="0"
                       value={holderReturnedCallsInput}
                       onChange={(e) => setHolderReturnedCallsInput(e.target.value)}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-750 rounded-xl py-2.5 px-3 text-sm font-black text-emerald-600 dark:text-emerald-400 focus:outline-none focus:border-emerald-500"
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-sm font-black text-emerald-600 dark:text-emerald-400 focus:outline-none focus:border-emerald-500"
                     />
                   </div>
                 </div>
 
                 {/* Handover Note */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
                     Approval Note (Optional)
                   </label>
                   <input
@@ -2967,7 +2967,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     placeholder="e.g. Approved and handed over device..."
                     value={holderApprovalNote}
                     onChange={(e) => setHolderApprovalNote(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                   />
                 </div>
 
