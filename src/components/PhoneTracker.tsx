@@ -1181,8 +1181,8 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            {isAdmin && (
+          {isAdmin && (
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={() => {
                   setEditingDevice(null);
@@ -1196,16 +1196,16 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                 <Plus size={16} />
                 <span>Add New Phone</span>
               </button>
-            )}
 
-            <button
-              onClick={handleExportExcel}
-              className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg transition-all active:scale-95"
-            >
-              <Download size={16} />
-              <span>{isAdmin ? 'Export All (Excel)' : 'Export My History'}</span>
-            </button>
-          </div>
+              <button
+                onClick={handleExportExcel}
+                className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg transition-all active:scale-95"
+              >
+                <Download size={16} />
+                <span>Export All (Excel)</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
