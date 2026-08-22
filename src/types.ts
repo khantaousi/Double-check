@@ -114,6 +114,7 @@ export interface PhoneDevice {
   pendingHandoverNote?: string;
   pendingSenderMissedCalls?: number;
   pendingSenderReturnedCalls?: number;
+  pendingRequestType?: 'holder_initiated' | 'receiver_requested';
   currentSessionStart?: string;
   createdAt: string;
   updatedAt?: string;

@@ -45,7 +45,8 @@ import {
   ShieldAlert,
   ShieldCheck,
   Lock,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Send
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
@@ -99,6 +100,18 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
   const [receiverReturnedCallsInput, setReceiverReturnedCallsInput] = useState<string>('0');
   const [receiverVerificationNote, setReceiverVerificationNote] = useState('');
   const [approveLoading, setApproveLoading] = useState(false);
+
+  // Modal States - Agent Requests/Claims a Phone Currently In Use
+  const [claimDevice, setClaimDevice] = useState<PhoneDevice | null>(null);
+  const [claimRequestNote, setClaimRequestNote] = useState('');
+  const [claimLoading, setClaimLoading] = useState(false);
+
+  // Modal States - Current Holder Approves Claim Request from another Agent
+  const [approvingClaimDevice, setApprovingClaimDevice] = useState<PhoneDevice | null>(null);
+  const [holderMissedCallsInput, setHolderMissedCallsInput] = useState<string>('0');
+  const [holderReturnedCallsInput, setHolderReturnedCallsInput] = useState<string>('0');
+  const [holderApprovalNote, setHolderApprovalNote] = useState('');
+  const [holderApproveLoading, setHolderApproveLoading] = useState(false);
 
   // Filter & Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -248,9 +261,9 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
       const hours = Math.floor(totalMinutes / 60);
       const minutes = totalMinutes % 60;
       if (hours > 0) {
-        return `${hours}h ${minutes}m`;
+        return `${hours}h ${minutes}m (${totalMinutes} min)`;
       }
-      return `${minutes} min`;
+      return `${totalMinutes} min`;
     } catch {
       return '--';
     }
@@ -553,6 +566,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
         pendingHandoverNote: handoverNote.trim() || null,
         pendingSenderMissedCalls: missedCallsNum,
         pendingSenderReturnedCalls: returnedCallsNum,
+        pendingRequestType: 'holder_initiated',
         updatedAt: now
       }));
 
@@ -712,6 +726,173 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
     }
   };
 
+  // 4b. Action: Agent requests to claim a phone currently with another agent
+  const handleRequestClaimPhone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!claimDevice || !currentUser) return;
+    if (claimDevice.currentHolderId === currentUser.id) {
+      alert("You already hold this phone.");
+      return;
+    }
+    setClaimLoading(true);
+    try {
+      const now = getBSTISOString();
+      const requesterName = currentUser.displayName || currentUser.loginHandle || currentUser.email.split('@')[0];
+      const requesterEmpId = currentUser.employeeId || currentUser.loginHandle || '';
+
+      const batch = writeBatch(db);
+      const devRef = doc(db, 'phone_devices', claimDevice.id);
+
+      batch.update(devRef, cleanObject({
+        status: 'pending_handover',
+        pendingHandoverToId: currentUser.id,
+        pendingHandoverToName: requesterName,
+        pendingHandoverToEmpId: requesterEmpId,
+        pendingHandoverAt: now,
+        pendingHandoverNote: claimRequestNote.trim() || null,
+        pendingRequestType: 'receiver_requested',
+        pendingSenderMissedCalls: null,
+        pendingSenderReturnedCalls: null,
+        updatedAt: now
+      }));
+
+      // Send notification to current holder
+      if (claimDevice.currentHolderId) {
+        const notifRef = doc(collection(db, 'notifications'));
+        batch.set(notifRef, {
+          userId: claimDevice.currentHolderId,
+          title: `📱 Phone Handover Request: ${claimDevice.name}`,
+          message: `${requesterName} (ID: ${requesterEmpId || 'N/A'}) requested to take ${claimDevice.name} from you. Open Phone Tracker to approve & handover.`,
+          type: 'phone_handover',
+          isRead: false,
+          createdAt: now,
+          phoneId: claimDevice.id
+        });
+      }
+
+      await batch.commit();
+      setClaimDevice(null);
+      setClaimRequestNote('');
+    } catch (err) {
+      console.error("Error requesting phone claim:", err);
+      alert("Failed to submit handover request.");
+    } finally {
+      setClaimLoading(false);
+    }
+  };
+
+  // 4c. Action: Current holder approves handing over the phone to the requesting agent
+  const handleConfirmHolderApproval = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!approvingClaimDevice || !currentUser) return;
+    if (approvingClaimDevice.currentHolderId !== currentUser.id && !isAdmin) {
+      alert("You are not the current holder of this phone.");
+      return;
+    }
+    const requesterId = approvingClaimDevice.pendingHandoverToId;
+    const requesterName = approvingClaimDevice.pendingHandoverToName || 'Agent';
+    const requesterEmpId = approvingClaimDevice.pendingHandoverToEmpId || '';
+    if (!requesterId) return;
+
+    setHolderApproveLoading(true);
+    try {
+      const now = getBSTISOString();
+      const holderName = currentUser.displayName || currentUser.loginHandle || currentUser.email.split('@')[0];
+      const holderEmpId = currentUser.employeeId || currentUser.loginHandle || '';
+      const missedCallsNum = Math.max(0, parseInt(holderMissedCallsInput, 10) || 0);
+      const returnedCallsNum = Math.max(0, parseInt(holderReturnedCallsInput, 10) || 0);
+
+      const batch = writeBatch(db);
+
+      // 1. Close current holder's active log
+      const activeLogsSnap = await getDocs(query(
+        collection(db, 'phone_usage_logs'),
+        where('phoneId', '==', approvingClaimDevice.id),
+        where('status', '==', 'active')
+      ));
+
+      activeLogsSnap.forEach(docSnap => {
+        const logData = docSnap.data() as PhoneUsageLog;
+        const startMs = new Date(logData.startTime).getTime();
+        const endMs = new Date(now).getTime();
+        const durationMins = Math.round(Math.max(0, endMs - startMs) / 60000);
+
+        batch.update(docSnap.ref, cleanObject({
+          endTime: now,
+          durationMinutes: durationMins,
+          status: 'handed_over',
+          handoverToId: requesterId,
+          handoverToName: requesterName,
+          handoverToEmpId: requesterEmpId,
+          handoverApprovedAt: now,
+          senderMissedCalls: missedCallsNum,
+          senderReturnedCalls: returnedCallsNum,
+          receiverMissedCalls: missedCallsNum,
+          receiverReturnedCalls: returnedCallsNum,
+          verificationMismatch: false,
+          note: approvingClaimDevice.pendingHandoverNote ? `Request note: ${approvingClaimDevice.pendingHandoverNote}` : undefined
+        }));
+      });
+
+      // 2. Create new active log for the requester
+      const newLogRef = doc(collection(db, 'phone_usage_logs'));
+      const newLog: PhoneUsageLog = {
+        id: newLogRef.id,
+        phoneId: approvingClaimDevice.id,
+        phoneName: approvingClaimDevice.name,
+        userId: requesterId,
+        userName: requesterName,
+        userEmpId: requesterEmpId,
+        startTime: now,
+        status: 'active',
+        note: approvingClaimDevice.pendingHandoverNote ? `Claimed with note: ${approvingClaimDevice.pendingHandoverNote}` : undefined,
+        createdAt: now
+      };
+      batch.set(newLogRef, cleanObject(newLog));
+
+      // 3. Update device document with new holder
+      const devRef = doc(db, 'phone_devices', approvingClaimDevice.id);
+      batch.update(devRef, cleanObject({
+        status: 'in_use',
+        currentHolderId: requesterId,
+        currentHolderName: requesterName,
+        currentHolderEmpId: requesterEmpId,
+        currentSessionStart: now,
+        pendingHandoverToId: null,
+        pendingHandoverToName: null,
+        pendingHandoverToEmpId: null,
+        pendingHandoverAt: null,
+        pendingHandoverNote: null,
+        pendingSenderMissedCalls: null,
+        pendingSenderReturnedCalls: null,
+        pendingRequestType: null,
+        updatedAt: now
+      }));
+
+      // 4. Notify the requester that handover is approved and active
+      const notifRef = doc(collection(db, 'notifications'));
+      batch.set(notifRef, {
+        userId: requesterId,
+        title: `✅ Handover Approved: ${approvingClaimDevice.name}`,
+        message: `${holderName} (ID: ${holderEmpId || 'N/A'}) has approved your handover request for ${approvingClaimDevice.name}. The phone is now active under your name.`,
+        type: 'phone_handover',
+        isRead: false,
+        createdAt: now,
+        phoneId: approvingClaimDevice.id
+      });
+
+      await batch.commit();
+      setApprovingClaimDevice(null);
+      setHolderMissedCallsInput('0');
+      setHolderReturnedCallsInput('0');
+    } catch (err) {
+      console.error("Error approving holder claim request:", err);
+      alert("Failed to complete handover approval.");
+    } finally {
+      setHolderApproveLoading(false);
+    }
+  };
+
   // 5. Action: Decline/Cancel Handover
   const handleCancelOrDeclineHandover = async (device: PhoneDevice) => {
     if (!currentUser) return;
@@ -729,22 +910,40 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
         pendingHandoverNote: null,
         pendingSenderMissedCalls: null,
         pendingSenderReturnedCalls: null,
+        pendingRequestType: null,
         updatedAt: now
       });
 
-      // If the target declined, notify the current holder
-      if (device.currentHolderId && device.pendingHandoverToId === currentUser.id) {
-        const notifRef = doc(collection(db, 'notifications'));
-        const rejectorName = currentUser.displayName || currentUser.loginHandle || currentUser.email.split('@')[0];
-        batch.set(notifRef, {
-          userId: device.currentHolderId,
-          title: `❌ Handover Declined: ${device.name}`,
-          message: `${rejectorName} declined the handover request for ${device.name}. You remain the active holder.`,
-          type: 'system',
-          isRead: false,
-          createdAt: now,
-          phoneId: device.id
-        });
+      // If receiver_requested and current holder declined, notify requester
+      if (device.pendingRequestType === 'receiver_requested') {
+        if (device.pendingHandoverToId) {
+          const notifRef = doc(collection(db, 'notifications'));
+          const currentUserName = currentUser.displayName || currentUser.loginHandle || currentUser.email.split('@')[0];
+          batch.set(notifRef, {
+            userId: device.pendingHandoverToId,
+            title: `❌ Handover Request Declined: ${device.name}`,
+            message: `${currentUserName} declined your request for ${device.name}.`,
+            type: 'system',
+            isRead: false,
+            createdAt: now,
+            phoneId: device.id
+          });
+        }
+      } else {
+        // If holder_initiated and target declined, notify the current holder
+        if (device.currentHolderId && device.pendingHandoverToId === currentUser.id) {
+          const notifRef = doc(collection(db, 'notifications'));
+          const rejectorName = currentUser.displayName || currentUser.loginHandle || currentUser.email.split('@')[0];
+          batch.set(notifRef, {
+            userId: device.currentHolderId,
+            title: `❌ Handover Declined: ${device.name}`,
+            message: `${rejectorName} declined the handover request for ${device.name}. You remain the active holder.`,
+            type: 'system',
+            isRead: false,
+            createdAt: now,
+            phoneId: device.id
+          });
+        }
       }
 
       await batch.commit();
@@ -932,10 +1131,24 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
     XLSX.writeFile(workbook, fileName);
   };
 
-  // Pending incoming handovers for the current logged-in user
+  // 1. Pending incoming handovers initiated by sender for the current logged-in user
   const incomingHandovers = useMemo(() => {
     if (!currentUser) return [];
-    return devices.filter(d => d.status === 'pending_handover' && d.pendingHandoverToId === currentUser.id);
+    return devices.filter(d => 
+      d.status === 'pending_handover' && 
+      d.pendingHandoverToId === currentUser.id && 
+      d.pendingRequestType !== 'receiver_requested'
+    );
+  }, [devices, currentUser]);
+
+  // 2. Pending claim requests sent by another agent to the current holder (current user)
+  const incomingClaimRequests = useMemo(() => {
+    if (!currentUser) return [];
+    return devices.filter(d => 
+      d.status === 'pending_handover' && 
+      d.currentHolderId === currentUser.id && 
+      d.pendingRequestType === 'receiver_requested'
+    );
   }, [devices, currentUser]);
 
   // Devices currently held by the logged-in user
@@ -1062,6 +1275,77 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   >
                     <CheckCircle2 size={15} />
                     <span>চেক করে গ্রহণ করুন (Approve)</span>
+                  </button>
+                  <button
+                    onClick={() => handleCancelOrDeclineHandover(dev)}
+                    className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold active:scale-95 transition-all"
+                  >
+                    বাতিল (Decline)
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Incoming Claim Request Alert Notification Banner (When someone requests a phone currently in user's hand) */}
+      {incomingClaimRequests.length > 0 && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-blue-500/10 border-2 border-blue-500/30 rounded-3xl p-5 sm:p-6 space-y-4"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/20 shrink-0">
+              <ArrowRightLeft size={20} />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-blue-900 dark:text-blue-300 tracking-tight">
+                আপনার কাছে ফোন নেওয়ার জন্য রিকোয়েস্ট এসেছে ({incomingClaimRequests.length} টি)
+              </h3>
+              <p className="text-xs text-blue-700 dark:text-blue-400 font-medium">
+                অন্য এজেন্ট আপনার কাছ থেকে ফোন নিতে রিকোয়েস্ট পাঠিয়েছেন। অনুমোদন করতে Approve বাটনে ক্লিক করুন।
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {incomingClaimRequests.map(dev => (
+              <div 
+                key={dev.id} 
+                className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-blue-200 dark:border-blue-900/40 shadow-sm flex flex-col justify-between gap-3.5"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-sm text-slate-800 dark:text-slate-100">{dev.name}</span>
+                    <span className="px-2.5 py-0.5 text-[10px] font-black uppercase rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400">
+                      Handover Requested
+                    </span>
+                  </div>
+
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-2 space-y-1">
+                    <p>রিকোয়েস্টকারী: <strong className="text-slate-700 dark:text-slate-200">{dev.pendingHandoverToName}</strong> (ID: {dev.pendingHandoverToEmpId || 'N/A'})</p>
+                    {dev.pendingHandoverNote && (
+                      <p className="italic text-slate-600 dark:text-slate-300 pt-1">নোট: "{dev.pendingHandoverNote}"</p>
+                    )}
+                    <p className="text-[10px] text-slate-400">
+                      অনুরোধের সময়: {dev.pendingHandoverAt ? formatBST(dev.pendingHandoverAt, 'hh:mm a, dd MMM') : ''}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    onClick={() => {
+                      setApprovingClaimDevice(dev);
+                      setHolderMissedCallsInput('0');
+                      setHolderReturnedCallsInput('0');
+                    }}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
+                  >
+                    <CheckCircle2 size={15} />
+                    <span>অনুমোদন করুন (Approve)</span>
                   </button>
                   <button
                     onClick={() => handleCancelOrDeclineHandover(dev)}
@@ -1273,13 +1557,18 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                             {isPendingHandover && (
                               <div className="bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-xl border border-amber-200 dark:border-amber-900/40 text-[11px] text-amber-800 dark:text-amber-300 space-y-1.5">
                                 <p className="font-bold">
-                                  হ্যান্ডওভার অপেক্ষারত: {device.pendingHandoverToName} ({device.pendingHandoverToEmpId || 'N/A'})
+                                  {device.pendingRequestType === 'receiver_requested' 
+                                    ? `হ্যান্ডওভার রিকোয়েস্ট পাঠিয়েছেন: ${device.pendingHandoverToName} (${device.pendingHandoverToEmpId || 'N/A'})`
+                                    : `হ্যান্ডওভার অপেক্ষারত: ${device.pendingHandoverToName} (${device.pendingHandoverToEmpId || 'N/A'})`
+                                  }
                                 </p>
-                                <div className="flex items-center gap-3 text-[10px] text-slate-600 dark:text-slate-300 font-semibold">
-                                  <span className="text-rose-600 dark:text-rose-400">মিসকল: {device.pendingSenderMissedCalls ?? 0}</span>
-                                  <span>•</span>
-                                  <span className="text-emerald-600 dark:text-emerald-400">ব্যাক কল: {device.pendingSenderReturnedCalls ?? 0}</span>
-                                </div>
+                                {device.pendingRequestType !== 'receiver_requested' && (
+                                  <div className="flex items-center gap-3 text-[10px] text-slate-600 dark:text-slate-300 font-semibold">
+                                    <span className="text-rose-600 dark:text-rose-400">মিসকল: {device.pendingSenderMissedCalls ?? 0}</span>
+                                    <span>•</span>
+                                    <span className="text-emerald-600 dark:text-emerald-400">ব্যাক কল: {device.pendingSenderReturnedCalls ?? 0}</span>
+                                  </div>
+                                )}
                                 {device.pendingHandoverNote && (
                                   <p className="italic text-slate-500 dark:text-slate-400">"{device.pendingHandoverNote}"</p>
                                 )}
@@ -1291,7 +1580,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     </div>
 
                     {/* Card Actions Footer */}
-                    <div className="p-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-2 justify-between">
+                    <div className="p-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2">
                       {/* Scenario 1: Phone is available -> Anyone can take it */}
                       {isAvailable && (
                         <button
@@ -1299,7 +1588,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                           className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all"
                         >
                           <SmartphoneCharging size={16} />
-                          <span>ফোনটি নিন (Take Phone)</span>
+                          <span>ফোনটি নিজের নামে নিন (Take Phone)</span>
                         </button>
                       )}
 
@@ -1331,8 +1620,57 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                         </div>
                       )}
 
-                      {/* Scenario 3: Handover is pending and current user is the target receiver */}
-                      {isPendingHandover && device.pendingHandoverToId === currentUser?.id && (
+                      {/* Scenario 2b: Phone held by current user and someone requested it (receiver_requested) */}
+                      {isHeldByMe && isPendingHandover && device.pendingRequestType === 'receiver_requested' && (
+                        <div className="w-full flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setApprovingClaimDevice(device);
+                              setHolderMissedCallsInput('0');
+                              setHolderReturnedCallsInput('0');
+                            }}
+                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-sm"
+                          >
+                            <CheckCircle2 size={15} />
+                            <span>অনুমোদন করুন (Approve)</span>
+                          </button>
+                          <button
+                            onClick={() => handleCancelOrDeclineHandover(device)}
+                            className="px-3 py-2.5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold active:scale-95 transition-all"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Scenario 2c: Phone held by current user and current user initiated handover */}
+                      {isHeldByMe && isPendingHandover && device.pendingRequestType !== 'receiver_requested' && (
+                        <button
+                          onClick={() => handleCancelOrDeclineHandover(device)}
+                          className="w-full bg-amber-600 hover:bg-amber-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+                        >
+                          <XCircle size={15} />
+                          <span>Cancel Handover Request</span>
+                        </button>
+                      )}
+
+                      {/* Scenario 3a: Phone held by someone else, but currentUser requested to claim it */}
+                      {!isHeldByMe && isPendingHandover && device.pendingHandoverToId === currentUser?.id && device.pendingRequestType === 'receiver_requested' && (
+                        <div className="w-full flex items-center gap-2">
+                          <div className="flex-1 bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 py-2 px-3 rounded-xl text-[11px] font-bold text-center border border-amber-200 dark:border-amber-800">
+                            অনুমোদনের অপেক্ষায়...
+                          </div>
+                          <button
+                            onClick={() => handleCancelOrDeclineHandover(device)}
+                            className="px-3 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold active:scale-95 transition-all"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Scenario 3b: Phone held by someone else, sender sent handover to currentUser */}
+                      {!isHeldByMe && isPendingHandover && device.pendingHandoverToId === currentUser?.id && device.pendingRequestType !== 'receiver_requested' && (
                         <div className="w-full flex items-center gap-2">
                           <button
                             onClick={() => openApproveModal(device)}
@@ -1350,29 +1688,45 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                         </div>
                       )}
 
-                      {/* Scenario 4: Handover is pending and current user was the sender (allow cancel) */}
-                      {isPendingHandover && isHeldByMe && (
+                      {/* Scenario 4: Phone held by someone else, NOT pending handover -> Agent can request this phone */}
+                      {!isHeldByMe && isInUse && !isPendingHandover && (
                         <button
-                          onClick={() => handleCancelOrDeclineHandover(device)}
-                          className="w-full bg-amber-600 hover:bg-amber-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+                          onClick={() => {
+                            setClaimDevice(device);
+                            setClaimRequestNote('');
+                          }}
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all"
                         >
-                          <XCircle size={15} />
-                          <span>Cancel Handover Request</span>
+                          <ArrowRightLeft size={15} />
+                          <span>ফোনটি চেয়ে রিকোয়েস্ট পাঠান (Request Phone)</span>
                         </button>
                       )}
 
-                      {/* Scenario 5: Phone held by someone else, Admin controls */}
+                      {/* Scenario 5: Phone held by someone else, pending handover to a 3rd person */}
+                      {!isHeldByMe && isPendingHandover && device.pendingHandoverToId !== currentUser?.id && (
+                        <div className="w-full py-2 px-3 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl text-[11px] font-bold text-center">
+                          হ্যান্ডওভার প্রক্রিয়াধীন ({device.pendingHandoverToName})
+                        </div>
+                      )}
+
+                      {/* Admin Force Actions */}
                       {!isHeldByMe && !isAvailable && isAdmin && (
-                        <div className="w-full flex items-center justify-between text-xs">
+                        <div className="w-full flex items-center justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800">
                           <button
                             onClick={() => handleEndSession(device)}
                             className="text-red-600 hover:underline font-bold"
                           >
-                            Force End Session (Admin)
+                            Force End (Admin)
                           </button>
                           {isPendingHandover && (
                             <button
-                              onClick={() => openApproveModal(device)}
+                              onClick={() => {
+                                if (device.pendingRequestType === 'receiver_requested') {
+                                  setApprovingClaimDevice(device);
+                                } else {
+                                  openApproveModal(device);
+                                }
+                              }}
                               className="text-emerald-600 hover:underline font-bold"
                             >
                               Force Approve
@@ -1466,21 +1820,55 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   </div>
 
                   {device.status === 'pending_handover' ? (
-                    <div className="bg-amber-50 dark:bg-amber-950/40 p-4 rounded-2xl border border-amber-200 dark:border-amber-900/40 space-y-3">
-                      <p className="text-xs font-bold text-amber-800 dark:text-amber-300">
-                        হ্যান্ডওভার অনুরোধ পাঠানো হয়েছে: {device.pendingHandoverToName} ({device.pendingHandoverToEmpId || 'N/A'})
-                      </p>
-                      <div className="flex items-center gap-4 text-xs text-slate-600 dark:text-slate-300 font-semibold">
-                        <span className="text-rose-600">মিসকল: {device.pendingSenderMissedCalls ?? 0}</span>
-                        <span className="text-emerald-600">ব্যাক কল: {device.pendingSenderReturnedCalls ?? 0}</span>
+                    device.pendingRequestType === 'receiver_requested' ? (
+                      <div className="bg-blue-50 dark:bg-blue-950/40 p-4 rounded-2xl border border-blue-200 dark:border-blue-900/40 space-y-3">
+                        <div>
+                          <p className="text-xs font-black text-blue-900 dark:text-blue-300">
+                            🔔 {device.pendingHandoverToName} ({device.pendingHandoverToEmpId || 'N/A'}) এই ফোনটি চেয়ে রিকোয়েস্ট পাঠিয়েছেন।
+                          </p>
+                          {device.pendingHandoverNote && (
+                            <p className="text-[11px] italic text-slate-500 dark:text-slate-400 mt-1">
+                              নোট: "{device.pendingHandoverNote}"
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setApprovingClaimDevice(device);
+                              setHolderMissedCallsInput('0');
+                              setHolderReturnedCallsInput('0');
+                            }}
+                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
+                          >
+                            <CheckCircle2 size={15} />
+                            <span>অনুমোদন করুন (Approve)</span>
+                          </button>
+                          <button
+                            onClick={() => handleCancelOrDeclineHandover(device)}
+                            className="px-4 py-2.5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold active:scale-95 transition-all"
+                          >
+                            বাতিল (Decline)
+                          </button>
+                        </div>
                       </div>
-                      <button
-                        onClick={() => handleCancelOrDeclineHandover(device)}
-                        className="w-full bg-amber-600 hover:bg-amber-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider"
-                      >
-                        অনুরোধ বাতিল করুন (Cancel Request)
-                      </button>
-                    </div>
+                    ) : (
+                      <div className="bg-amber-50 dark:bg-amber-950/40 p-4 rounded-2xl border border-amber-200 dark:border-amber-900/40 space-y-3">
+                        <p className="text-xs font-bold text-amber-800 dark:text-amber-300">
+                          হ্যান্ডওভার অনুরোধ পাঠানো হয়েছে: {device.pendingHandoverToName} ({device.pendingHandoverToEmpId || 'N/A'})
+                        </p>
+                        <div className="flex items-center gap-4 text-xs text-slate-600 dark:text-slate-300 font-semibold">
+                          <span className="text-rose-600">মিসকল: {device.pendingSenderMissedCalls ?? 0}</span>
+                          <span className="text-emerald-600">ব্যাক কল: {device.pendingSenderReturnedCalls ?? 0}</span>
+                        </div>
+                        <button
+                          onClick={() => handleCancelOrDeclineHandover(device)}
+                          className="w-full bg-amber-600 hover:bg-amber-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider"
+                        >
+                          অনুরোধ বাতিল করুন (Cancel Request)
+                        </button>
+                      </div>
+                    )
                   ) : (
                     <div className="flex items-center gap-3">
                       <button
@@ -2157,17 +2545,16 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   </div>
                 </div>
 
-                {/* SENDER MISSED CALLS & BACK CALLS INPUTS */}
+                {/* SENDER MISSED CALLS & BACK CALLS INPUTS (OPTIONAL) */}
                 <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-800">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 flex items-center gap-1">
                       <PhoneMissed size={12} />
-                      <span>Missed Calls (কতগুলো মিসকল ছিল) *</span>
+                      <span>Missed Calls (কতগুলো মিসকল ছিল)</span>
                     </label>
                     <input
                       type="number"
                       min="0"
-                      required
                       placeholder="0"
                       value={senderMissedCallsInput}
                       onChange={(e) => setSenderMissedCallsInput(e.target.value)}
@@ -2178,12 +2565,11 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                       <PhoneCall size={12} />
-                      <span>Back Given (কতগুলো ব্যাক দেওয়া হয়েছে) *</span>
+                      <span>Back Given (কতগুলো ব্যাক দেওয়া হয়েছে)</span>
                     </label>
                     <input
                       type="number"
                       min="0"
-                      required
                       placeholder="0"
                       value={senderReturnedCallsInput}
                       onChange={(e) => setSenderReturnedCallsInput(e.target.value)}
@@ -2370,6 +2756,232 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   <button
                     type="button"
                     onClick={() => setApprovingDevice(null)}
+                    className="px-5 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-black text-xs uppercase tracking-wider hover:bg-slate-200 dark:hover:bg-slate-700"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* MODAL 4: REQUEST / CLAIM PHONE CURRENTLY IN USE (RECEIVER -> HOLDER) */}
+      <AnimatePresence>
+        {claimDevice && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setClaimDevice(null)}
+              className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-6"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 flex items-center justify-center">
+                    <ArrowRightLeft size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+                      Request Phone: {claimDevice.name}
+                    </h3>
+                    <p className="text-xs text-slate-400">বর্তমান ব্যবহারকারীর কাছে ফোনটি চেয়ে রিকোয়েস্ট পাঠান</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setClaimDevice(null)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <XCircle size={20} />
+                </button>
+              </div>
+
+              {/* Current Holder Information */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Device Name:</span>
+                  <span className="font-black text-slate-800 dark:text-slate-100">{claimDevice.name}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Current Holder (কার কাছে আছে):</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-200">
+                    {claimDevice.currentHolderName} ({claimDevice.currentHolderEmpId || 'N/A'})
+                  </span>
+                </div>
+                {claimDevice.currentSessionStart && (
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-700 text-[11px]">
+                    <span className="text-slate-400">কতক্ষণ ধরে ব্যবহার করছেন:</span>
+                    <span className="font-bold text-blue-600 dark:text-blue-400">
+                      {formatDuration(claimDevice.currentSessionStart)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <form onSubmit={handleRequestClaimPhone} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                    Request Note / Reason (কারণ বা বার্তা)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Shift starting, need this phone now for customer support..."
+                    value={claimRequestNote}
+                    onChange={(e) => setClaimRequestNote(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100"
+                  />
+                </div>
+
+                <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 rounded-2xl text-xs text-blue-800 dark:text-blue-300">
+                  💡 আপনি রিকোয়েস্ট পাঠানোর পর বর্তমান ব্যবহারকারী ({claimDevice.currentHolderName}) মিসকল ও ব্যাক কলের সংখ্যা যাচাই করে অনুমোদন (Approve) করলেই ফোনটি সরাসরি আপনার নামে চলে আসবে।
+                </div>
+
+                <div className="pt-3 flex items-center gap-3">
+                  <button
+                    type="submit"
+                    disabled={claimLoading}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 transition-all active:scale-95"
+                  >
+                    {claimLoading ? 'Sending Request...' : 'Send Claim Request (রিকোয়েস্ট পাঠান)'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setClaimDevice(null)}
+                    className="px-5 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-black text-xs uppercase tracking-wider hover:bg-slate-200 dark:hover:bg-slate-700"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 5: CURRENT HOLDER APPROVES INCOMING CLAIM REQUEST */}
+      <AnimatePresence>
+        {approvingClaimDevice && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setApprovingClaimDevice(null)}
+              className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-6"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center">
+                    <CheckCircle2 size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+                      Approve Handover Request
+                    </h3>
+                    <p className="text-xs text-slate-400">হ্যান্ডওভার হস্তান্তরের পূর্বে মিসকল ও ব্যাক কলের সংখ্যা দিন</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setApprovingClaimDevice(null)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <XCircle size={20} />
+                </button>
+              </div>
+
+              {/* Requester Details */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Device Name:</span>
+                  <span className="font-black text-slate-800 dark:text-slate-100">{approvingClaimDevice.name}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Recipient (যিনি চেয়েছেন):</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-200">
+                    {approvingClaimDevice.pendingHandoverToName} ({approvingClaimDevice.pendingHandoverToEmpId || 'N/A'})
+                  </span>
+                </div>
+                {approvingClaimDevice.pendingHandoverNote && (
+                  <p className="italic text-slate-500 pt-1 border-t border-slate-200 dark:border-slate-700">
+                    বার্তা: "{approvingClaimDevice.pendingHandoverNote}"
+                  </p>
+                )}
+              </div>
+
+              <form onSubmit={handleConfirmHolderApproval} className="space-y-4">
+                {/* HOLDER MISSED CALLS & BACK CALLS INPUTS (OPTIONAL) */}
+                <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                      <PhoneMissed size={12} />
+                      <span>Missed Calls (কতগুলো মিসকল ছিল)</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={holderMissedCallsInput}
+                      onChange={(e) => setHolderMissedCallsInput(e.target.value)}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-750 rounded-xl py-2.5 px-3 text-sm font-black text-rose-600 dark:text-rose-400 focus:outline-none focus:border-rose-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <PhoneCall size={12} />
+                      <span>Back Given (কতগুলো ব্যাক দেওয়া হয়েছে)</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={holderReturnedCallsInput}
+                      onChange={(e) => setHolderReturnedCallsInput(e.target.value)}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-750 rounded-xl py-2.5 px-3 text-sm font-black text-emerald-600 dark:text-emerald-400 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Handover Note */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                    Approval Note (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Approved and handed over device..."
+                    value={holderApprovalNote}
+                    onChange={(e) => setHolderApprovalNote(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-2xl py-3 px-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100"
+                  />
+                </div>
+
+                <div className="pt-3 flex items-center gap-3">
+                  <button
+                    type="submit"
+                    disabled={holderApproveLoading}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
+                  >
+                    {holderApproveLoading ? 'Approving...' : 'Confirm & Approve Handover'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setApprovingClaimDevice(null)}
                     className="px-5 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-black text-xs uppercase tracking-wider hover:bg-slate-200 dark:hover:bg-slate-700"
                   >
                     Cancel
