@@ -207,7 +207,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
             status: 'completed',
             note: logData.note 
               ? `${logData.note} (Auto-unassigned after 24h)` 
-              : 'Auto-unassigned after 24 hours (২৪ ঘণ্টা পর দিন শেষে স্বয়ংক্রিয় আন-অ্যাসাইন)'
+              : 'Auto-unassigned after 24 hours'
           }));
         });
       }
@@ -516,7 +516,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
   // Super-Admin 2146 ONLY: Delete a Deletion Audit Log
   const handleDeleteAuditLog = async (auditLogId: string) => {
     if (!isSuperAdmin2146) {
-      alert("Permission Denied: Only user 2146 is authorized to delete deletion audit records (শুধুমাত্র 2146 ইউজার এই অডিট লগ ডিলিট করতে পারবেন)।");
+      alert("Permission Denied: Only user 2146 is authorized to delete deletion audit records.");
       return;
     }
     if (!window.confirm("Are you sure you want to delete this deletion audit record?")) return;
@@ -1169,9 +1169,9 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
       const hasCallData = log.senderMissedCalls !== undefined || log.receiverMissedCalls !== undefined;
       const matchStatus = log.verificationMismatch 
-        ? '⚠️ Discrepancy (অমিল)' 
+        ? '⚠️ Discrepancy' 
         : hasCallData 
-          ? '✅ Matched (সঠিক)' 
+          ? '✅ Matched' 
           : 'N/A';
 
       return {
@@ -1266,15 +1266,15 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
               <span>Device & Phone Handover Tracker</span>
               {!isAdmin && (
                 <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px] text-white">
-                  Agent View (নিজস্ব হিস্ট্রি)
+                  Agent View (My Records)
                 </span>
               )}
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-              ফোন হ্যান্ডওভার ও ডিউটি ট্র্যাকিং সিস্টেম
+              Phone Handover & Duty Tracking System
             </h1>
             <p className="text-blue-100 text-xs sm:text-sm max-w-2xl leading-relaxed">
-              হ্যান্ডওভারের সময় কতগুলো মিসকল ছিল এবং কতগুলো ব্যাক দেওয়া হয়েছে তা উভয় পক্ষের নিখুঁত ভেরিফিকেশনসহ রেকর্ড রাখুন।
+              Keep verified records of missed calls and returned calls during handovers with mutual verification.
             </p>
           </div>
 
@@ -1319,10 +1319,10 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
             </div>
             <div>
               <h3 className="text-base font-black text-amber-900 dark:text-amber-300 tracking-tight">
-                আপনার কাছে ফোন হ্যান্ডওভার রিকোয়েস্ট এসেছে ({incomingHandovers.length} টি)
+                You have incoming phone handover requests ({incomingHandovers.length})
               </h3>
               <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
-                প্রেরকের মিসকল ও ব্যাক কল চেক করে আপনার ভেরিফিকেশন দিয়ে হ্যান্ডওভার গ্রহণ (Approve) করুন।
+                Verify the sender's missed and returned calls count to approve and accept the handover.
               </p>
             </div>
           </div>
@@ -1342,25 +1342,25 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   </div>
 
                   <div className="text-xs text-slate-500 dark:text-slate-400 mt-2 space-y-1">
-                    <p>প্রেরক: <strong className="text-slate-700 dark:text-slate-200">{dev.currentHolderName}</strong> (ID: {dev.currentHolderEmpId || 'N/A'})</p>
+                    <p>Sender: <strong className="text-slate-700 dark:text-slate-200">{dev.currentHolderName}</strong> (ID: {dev.currentHolderEmpId || 'N/A'})</p>
                     
                     {/* Sender Declared Missed / Back Calls */}
                     <div className="mt-2 grid grid-cols-2 gap-2 p-2.5 bg-amber-50/80 dark:bg-amber-950/30 rounded-xl border border-amber-200/60 dark:border-amber-900/30">
                       <div className="flex items-center gap-1.5 text-[11px] font-bold text-rose-700 dark:text-rose-400">
                         <PhoneMissed size={13} />
-                        <span>মিসকল ছিল: {dev.pendingSenderMissedCalls ?? 0} টি</span>
+                        <span>Missed Calls: {dev.pendingSenderMissedCalls ?? 0}</span>
                       </div>
                       <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
                         <PhoneCall size={13} />
-                        <span>ব্যাক দেওয়া হয়েছে: {dev.pendingSenderReturnedCalls ?? 0} টি</span>
+                        <span>Returned Calls: {dev.pendingSenderReturnedCalls ?? 0}</span>
                       </div>
                     </div>
 
                     {dev.pendingHandoverNote && (
-                      <p className="italic text-slate-600 dark:text-slate-300 pt-1">নোট: "{dev.pendingHandoverNote}"</p>
+                      <p className="italic text-slate-600 dark:text-slate-300 pt-1">Note: "{dev.pendingHandoverNote}"</p>
                     )}
                     <p className="text-[10px] text-slate-400">
-                      অনুরোধের সময়: {dev.pendingHandoverAt ? formatBST(dev.pendingHandoverAt, 'hh:mm a, dd MMM') : ''}
+                      Requested at: {dev.pendingHandoverAt ? formatBST(dev.pendingHandoverAt, 'hh:mm a, dd MMM') : ''}
                     </p>
                   </div>
                 </div>
@@ -1371,13 +1371,13 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
                   >
                     <CheckCircle2 size={15} />
-                    <span>চেক করে গ্রহণ করুন (Approve)</span>
+                    <span>Verify & Accept</span>
                   </button>
                   <button
                     onClick={() => handleCancelOrDeclineHandover(dev)}
                     className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold active:scale-95 transition-all"
                   >
-                    বাতিল (Decline)
+                    Decline
                   </button>
                 </div>
               </div>
@@ -1399,10 +1399,10 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
             </div>
             <div>
               <h3 className="text-base font-black text-blue-900 dark:text-blue-300 tracking-tight">
-                আপনার কাছে ফোন নেওয়ার জন্য রিকোয়েস্ট এসেছে ({incomingClaimRequests.length} টি)
+                Incoming Phone Handover Requests ({incomingClaimRequests.length})
               </h3>
               <p className="text-xs text-blue-700 dark:text-blue-400 font-medium">
-                অন্য এজেন্ট আপনার কাছ থেকে ফোন নিতে রিকোয়েস্ট পাঠিয়েছেন। অনুমোদন করতে Approve বাটনে ক্লিক করুন।
+                Another agent requested to take this phone from you. Click Approve to proceed with handover.
               </p>
             </div>
           </div>
@@ -1422,12 +1422,12 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   </div>
 
                   <div className="text-xs text-slate-500 dark:text-slate-400 mt-2 space-y-1">
-                    <p>রিকোয়েস্টকারী: <strong className="text-slate-700 dark:text-slate-200">{dev.pendingHandoverToName}</strong> (ID: {dev.pendingHandoverToEmpId || 'N/A'})</p>
+                    <p>Requester: <strong className="text-slate-700 dark:text-slate-200">{dev.pendingHandoverToName}</strong> (ID: {dev.pendingHandoverToEmpId || 'N/A'})</p>
                     {dev.pendingHandoverNote && (
-                      <p className="italic text-slate-600 dark:text-slate-300 pt-1">নোট: "{dev.pendingHandoverNote}"</p>
+                      <p className="italic text-slate-600 dark:text-slate-300 pt-1">Note: "{dev.pendingHandoverNote}"</p>
                     )}
                     <p className="text-[10px] text-slate-400">
-                      অনুরোধের সময়: {dev.pendingHandoverAt ? formatBST(dev.pendingHandoverAt, 'hh:mm a, dd MMM') : ''}
+                      Requested at: {dev.pendingHandoverAt ? formatBST(dev.pendingHandoverAt, 'hh:mm a, dd MMM') : ''}
                     </p>
                   </div>
                 </div>
@@ -1442,13 +1442,13 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
                   >
                     <CheckCircle2 size={15} />
-                    <span>অনুমোদন করুন (Approve)</span>
+                    <span>Approve</span>
                   </button>
                   <button
                     onClick={() => handleCancelOrDeclineHandover(dev)}
                     className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold active:scale-95 transition-all"
                   >
-                    বাতিল (Decline)
+                    Decline
                   </button>
                 </div>
               </div>
@@ -1526,9 +1526,9 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
               <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-3xl flex items-center justify-center mx-auto">
                 <Smartphone size={32} />
               </div>
-              <h3 className="text-lg font-black text-slate-800 dark:text-slate-100">কোনো ফোন এখনও এন্ট্রি করা হয়নি</h3>
+              <h3 className="text-lg font-black text-slate-800 dark:text-slate-100">No devices registered yet</h3>
               <p className="text-xs text-slate-500 dark:text-slate-300 max-w-md mx-auto">
-                অ্যাডমিন প্যানেল থেকে "Add New Phone" বাটনে ক্লিক করে অফিসের ফোনগুলোর নাম যুক্ত করুন।
+                Click "Add New Phone" from the admin panel to add office devices.
               </p>
               {isAdmin && (
                 <button
@@ -1569,9 +1569,9 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   >
                     {/* Card Header */}
                     <div className="p-6 space-y-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-inner ${
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-inner shrink-0 ${
                             isAvailable 
                               ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400' 
                               : isPendingHandover
@@ -1580,11 +1580,11 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                           }`}>
                             <Smartphone size={24} />
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <h3 className="font-black text-slate-800 dark:text-slate-100 text-base tracking-tight">
                               {device.name}
                             </h3>
-                            <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-300 font-medium">
+                            <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500 dark:text-slate-300 font-medium">
                               {device.modelNumber && <span>{device.modelNumber}</span>}
                               {device.simNumber && <span>• SIM: {device.simNumber}</span>}
                             </div>
@@ -1592,19 +1592,19 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                         </div>
 
                         {/* Status Badge */}
-                        <div>
+                        <div className="shrink-0">
                           {isAvailable && (
-                            <span className="px-3 py-1 text-[10px] font-black uppercase rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                              Available (ফ্রি)
+                            <span className="px-3 py-1 text-[10px] font-black uppercase rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 whitespace-nowrap inline-flex items-center">
+                              Available
                             </span>
                           )}
                           {isInUse && (
-                            <span className="px-3 py-1 text-[10px] font-black uppercase rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                            <span className="px-3 py-1 text-[10px] font-black uppercase rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 whitespace-nowrap inline-flex items-center">
                               In Use
                             </span>
                           )}
                           {isPendingHandover && (
-                            <span className="px-3 py-1 text-[10px] font-black uppercase rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 animate-pulse">
+                            <span className="px-3 py-1 text-[10px] font-black uppercase rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 animate-pulse whitespace-nowrap inline-flex items-center">
                               Handover Pending
                             </span>
                           )}
@@ -1620,7 +1620,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                         ) : (
                           <>
                             <div className="flex items-center justify-between text-xs">
-                              <span className="text-slate-500 dark:text-slate-300 font-semibold">বর্তমান ব্যবহারকারী:</span>
+                              <span className="text-slate-500 dark:text-slate-300 font-semibold">Current Holder:</span>
                               <span className="font-black text-slate-800 dark:text-slate-100">
                                 {device.currentHolderName} {device.currentHolderEmpId ? `(${device.currentHolderEmpId})` : ''}
                                 {isHeldByMe && <span className="ml-1 text-blue-600 dark:text-blue-400 font-bold">(You)</span>}
@@ -1631,7 +1631,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                               <div className="flex items-center justify-between text-xs">
                                 <span className="text-slate-500 dark:text-slate-300 flex items-center gap-1 font-semibold">
                                   <Clock size={13} />
-                                  <span>শুরু হয়েছে:</span>
+                                  <span>Started:</span>
                                 </span>
                                 <span className="font-bold text-slate-700 dark:text-slate-200">
                                   {formatBST(device.currentSessionStart, 'hh:mm a')}
@@ -1643,7 +1643,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                               <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/50 dark:border-slate-700/60">
                                 <span className="text-slate-500 dark:text-slate-300 flex items-center gap-1 font-semibold">
                                   <Timer size={13} className="text-blue-500" />
-                                  <span>মোট সময়কাল:</span>
+                                  <span>Total Duration:</span>
                                 </span>
                                 <span className="font-black text-blue-600 dark:text-blue-400">
                                   {formatDuration(device.currentSessionStart)}
@@ -1655,15 +1655,15 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                               <div className="bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-xl border border-amber-200 dark:border-amber-900/40 text-[11px] text-amber-800 dark:text-amber-300 space-y-1.5">
                                 <p className="font-bold">
                                   {device.pendingRequestType === 'receiver_requested' 
-                                    ? `হ্যান্ডওভার রিকোয়েস্ট পাঠিয়েছেন: ${device.pendingHandoverToName} (${device.pendingHandoverToEmpId || 'N/A'})`
-                                    : `হ্যান্ডওভার অপেক্ষারত: ${device.pendingHandoverToName} (${device.pendingHandoverToEmpId || 'N/A'})`
+                                    ? `Handover requested by: ${device.pendingHandoverToName} (${device.pendingHandoverToEmpId || 'N/A'})`
+                                    : `Handover pending: ${device.pendingHandoverToName} (${device.pendingHandoverToEmpId || 'N/A'})`
                                   }
                                 </p>
                                 {device.pendingRequestType !== 'receiver_requested' && (
                                   <div className="flex items-center gap-3 text-[10px] text-slate-600 dark:text-slate-300 font-semibold">
-                                    <span className="text-rose-600 dark:text-rose-400">মিসকল: {device.pendingSenderMissedCalls ?? 0}</span>
+                                    <span className="text-rose-600 dark:text-rose-400">Missed: {device.pendingSenderMissedCalls ?? 0}</span>
                                     <span>•</span>
-                                    <span className="text-emerald-600 dark:text-emerald-400">ব্যাক কল: {device.pendingSenderReturnedCalls ?? 0}</span>
+                                    <span className="text-emerald-600 dark:text-emerald-400">Returned: {device.pendingSenderReturnedCalls ?? 0}</span>
                                   </div>
                                 )}
                                 {device.pendingHandoverNote && (
@@ -1685,7 +1685,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                           className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all"
                         >
                           <SmartphoneCharging size={16} />
-                          <span>ফোনটি নিজের নামে নিন (Take Phone)</span>
+                          <span>Take Phone</span>
                         </button>
                       )}
 
@@ -1704,7 +1704,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                             className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
                           >
                             <ArrowRightLeft size={15} />
-                            <span>Handover (হস্তান্তর)</span>
+                            <span>Handover</span>
                           </button>
 
                           <button
@@ -1712,7 +1712,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                             className="flex-1 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 active:scale-95 transition-all"
                           >
                             <PowerOff size={15} />
-                            <span>End (কাজ শেষ)</span>
+                            <span>End Session</span>
                           </button>
                         </div>
                       )}
@@ -1729,7 +1729,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                             className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-sm"
                           >
                             <CheckCircle2 size={15} />
-                            <span>অনুমোদন করুন (Approve)</span>
+                            <span>Approve</span>
                           </button>
                           <button
                             onClick={() => handleCancelOrDeclineHandover(device)}
@@ -1755,7 +1755,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                       {!isHeldByMe && isPendingHandover && device.pendingHandoverToId === currentUser?.id && device.pendingRequestType === 'receiver_requested' && (
                         <div className="w-full flex items-center gap-2">
                           <div className="flex-1 bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 py-2 px-3 rounded-xl text-[11px] font-bold text-center border border-amber-200 dark:border-amber-800">
-                            অনুমোদনের অপেক্ষায়...
+                            Awaiting Approval...
                           </div>
                           <button
                             onClick={() => handleCancelOrDeclineHandover(device)}
@@ -1795,14 +1795,14 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                           className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all"
                         >
                           <ArrowRightLeft size={15} />
-                          <span>ফোনটি চেয়ে রিকোয়েস্ট পাঠান (Request Phone)</span>
+                          <span>Request Phone</span>
                         </button>
                       )}
 
                       {/* Scenario 5: Phone held by someone else, pending handover to a 3rd person */}
                       {!isHeldByMe && isPendingHandover && device.pendingHandoverToId !== currentUser?.id && (
                         <div className="w-full py-2 px-3 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl text-[11px] font-bold text-center">
-                          হ্যান্ডওভার প্রক্রিয়াধীন ({device.pendingHandoverToName})
+                          Handover In Progress ({device.pendingHandoverToName})
                         </div>
                       )}
 
@@ -1874,9 +1874,9 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
               <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 text-slate-400 rounded-2xl flex items-center justify-center mx-auto">
                 <UserCheck size={28} />
               </div>
-              <h3 className="text-base font-black text-slate-800 dark:text-slate-100">বর্তমানে আপনার কাছে কোনো ফোন নেই</h3>
+              <h3 className="text-base font-black text-slate-800 dark:text-slate-100">You currently have no active devices</h3>
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                "All Devices" ট্যাব থেকে যেকোনো Available ফোন বেছে নিয়ে "Take Phone" করুন অথবা অন্য কারও হ্যান্ডওভার গ্রহণ করুন।
+                Go to the "All Devices" tab and click "Take Phone" on an available device, or accept a pending handover from another agent.
               </p>
             </div>
           ) : (
@@ -1903,13 +1903,13 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
                   <div className="bg-blue-50/50 dark:bg-blue-950/20 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30 space-y-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-600 dark:text-slate-300">Session Started (শুরুর সময়):</span>
+                      <span className="text-slate-600 dark:text-slate-300">Session Started:</span>
                       <span className="font-bold text-slate-700 dark:text-slate-200">
                         {device.currentSessionStart ? formatBST(device.currentSessionStart, 'hh:mm a, dd MMM yyyy') : '--'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-600 dark:text-slate-300">Duration (ব্যবহারকাল):</span>
+                      <span className="text-slate-600 dark:text-slate-300">Duration:</span>
                       <span className="font-black text-blue-600 dark:text-blue-400 text-sm">
                         {device.currentSessionStart ? formatDuration(device.currentSessionStart) : '--'}
                       </span>
@@ -1921,11 +1921,11 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                       <div className="bg-blue-50 dark:bg-blue-950/40 p-4 rounded-2xl border border-blue-200 dark:border-blue-900/40 space-y-3">
                         <div>
                           <p className="text-xs font-black text-blue-900 dark:text-blue-300">
-                            🔔 {device.pendingHandoverToName} ({device.pendingHandoverToEmpId || 'N/A'}) এই ফোনটি চেয়ে রিকোয়েস্ট পাঠিয়েছেন।
+                            🔔 {device.pendingHandoverToName} ({device.pendingHandoverToEmpId || 'N/A'}) requested to take this phone.
                           </p>
                           {device.pendingHandoverNote && (
                             <p className="text-[11px] italic text-slate-500 dark:text-slate-400 mt-1">
-                              নোট: "{device.pendingHandoverNote}"
+                              Note: "{device.pendingHandoverNote}"
                             </p>
                           )}
                         </div>
@@ -1939,30 +1939,30 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                             className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
                           >
                             <CheckCircle2 size={15} />
-                            <span>অনুমোদন করুন (Approve)</span>
+                            <span>Approve</span>
                           </button>
                           <button
                             onClick={() => handleCancelOrDeclineHandover(device)}
                             className="px-4 py-2.5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold active:scale-95 transition-all"
                           >
-                            বাতিল (Decline)
+                            Decline
                           </button>
                         </div>
                       </div>
                     ) : (
                       <div className="bg-amber-50 dark:bg-amber-950/40 p-4 rounded-2xl border border-amber-200 dark:border-amber-900/40 space-y-3">
                         <p className="text-xs font-bold text-amber-800 dark:text-amber-300">
-                          হ্যান্ডওভার অনুরোধ পাঠানো হয়েছে: {device.pendingHandoverToName} ({device.pendingHandoverToEmpId || 'N/A'})
+                          Handover request sent to: {device.pendingHandoverToName} ({device.pendingHandoverToEmpId || 'N/A'})
                         </p>
                         <div className="flex items-center gap-4 text-xs text-slate-600 dark:text-slate-300 font-semibold">
-                          <span className="text-rose-600">মিসকল: {device.pendingSenderMissedCalls ?? 0}</span>
-                          <span className="text-emerald-600">ব্যাক কল: {device.pendingSenderReturnedCalls ?? 0}</span>
+                          <span className="text-rose-600">Missed: {device.pendingSenderMissedCalls ?? 0}</span>
+                          <span className="text-emerald-600">Returned: {device.pendingSenderReturnedCalls ?? 0}</span>
                         </div>
                         <button
                           onClick={() => handleCancelOrDeclineHandover(device)}
                           className="w-full bg-amber-600 hover:bg-amber-700 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider"
                         >
-                          অনুরোধ বাতিল করুন (Cancel Request)
+                          Cancel Handover Request
                         </button>
                       </div>
                     )
@@ -1980,7 +1980,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                         className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 active:scale-95 transition-all"
                       >
                         <ArrowRightLeft size={16} />
-                        <span>অন্যকে হ্যান্ডওভার করুন (Handover)</span>
+                        <span>Handover Phone</span>
                       </button>
 
                       <button
@@ -1988,7 +1988,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                         className="flex-1 bg-slate-900 hover:bg-black dark:bg-slate-800 dark:hover:bg-slate-700 text-white py-3 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 transition-all"
                       >
                         <PowerOff size={16} />
-                        <span>ব্যবহার শেষ (End & Return)</span>
+                        <span>End & Return</span>
                       </button>
                     </div>
                   )}
@@ -2023,7 +2023,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   onChange={(e) => setSelectedPhoneFilter(e.target.value)}
                   className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2.5 text-xs font-semibold focus:outline-none text-slate-700 dark:text-slate-200"
                 >
-                  <option value="all">All Devices (সব ফোন)</option>
+                  <option value="all">All Devices</option>
                   {devices.map(d => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
@@ -2036,7 +2036,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     onChange={(e) => setSelectedUserFilter(e.target.value)}
                     className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2.5 text-xs font-semibold focus:outline-none text-slate-700 dark:text-slate-200"
                   >
-                    <option value="all">All Agents (সব এজেন্ট)</option>
+                    <option value="all">All Agents</option>
                     {allUsers.map(u => (
                       <option key={u.id} value={u.id}>
                         {u.displayName || u.loginHandle || u.email} {u.employeeId ? `(${u.employeeId})` : ''}
@@ -2083,7 +2083,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
             {!isAdmin && (
               <div className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-100 dark:border-slate-700">
                 <Shield size={14} className="text-blue-500" />
-                <span>প্রাইভেসি সুরক্ষায় এখানে শুধুমাত্র আপনার নিজের ফোন ব্যবহার ও হ্যান্ডওভার রেকর্ড প্রদর্শিত হচ্ছে।</span>
+                <span>For privacy protection, only your own device usage and handover records are displayed here.</span>
               </div>
             )}
           </div>
@@ -2093,7 +2093,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h3 className="font-black text-slate-800 dark:text-slate-100 text-base">
-                  {isAdmin ? 'হ্যান্ডওভার ও মিসকল ভেরিফিকেশনের পূর্ণাঙ্গ হিস্ট্রি' : 'আমার ফোন ব্যবহারের হিস্ট্রি ও হ্যান্ডওভার রেকর্ড'}
+                  {isAdmin ? 'Full Handover & Missed Call Verification History' : 'My Device Usage & Handover History'}
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Total {filteredLogs.length} logs recorded</p>
               </div>
@@ -2101,7 +2101,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                 {isAdmin && filteredLogs.length > 0 && (
                   <button
                     onClick={handleBulkDeleteFilteredLogs}
-                    title="ফিল্টার করা সকল হিস্ট্রি রেকর্ড মুছে ফেলুন"
+                    title="Delete all filtered history records"
                     className="flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 px-3 py-2 rounded-xl font-bold text-xs shadow-sm transition-all"
                   >
                     <Trash2 size={14} />
@@ -2136,7 +2136,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   {filteredLogs.length === 0 ? (
                     <tr>
                       <td colSpan={isAdmin ? 8 : 7} className="text-center py-10 text-slate-500 dark:text-slate-300 text-xs font-semibold">
-                        কোনো রেকর্ড পাওয়া যায়নি।
+                        No records found.
                       </td>
                     </tr>
                   ) : (
@@ -2261,7 +2261,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                             <td className="py-4 px-5 text-right whitespace-nowrap">
                               <button
                                 onClick={() => handleDeleteLog(log.id, log.phoneName, log.userName)}
-                                title="Delete History Log (হিস্ট্রি মুছে ফেলুন)"
+                                title="Delete History Log"
                                 className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-all inline-flex items-center gap-1.5 font-bold text-[11px]"
                               >
                                 <Trash2 size={14} />
@@ -2292,19 +2292,19 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <h3 className="text-base font-black text-rose-950 dark:text-rose-200">
-                    অ্যাডমিন ডিলিট অ্যাকশন অডিট লগ (Deletion Audit Logs)
+                    Admin Deletion Action Audit Logs
                   </h3>
                   <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-full bg-rose-200/80 dark:bg-rose-900/60 text-rose-800 dark:text-rose-300">
                     Audited
                   </span>
                 </div>
                 <p className="text-xs text-rose-800/80 dark:text-rose-300/80 font-medium">
-                  কোন অ্যাডমিন কখন কোন ফোন বা হিস্ট্রি রেকর্ড মুছেছেন তার স্বয়ংক্রিয় অপরিবর্তনযোগ্য লগ।
+                  Automated immutable audit logs recording device and history deletions by administrators.
                 </p>
                 <div className="flex items-center gap-2 pt-1 text-[11px] font-semibold text-rose-700 dark:text-rose-400">
                   <Lock size={12} />
                   <span>
-                    নিরাপত্তা নীতি: এই অডিট লগগুলো <strong>শুধুমাত্র ইউজার 2146</strong> দ্বারা ডিলিট করা সম্ভব।
+                    Security Policy: These audit logs can <strong>only be deleted by User 2146</strong>.
                   </span>
                 </div>
               </div>
@@ -2326,9 +2326,9 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div>
                 <h3 className="font-black text-slate-800 dark:text-slate-100 text-base">
-                  ডিলিট অ্যাক্টিভিটি ট্র্যাকিং হিস্ট্রি
+                  Deletion Activity Tracking History
                 </h3>
-                <p className="text-xs text-slate-400">মোট {deletionLogs.length} টি ডিলিট অ্যাকশন রেকর্ড করা হয়েছে</p>
+                <p className="text-xs text-slate-400">Total {deletionLogs.length} deletion actions recorded</p>
               </div>
               <div className="flex items-center gap-2 text-xs font-bold">
                 {isSuperAdmin2146 ? (
@@ -2349,10 +2349,10 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 uppercase tracking-wider font-black text-[11px] border-b border-slate-100 dark:border-slate-800">
-                    <th className="py-4 px-5">Admin (কে ডিলিট করেছে)</th>
-                    <th className="py-4 px-5">Time & Date (সময়)</th>
+                    <th className="py-4 px-5">Admin</th>
+                    <th className="py-4 px-5">Time & Date</th>
                     <th className="py-4 px-5">Action Type</th>
-                    <th className="py-4 px-5">Deleted Content Summary (যা ডিলিট হয়েছে)</th>
+                    <th className="py-4 px-5">Deleted Content Summary</th>
                     <th className="py-4 px-5 text-right">Audit Action</th>
                   </tr>
                 </thead>
@@ -2360,7 +2360,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   {deletionLogs.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="text-center py-12 text-slate-400 text-xs font-semibold">
-                        এখনও পর্যন্ত কোনো হিস্ট্রি বা ফোন ডিলিট করার রেকর্ড নেই।
+                        No history or device deletion records found.
                       </td>
                     </tr>
                   ) : (
@@ -2485,7 +2485,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     <h3 className="text-base font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
                       {editingDevice ? 'Edit Phone Details' : 'Add New Phone'}
                     </h3>
-                    <p className="text-xs text-slate-400">অফিসের ডিভাইসের নাম ও সিম তথ্য যুক্ত করুন</p>
+                    <p className="text-xs text-slate-400">Add office device name and SIM details</p>
                   </div>
                 </div>
                 <button
@@ -2586,7 +2586,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     <h3 className="text-base font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
                       Handover: {handoverDevice.name}
                     </h3>
-                    <p className="text-xs text-slate-400">মিসকল ও ব্যাক কলের সংখ্যা উল্লেখ করে রিকোয়েস্ট পাঠান</p>
+                    <p className="text-xs text-slate-400">Specify missed and returned call counts to send request</p>
                   </div>
                 </div>
                 <button
@@ -2647,7 +2647,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 flex items-center gap-1">
                       <PhoneMissed size={12} />
-                      <span>Missed Calls (কতগুলো মিসকল ছিল)</span>
+                      <span>Missed Calls</span>
                     </label>
                     <input
                       type="number"
@@ -2662,7 +2662,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                       <PhoneCall size={12} />
-                      <span>Back Given (কতগুলো ব্যাক দেওয়া হয়েছে)</span>
+                      <span>Returned Calls</span>
                     </label>
                     <input
                       type="number"
@@ -2738,7 +2738,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     <h3 className="text-base font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
                       Verify & Accept Handover
                     </h3>
-                    <p className="text-xs text-slate-400">হ্যান্ডওভার গ্রহণের পূর্বে কল রেকর্ড চেক করে সংখ্যা দিন</p>
+                    <p className="text-xs text-slate-400">Check call records and verify counts before accepting handover</p>
                   </div>
                 </div>
                 <button
@@ -2756,7 +2756,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   <span className="font-black text-slate-800 dark:text-slate-100">{approvingDevice.name}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">Sender (প্রেরক):</span>
+                  <span className="text-slate-500 dark:text-slate-400">Sender:</span>
                   <span className="font-bold text-slate-700 dark:text-slate-200">
                     {approvingDevice.currentHolderName} ({approvingDevice.currentHolderEmpId || 'N/A'})
                   </span>
@@ -2765,23 +2765,23 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                 <div className="pt-2 border-t border-slate-200 dark:border-slate-700 grid grid-cols-2 gap-2 text-[11px]">
                   <div className="p-2 bg-rose-50/80 dark:bg-rose-950/30 rounded-xl text-rose-700 dark:text-rose-400 font-bold flex items-center gap-1.5 border border-rose-100 dark:border-rose-900/40">
                     <PhoneMissed size={13} />
-                    <span>প্রেরক বলেছে মিসকল: {approvingDevice.pendingSenderMissedCalls ?? 0}</span>
+                    <span>Sender reported missed: {approvingDevice.pendingSenderMissedCalls ?? 0}</span>
                   </div>
                   <div className="p-2 bg-emerald-50/80 dark:bg-emerald-950/30 rounded-xl text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1.5 border border-emerald-100 dark:border-emerald-900/40">
                     <PhoneCall size={13} />
-                    <span>প্রেরক বলেছে ব্যাক: {approvingDevice.pendingSenderReturnedCalls ?? 0}</span>
+                    <span>Sender reported returned: {approvingDevice.pendingSenderReturnedCalls ?? 0}</span>
                   </div>
                 </div>
 
                 {approvingDevice.pendingHandoverNote && (
-                  <p className="italic text-slate-600 dark:text-slate-300 pt-1">নোট: "{approvingDevice.pendingHandoverNote}"</p>
+                  <p className="italic text-slate-600 dark:text-slate-300 pt-1">Note: "{approvingDevice.pendingHandoverNote}"</p>
                 )}
               </div>
 
               <form onSubmit={handleConfirmApproveHandover} className="space-y-4">
                 <div className="space-y-2">
                   <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
-                    আপনার ভেরিফিকেশন (আপনি চেক করে কত পেলেন):
+                    Your Verification (Verified Counts):
                   </span>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -2824,7 +2824,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   Number(receiverReturnedCallsInput) !== (approvingDevice.pendingSenderReturnedCalls ?? 0)) && (
                   <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-2 text-xs text-amber-800 dark:text-amber-300">
                     <AlertTriangle size={16} className="shrink-0 text-amber-600" />
-                    <span>সতর্কতা: প্রেরকের দেওয়া সংখ্যার সাথে আপনার চেক করা সংখ্যার অমিল রয়েছে। এটি রেকর্ডে Discrepancy হিসেবে সংরক্ষিত হবে।</span>
+                    <span>Warning: The numbers you entered differ from what the sender reported. This will be recorded as a mismatch discrepancy.</span>
                   </div>
                 )}
 
@@ -2890,7 +2890,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     <h3 className="text-base font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
                       Request Phone: {claimDevice.name}
                     </h3>
-                    <p className="text-xs text-slate-400">বর্তমান ব্যবহারকারীর কাছে ফোনটি চেয়ে রিকোয়েস্ট পাঠান</p>
+                    <p className="text-xs text-slate-400">Send a request to the current holder to take this phone</p>
                   </div>
                 </div>
                 <button
@@ -2908,14 +2908,14 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   <span className="font-black text-slate-800 dark:text-slate-100">{claimDevice.name}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">Current Holder (কার কাছে আছে):</span>
+                  <span className="text-slate-500 dark:text-slate-400">Current Holder:</span>
                   <span className="font-bold text-slate-700 dark:text-slate-200">
                     {claimDevice.currentHolderName} ({claimDevice.currentHolderEmpId || 'N/A'})
                   </span>
                 </div>
                 {claimDevice.currentSessionStart && (
                   <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-700 text-[11px]">
-                    <span className="text-slate-500 dark:text-slate-400">কতক্ষণ ধরে ব্যবহার করছেন:</span>
+                    <span className="text-slate-500 dark:text-slate-400">Active Usage Duration:</span>
                     <span className="font-bold text-blue-600 dark:text-blue-400">
                       {formatDuration(claimDevice.currentSessionStart)}
                     </span>
@@ -2926,7 +2926,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
               <form onSubmit={handleRequestClaimPhone} className="space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
-                    Request Note / Reason (কারণ বা বার্তা)
+                    Request Note / Reason
                   </label>
                   <input
                     type="text"
@@ -2938,7 +2938,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                 </div>
 
                 <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-2xl text-xs text-blue-900 dark:text-blue-200">
-                  💡 আপনি রিকোয়েস্ট পাঠানোর পর বর্তমান ব্যবহারকারী ({claimDevice.currentHolderName}) মিসকল ও ব্যাক কলের সংখ্যা যাচাই করে অনুমোদন (Approve) করলেই ফোনটি সরাসরি আপনার নামে চলে আসবে।
+                  💡 Once you submit the request, the current holder ({claimDevice.currentHolderName}) will verify the call counts and approve it. The phone will then be assigned to you.
                 </div>
 
                 <div className="pt-3 flex items-center gap-3">
@@ -2947,7 +2947,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     disabled={claimLoading}
                     className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 transition-all active:scale-95"
                   >
-                    {claimLoading ? 'Sending Request...' : 'Send Claim Request (রিকোয়েস্ট পাঠান)'}
+                    {claimLoading ? 'Sending Request...' : 'Send Request'}
                   </button>
                   <button
                     type="button"
@@ -2990,7 +2990,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     <h3 className="text-base font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
                       Approve Handover Request
                     </h3>
-                    <p className="text-xs text-slate-400">হ্যান্ডওভার হস্তান্তরের পূর্বে মিসকল ও ব্যাক কলের সংখ্যা দিন</p>
+                    <p className="text-xs text-slate-400">Provide missed and returned call counts before handing over</p>
                   </div>
                 </div>
                 <button
@@ -3008,14 +3008,14 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   <span className="font-black text-slate-800 dark:text-slate-100">{approvingClaimDevice.name}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">Recipient (যিনি চেয়েছেন):</span>
+                  <span className="text-slate-500 dark:text-slate-400">Recipient:</span>
                   <span className="font-bold text-slate-700 dark:text-slate-200">
                     {approvingClaimDevice.pendingHandoverToName} ({approvingClaimDevice.pendingHandoverToEmpId || 'N/A'})
                   </span>
                 </div>
                 {approvingClaimDevice.pendingHandoverNote && (
                   <p className="italic text-slate-600 dark:text-slate-300 pt-1 border-t border-slate-200 dark:border-slate-700">
-                    বার্তা: "{approvingClaimDevice.pendingHandoverNote}"
+                    Note: "{approvingClaimDevice.pendingHandoverNote}"
                   </p>
                 )}
               </div>
@@ -3026,7 +3026,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 flex items-center gap-1">
                       <PhoneMissed size={12} />
-                      <span>Missed Calls (কতগুলো মিসকল ছিল)</span>
+                      <span>Missed Calls</span>
                     </label>
                     <input
                       type="number"
@@ -3041,7 +3041,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                       <PhoneCall size={12} />
-                      <span>Back Given (কতগুলো ব্যাক দেওয়া হয়েছে)</span>
+                      <span>Returned Calls</span>
                     </label>
                     <input
                       type="number"
