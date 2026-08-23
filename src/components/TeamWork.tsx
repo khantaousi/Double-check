@@ -18,7 +18,16 @@ interface TeamWorkProps {
 }
 
 export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => {
-  const [tasks, setTasks] = useState<TeamTask[]>([]);
+  const [tasks, setTasks] = useState<TeamTask[]>(() => {
+    try {
+      const saved = localStorage.getItem('cached_team_tasks');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  });
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [view, setView] = useState<'list' | 'report'>('list');
   const [showFilters, setShowFilters] = useState(false);
@@ -118,13 +127,12 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
     let q;
     if (isAdmin) {
       // Admin sees everything for history/reporting
-      q = query(collection(db, 'tasks'), orderBy('assignedAt', 'desc'));
+      q = query(collection(db, 'tasks'));
     } else {
       // Users see their own tasks
       q = query(
         collection(db, 'tasks'), 
-        where('assigneeId', '==', currentUid),
-        orderBy('assignedAt', 'desc')
+        where('assigneeId', '==', currentUid)
       );
     }
 
@@ -133,8 +141,28 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
         id: doc.id,
         ...doc.data()
       })) as TeamTask[];
-      setTasks(taskList);
+      taskList.sort((a, b) => new Date(b.assignedAt || 0).getTime() - new Date(a.assignedAt || 0).getTime());
+      if (taskList.length > 0) {
+        setTasks(taskList);
+        try { localStorage.setItem('cached_team_tasks', JSON.stringify(taskList)); } catch (e) {}
+      } else {
+        try {
+          const cached = localStorage.getItem('cached_team_tasks');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) setTasks(parsed);
+          }
+        } catch (e) {}
+      }
     }, (error) => {
+      console.warn("TeamWork task fetch error:", error);
+      try {
+        const cached = localStorage.getItem('cached_team_tasks');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) setTasks(parsed);
+        }
+      } catch (e) {}
       handleFirestoreError(error, OperationType.LIST, 'tasks');
     });
 

@@ -12,7 +12,9 @@ export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 
 // Initialize a secondary app for admin-only user creation
-export const secondaryApp = initializeApp(firebaseConfig, "Secondary");
+export const secondaryApp = getApps().some(a => a.name === "Secondary") 
+  ? getApp("Secondary") 
+  : initializeApp(firebaseConfig, "Secondary");
 export const secondaryAuth = getAuth(secondaryApp);
 export const secondaryDb = getFirestore(secondaryApp, firebaseConfig.firestoreDatabaseId);
 

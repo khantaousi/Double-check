@@ -45,18 +45,138 @@ import { PrintSlips } from './components/PrintSlips';
 import { Complaints } from './components/Complaints';
 import { PhoneTracker } from './components/PhoneTracker';
 
+const getInitialRules = (): ValidationRule[] => {
+  try {
+    const saved = localStorage.getItem('cached_validation_rules');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+  return DEFAULT_RULES;
+};
+
+const getInitialDelivery = (): IDeliverySettings => {
+  try {
+    const saved = localStorage.getItem('cached_delivery_settings');
+    if (saved) return JSON.parse(saved);
+  } catch (e) {}
+  return DEFAULT_DELIVERY_SETTINGS;
+};
+
+const getInitialSiteSettings = (): SiteSettings => {
+  try {
+    const saved = localStorage.getItem('cached_site_settings');
+    if (saved) return JSON.parse(saved);
+  } catch (e) {}
+  return DEFAULT_SITE_SETTINGS;
+};
+
+const getInitialSalaryConfig = (): SalaryApiConfig => {
+  try {
+    const saved = localStorage.getItem('cached_salary_config');
+    if (saved) return JSON.parse(saved);
+  } catch (e) {}
+  return DEFAULT_SALARY_API_CONFIG;
+};
+
+const getInitialGiftRules = (): GiftRule[] => {
+  try {
+    const saved = localStorage.getItem('cached_gift_rules');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+  return [
+    {
+      id: 'rule-sm',
+      name: 'Scalp Massager Gift',
+      triggerKeywords: ['sm gift', 'scalp massager gift', 'sm g'],
+      targetKeywords: ['scalp massager', 'sm'],
+      isActive: true
+    },
+    {
+      id: 'rule-mehedi',
+      name: 'Mehedi Mix Gift',
+      triggerKeywords: ['mehedi mix gift', 'mehedi mix 120gm gift', 'mehedi mix 120g gift'],
+      targetKeywords: ['mehedi mix'],
+      isActive: true
+    },
+    {
+      id: 'rule-hairpack',
+      name: 'Hairpack Gift',
+      triggerKeywords: ['hairpack gift'],
+      targetKeywords: ['hairpack'],
+      isActive: true
+    }
+  ];
+};
+
+const getInitialProducts = (): ProductPrice[] => {
+  try {
+    const saved = localStorage.getItem('cached_products');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+  return [
+    { id: '1', name: "Mehedi Mix 120gm", price: 350 },
+    { id: '2', name: "Hairpack 120gm", price: 290 },
+    { id: '3', name: "Complete Hair Therapy", price: 1490 },
+    { id: '4', name: "Nose Strips Gift", price: 0 },
+    { id: '5', name: "Imported Premium Wooden hair brush", price: 990 },
+    { id: '6', name: "Imported Premium WoodenComb 11 Tooth", price: 990 },
+    { id: '7', name: "Imported Premium WoodenComb 30Tooth", price: 990 },
+    { id: '8', name: "Vira Sunscreen Cream Gift 15ml", price: 0 },
+    { id: '9', name: "Soothing Gel", price: 690 },
+    { id: '10', name: "Brightify Cream", price: 1190 },
+    { id: '11', name: "Brightaura Serum", price: 890 },
+    { id: '12', name: "Acnex Serum", price: 890 },
+    { id: '13', name: "Handmade Beauty Bar", price: 600 },
+    { id: '14', name: "Sunscreen Cream 100ml", price: 990 },
+    { id: '15', name: "Silk Drop Hair Serum 100ml", price: 1200 },
+    { id: '16', name: "Scalp Nutrition Serum 50ml", price: 1200 },
+    { id: '17', name: "6 ONIMIX Shampoo Half Course", price: 7800 },
+    { id: '18', name: "ONIMIX Shampoo Gift", price: 0 },
+    { id: '19', name: "Coupon Gift", price: 0 },
+    { id: '20', name: "Mystery Box", price: 0 },
+    { id: '21', name: "Scalp Massager", price: 200 },
+    { id: '22', name: "Comb", price: 350 },
+    { id: '23', name: "ONIMIX Shampoo Trial Course", price: 700 },
+    { id: '24', name: "ONIMIX Shampoo Half Course", price: 1300 },
+    { id: '25', name: "Mehedi Mix", price: 700 },
+    { id: '26', name: "Facepack", price: 500 },
+    { id: '27', name: "Hairpack", price: 600 },
+    { id: '28', name: "Hair Oil Trial Course", price: 700 },
+    { id: '29', name: "Hair Oil Half Course", price: 1200 }
+  ];
+};
+
+const getInitialUsers = (): UserProfile[] => {
+  try {
+    const saved = localStorage.getItem('cached_users');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+  return [];
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'validation' | 'rules' | 'products' | 'settings' | 'users' | 'tracker' | 'printSlips' | 'team' | 'complaints' | 'notices' | 'salary' | 'phones'>('dashboard');
   const [data, setData] = useState<DataRow[]>([]);
-  const [rules, setRules] = useState<ValidationRule[]>(DEFAULT_RULES);
-  const [delivery, setDelivery] = useState<IDeliverySettings>(DEFAULT_DELIVERY_SETTINGS);
-  const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
-  const [salaryApiConfig, setSalaryApiConfig] = useState<SalaryApiConfig>(DEFAULT_SALARY_API_CONFIG);
-  const [giftRules, setGiftRules] = useState<GiftRule[]>([]);
-  const [products, setProducts] = useState<ProductPrice[]>([]);
+  const [rules, setRules] = useState<ValidationRule[]>(getInitialRules);
+  const [delivery, setDelivery] = useState<IDeliverySettings>(getInitialDelivery);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(getInitialSiteSettings);
+  const [salaryApiConfig, setSalaryApiConfig] = useState<SalaryApiConfig>(getInitialSalaryConfig);
+  const [giftRules, setGiftRules] = useState<GiftRule[]>(getInitialGiftRules);
+  const [products, setProducts] = useState<ProductPrice[]>(getInitialProducts);
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [allUsers, setAllUsers] = useState<UserProfile[]>(getInitialUsers);
 
   const getNextBirthday = () => {
     if (allUsers.length === 0) return null;
@@ -634,10 +754,10 @@ export default function App() {
         if (docSnap.exists()) {
           const data = docSnap.data();
           baseSeconds = data.totalDurationSeconds || 0;
-          await updateDoc(docRef, {
+          await setDoc(docRef, {
             lastActive: nowStr,
             isOnline: true
-          });
+          }, { merge: true });
         } else {
           const newSession = {
             userId: userId,
@@ -650,10 +770,13 @@ export default function App() {
             totalDurationSeconds: 0,
             isOnline: true
           };
-          await setDoc(docRef, cleanObject(newSession));
+          await setDoc(docRef, cleanObject(newSession), { merge: true });
         }
-      } catch (err) {
-        console.error("Error initializing session:", err);
+      } catch (err: any) {
+        const errStr = String(err?.message || err).toLowerCase();
+        if (!errStr.includes('quota') && !errStr.includes('resource-exhausted')) {
+          console.warn("Session init note:", err);
+        }
       }
 
       if (!active) return;
@@ -680,19 +803,24 @@ export default function App() {
         return;
       }
 
-      if (now - lastSyncTimeRef.current >= 120000 && document.visibilityState === 'visible') {
+      // Sync every 3 minutes (180s) to conserve Firestore quota
+      if (now - lastSyncTimeRef.current >= 180000 && document.visibilityState === 'visible') {
         lastSyncTimeRef.current = now;
         try {
           const sessionDocRef = doc(db, 'sessions', currentSessionIdRef.current);
-          await updateDoc(sessionDocRef, {
+          await setDoc(sessionDocRef, cleanObject({
+            userId: userId,
+            userEmail: user.email || '',
+            userName: userProfile.displayName || user.email?.split('@')[0] || 'User',
+            date: todayBST,
             totalDurationSeconds: totalSeconds,
             lastActive: getBSTISOString(),
             isOnline: true
-          });
-        } catch (err) {
-          const errStr = String(err).toLowerCase();
-          if (!errStr.includes('quota') && !errStr.includes('resource-exhausted')) {
-            console.error("Error syncing session duration:", err);
+          }), { merge: true });
+        } catch (err: any) {
+          const errStr = String(err?.message || err).toLowerCase();
+          if (!errStr.includes('quota') && !errStr.includes('resource-exhausted') && !errStr.includes('no document')) {
+            console.warn("Session sync note:", err);
           }
         }
       }
@@ -706,11 +834,11 @@ export default function App() {
         const elapsed = Math.floor((Date.now() - sessionStartRef.current) / 1000);
         const finalSecs = sessionBaseRef.current + elapsed;
         const refId = currentSessionIdRef.current;
-        updateDoc(doc(db, 'sessions', refId), {
+        setDoc(doc(db, 'sessions', refId), cleanObject({
           totalDurationSeconds: finalSecs,
           lastActive: getBSTISOString(),
           isOnline: false
-        }).catch(() => {});
+        }), { merge: true }).catch(() => {});
       }
     };
   }, [user, userProfile?.id]);
@@ -1117,38 +1245,62 @@ export default function App() {
 
     // Sync Rules
     const unsubscribeRules = onSnapshot(doc(db, 'config', 'validation_rules'), (doc) => {
-      if (doc.exists()) {
-        setRules(doc.data().rules as ValidationRule[]);
+      if (doc.exists() && doc.data().rules) {
+        const loadedRules = doc.data().rules as ValidationRule[];
+        setRules(loadedRules);
+        try { localStorage.setItem('cached_validation_rules', JSON.stringify(loadedRules)); } catch (e) {}
       }
     }, (error) => {
+      try {
+        const cached = localStorage.getItem('cached_validation_rules');
+        if (cached) setRules(JSON.parse(cached));
+      } catch (e) {}
       handleFirestoreError(error, OperationType.GET, 'config/validation_rules');
     });
 
     // Sync Delivery Settings
     const unsubscribeDelivery = onSnapshot(doc(db, 'config', 'delivery_settings'), (doc) => {
       if (doc.exists()) {
-        setDelivery(doc.data() as IDeliverySettings);
+        const loadedDelivery = doc.data() as IDeliverySettings;
+        setDelivery(loadedDelivery);
+        try { localStorage.setItem('cached_delivery_settings', JSON.stringify(loadedDelivery)); } catch (e) {}
       }
     }, (error) => {
+      try {
+        const cached = localStorage.getItem('cached_delivery_settings');
+        if (cached) setDelivery(JSON.parse(cached));
+      } catch (e) {}
       handleFirestoreError(error, OperationType.GET, 'config/delivery_settings');
     });
 
     // Sync Gift Rules
     const unsubscribeGifts = onSnapshot(doc(db, 'config', 'gift_rules'), (doc) => {
-      if (doc.exists()) {
-        setGiftRules(doc.data().rules as GiftRule[]);
+      if (doc.exists() && doc.data().rules) {
+        const loadedGifts = doc.data().rules as GiftRule[];
+        setGiftRules(loadedGifts);
+        try { localStorage.setItem('cached_gift_rules', JSON.stringify(loadedGifts)); } catch (e) {}
       }
     }, (error) => {
+      try {
+        const cached = localStorage.getItem('cached_gift_rules');
+        if (cached) setGiftRules(JSON.parse(cached));
+      } catch (e) {}
       handleFirestoreError(error, OperationType.GET, 'config/gift_rules');
     });
 
     // Sync Salary API Config
     const unsubscribeSalaryConfig = onSnapshot(doc(db, 'config', 'salary_api_config'), (docSnap) => {
       if (docSnap.exists()) {
-        setSalaryApiConfig(docSnap.data() as SalaryApiConfig);
+        const loadedSalaryConfig = docSnap.data() as SalaryApiConfig;
+        setSalaryApiConfig(loadedSalaryConfig);
+        try { localStorage.setItem('cached_salary_config', JSON.stringify(loadedSalaryConfig)); } catch (e) {}
       }
     }, (error) => {
-      console.warn('Firestore salary config sync error:', error);
+      try {
+        const cached = localStorage.getItem('cached_salary_config');
+        if (cached) setSalaryApiConfig(JSON.parse(cached));
+      } catch (e) {}
+      console.warn('Firestore salary config sync note:', error);
     });
 
     // Auto-Maintenance Logic (Triggered by Admin)
@@ -1328,25 +1480,30 @@ export default function App() {
       // Admin sees self-assigned tasks awaiting approval
       q = query(
         collection(db, 'tasks'),
-        where('isSelfAssigned', '==', true),
-        where('isApproved', '==', false)
+        where('isSelfAssigned', '==', true)
       );
     } else {
       // Agent sees tasks assigned to them that are not yet completed
       q = query(
         collection(db, 'tasks'),
-        where('assigneeId', '==', user.uid),
-        where('status', 'in', ['pending', 'in-progress'])
+        where('assigneeId', '==', user.uid)
       );
     }
 
     const unsubscribeTasks = onSnapshot(q, (snapshot) => {
       if (isAdmin) {
-        // For admin, explicitly filter out rejected tasks if not captured by query
-        const count = snapshot.docs.filter(doc => !doc.data().isRejected).length;
+        // For admin, filter self-assigned tasks awaiting approval
+        const count = snapshot.docs.filter(doc => {
+          const d = doc.data();
+          return !d.isApproved && !d.isRejected;
+        }).length;
         setPendingTasksCount(count);
       } else {
-        setPendingTasksCount(snapshot.size);
+        const count = snapshot.docs.filter(doc => {
+          const s = doc.data().status;
+          return s === 'pending' || s === 'in-progress';
+        }).length;
+        setPendingTasksCount(count);
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'tasks');
@@ -1362,11 +1519,12 @@ export default function App() {
     }
     const q = query(
       collection(db, 'notifications'),
-      where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc')
+      where('userId', '==', user.uid)
     );
     const unsubscribeNotif = onSnapshot(q, (snapshot) => {
-      setNotifications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AppNotification[]);
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AppNotification[];
+      list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      setNotifications(list);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'notifications');
     });
@@ -1468,8 +1626,15 @@ export default function App() {
           id: doc.id,
           ...doc.data()
         })) as ProductPrice[];
-        setProducts(productList);
+        if (productList.length > 0) {
+          setProducts(productList);
+          try { localStorage.setItem('cached_products', JSON.stringify(productList)); } catch (e) {}
+        }
       }, (error) => {
+        try {
+          const cached = localStorage.getItem('cached_products');
+          if (cached) setProducts(JSON.parse(cached));
+        } catch (e) {}
         handleFirestoreError(error, OperationType.LIST, 'products');
       });
       return () => unsubscribeProducts();
@@ -1500,8 +1665,28 @@ export default function App() {
           id: doc.id,
           ...doc.data()
         })) as UserProfile[];
+        
+        let finalUsers = userList;
+        if (finalUsers.length === 0) {
+          // If Firestore returns empty due to connection or initial load, fallback to cache
+          try {
+            const cached = localStorage.getItem('cached_users');
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                finalUsers = parsed;
+              }
+            }
+          } catch (e) {}
+        }
+
+        // If still empty but we have an active userProfile, include it
+        if (finalUsers.length === 0 && userProfile) {
+          finalUsers = [userProfile];
+        }
+
         // Sort by Role (Admin first) then by employeeId (ascending), falling back to lastSeen
-        const sortedUsers = [...userList].sort((a, b) => {
+        const sortedUsers = [...finalUsers].sort((a, b) => {
           if (a.role === 'admin' && b.role !== 'admin') return -1;
           if (a.role !== 'admin' && b.role === 'admin') return 1;
           
@@ -1524,8 +1709,25 @@ export default function App() {
           const timeB = b.lastSeen ? new Date(b.lastSeen).getTime() : 0;
           return timeB - timeA;
         });
-        setAllUsers(sortedUsers);
+        
+        if (sortedUsers.length > 0) {
+          setAllUsers(sortedUsers);
+          try {
+            localStorage.setItem('cached_users', JSON.stringify(sortedUsers));
+          } catch (e) {}
+        }
       }, (error) => {
+        try {
+          const cached = localStorage.getItem('cached_users');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setAllUsers(parsed);
+            }
+          } else if (userProfile) {
+            setAllUsers([userProfile]);
+          }
+        } catch (e) {}
         handleFirestoreError(error, OperationType.LIST, 'users');
       });
       return () => unsubscribeUsers();

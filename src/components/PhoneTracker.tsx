@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   PhoneDevice, 
   PhoneUsageLog, 
@@ -62,10 +62,37 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
   allUsers,
   isAdmin
 }) => {
-  const [devices, setDevices] = useState<PhoneDevice[]>([]);
-  const [logs, setLogs] = useState<PhoneUsageLog[]>([]);
-  const [deletionLogs, setDeletionLogs] = useState<PhoneDeletionAuditLog[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [devices, setDevices] = useState<PhoneDevice[]>(() => {
+    try {
+      const saved = localStorage.getItem('cached_phone_devices');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  });
+  const [logs, setLogs] = useState<PhoneUsageLog[]>(() => {
+    try {
+      const saved = localStorage.getItem('cached_phone_logs');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  });
+  const [deletionLogs, setDeletionLogs] = useState<PhoneDeletionAuditLog[]>(() => {
+    try {
+      const saved = localStorage.getItem('cached_phone_deletion_logs');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  });
+  const [loading, setLoading] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<'devices' | 'history' | 'my_phones' | 'deletion_logs'>('devices');
 
   // Super-Admin 2146 Identity Check (Only this user can delete the audit logs)
@@ -122,10 +149,11 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
   // Realtime Live Timer Tick & 24h Auto-Unassign Check
   const [, setTick] = useState(0);
+  const isAutoUnassigningRef = useRef(false);
 
   // Helper: Auto-unassign phones after 24 hours of usage so that any agent can take/assign them
   const checkAndAutoUnassignExpiredDevices = useCallback(async (devList: PhoneDevice[]) => {
-    if (!currentUser) return;
+    if (!currentUser || !isAdmin || isAutoUnassigningRef.current) return;
     const nowMs = Date.now();
     const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
@@ -139,6 +167,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
     if (expired.length === 0) return;
 
     try {
+      isAutoUnassigningRef.current = true;
       const now = getBSTISOString();
       const batch = writeBatch(db);
 
@@ -184,51 +213,96 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
       }
 
       await batch.commit();
-    } catch (err) {
-      console.error("Error during auto-unassign of expired devices:", err);
+    } catch (err: any) {
+      const errStr = String(err?.message || err).toLowerCase();
+      if (!errStr.includes('quota') && !errStr.includes('resource-exhausted')) {
+        console.warn("Auto-unassign check note:", err);
+      }
+    } finally {
+      setTimeout(() => {
+        isAutoUnassigningRef.current = false;
+      }, 60000); // Debounce at least 1 minute
     }
-  }, [currentUser]);
+  }, [currentUser, isAdmin]);
 
   useEffect(() => {
     const timer = setInterval(() => {
       setTick(t => t + 1);
-      if (devices.length > 0) {
-        checkAndAutoUnassignExpiredDevices(devices);
-      }
     }, 30000);
     return () => clearInterval(timer);
-  }, [devices, checkAndAutoUnassignExpiredDevices]);
+  }, []);
 
   // Listen to Phone Devices
   useEffect(() => {
-    const qDevices = query(collection(db, 'phone_devices'), orderBy('name', 'asc'));
-    const unsubDevices = onSnapshot(qDevices, (snapshot) => {
+    const unsubDevices = onSnapshot(collection(db, 'phone_devices'), (snapshot) => {
       const list = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as PhoneDevice[];
-      setDevices(list);
+      list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      if (list.length > 0) {
+        setDevices(list);
+        try { localStorage.setItem('cached_phone_devices', JSON.stringify(list)); } catch (e) {}
+      } else {
+        try {
+          const cached = localStorage.getItem('cached_phone_devices');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) setDevices(parsed);
+          }
+        } catch (e) {}
+      }
       setLoading(false);
-      checkAndAutoUnassignExpiredDevices(list);
-    }, (err) => {
-      console.error("Error fetching phone devices:", err);
+    }, (err: any) => {
+      try {
+        const cached = localStorage.getItem('cached_phone_devices');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) setDevices(parsed);
+        }
+      } catch (e) {}
+      const errStr = String(err?.message || err).toLowerCase();
+      if (!errStr.includes('quota') && !errStr.includes('resource-exhausted')) {
+        console.warn("Phone devices note:", err);
+      }
       setLoading(false);
     });
 
     return () => unsubDevices();
-  }, [checkAndAutoUnassignExpiredDevices]);
+  }, []);
 
   // Listen to Phone Usage Logs
   useEffect(() => {
-    const qLogs = query(collection(db, 'phone_usage_logs'), orderBy('startTime', 'desc'));
-    const unsubLogs = onSnapshot(qLogs, (snapshot) => {
+    const unsubLogs = onSnapshot(collection(db, 'phone_usage_logs'), (snapshot) => {
       const list = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as PhoneUsageLog[];
-      setLogs(list);
-    }, (err) => {
-      console.error("Error fetching phone usage logs:", err);
+      list.sort((a, b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime());
+      if (list.length > 0) {
+        setLogs(list);
+        try { localStorage.setItem('cached_phone_logs', JSON.stringify(list)); } catch (e) {}
+      } else {
+        try {
+          const cached = localStorage.getItem('cached_phone_logs');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) setLogs(parsed);
+          }
+        } catch (e) {}
+      }
+    }, (err: any) => {
+      try {
+        const cached = localStorage.getItem('cached_phone_logs');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) setLogs(parsed);
+        }
+      } catch (e) {}
+      const errStr = String(err?.message || err).toLowerCase();
+      if (!errStr.includes('quota') && !errStr.includes('resource-exhausted')) {
+        console.warn("Phone usage logs note:", err);
+      }
     });
 
     return () => unsubLogs();
@@ -237,15 +311,36 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
   // Listen to Deletion Audit Logs (Admin only)
   useEffect(() => {
     if (!isAdmin) return;
-    const qAudit = query(collection(db, 'phone_deletion_logs'), orderBy('timestamp', 'desc'));
-    const unsubAudit = onSnapshot(qAudit, (snapshot) => {
+    const unsubAudit = onSnapshot(collection(db, 'phone_deletion_logs'), (snapshot) => {
       const list = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as PhoneDeletionAuditLog[];
-      setDeletionLogs(list);
-    }, (err) => {
-      console.error("Error fetching phone deletion audit logs:", err);
+      list.sort((a, b) => new Date(b.timestamp || b.createdAt || 0).getTime() - new Date(a.timestamp || a.createdAt || 0).getTime());
+      if (list.length > 0) {
+        setDeletionLogs(list);
+        try { localStorage.setItem('cached_phone_deletion_logs', JSON.stringify(list)); } catch (e) {}
+      } else {
+        try {
+          const cached = localStorage.getItem('cached_phone_deletion_logs');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) setDeletionLogs(parsed);
+          }
+        } catch (e) {}
+      }
+    }, (err: any) => {
+      try {
+        const cached = localStorage.getItem('cached_phone_deletion_logs');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) setDeletionLogs(parsed);
+        }
+      } catch (e) {}
+      const errStr = String(err?.message || err).toLowerCase();
+      if (!errStr.includes('quota') && !errStr.includes('resource-exhausted')) {
+        console.warn("Phone deletion logs note:", err);
+      }
     });
 
     return () => unsubAudit();
@@ -1367,7 +1462,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
           className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all ${
             activeSubTab === 'devices'
               ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <Smartphone size={16} />
@@ -1379,7 +1474,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
           className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all relative ${
             activeSubTab === 'my_phones'
               ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <UserCheck size={16} />
@@ -1394,7 +1489,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
           className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all ${
             activeSubTab === 'history'
               ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <History size={16} />
@@ -1409,7 +1504,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
             className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all relative ${
               activeSubTab === 'deletion_logs'
                 ? 'bg-rose-600 text-white shadow-lg shadow-rose-500/25'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
             <ShieldAlert size={16} />
@@ -1430,7 +1525,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                 <Smartphone size={32} />
               </div>
               <h3 className="text-lg font-black text-slate-800 dark:text-slate-100">কোনো ফোন এখনও এন্ট্রি করা হয়নি</h3>
-              <p className="text-xs text-slate-400 max-w-md mx-auto">
+              <p className="text-xs text-slate-500 dark:text-slate-300 max-w-md mx-auto">
                 অ্যাডমিন প্যানেল থেকে "Add New Phone" বাটনে ক্লিক করে অফিসের ফোনগুলোর নাম যুক্ত করুন।
               </p>
               {isAdmin && (
@@ -1487,7 +1582,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                             <h3 className="font-black text-slate-800 dark:text-slate-100 text-base tracking-tight">
                               {device.name}
                             </h3>
-                            <div className="flex items-center gap-2 text-[11px] text-slate-400 font-medium">
+                            <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-300 font-medium">
                               {device.modelNumber && <span>{device.modelNumber}</span>}
                               {device.simNumber && <span>• SIM: {device.simNumber}</span>}
                             </div>
@@ -1515,16 +1610,16 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                       </div>
 
                       {/* Current Status Body */}
-                      <div className="bg-slate-50 dark:bg-slate-800/70 p-4 rounded-2xl space-y-2 border border-slate-100 dark:border-slate-750">
+                      <div className="bg-slate-50 dark:bg-slate-800/80 p-4 rounded-2xl space-y-2 border border-slate-100 dark:border-slate-700">
                         {isAvailable ? (
-                          <div className="text-center py-2 text-xs font-bold text-slate-400 dark:text-slate-400">
+                          <div className="text-center py-2 text-xs font-bold text-slate-500 dark:text-slate-300">
                             ফোনটি বর্তমানে অফিসে জমা আছে। যে কেউ কাজ শুরু করতে এটি নিজের কাছে নিতে পারেন।
                           </div>
                         ) : (
                           <>
                             <div className="flex items-center justify-between text-xs">
-                              <span className="text-slate-400 dark:text-slate-400">বর্তমান ব্যবহারকারী:</span>
-                              <span className="font-black text-slate-700 dark:text-slate-100">
+                              <span className="text-slate-500 dark:text-slate-300 font-semibold">বর্তমান ব্যবহারকারী:</span>
+                              <span className="font-black text-slate-800 dark:text-slate-100">
                                 {device.currentHolderName} {device.currentHolderEmpId ? `(${device.currentHolderEmpId})` : ''}
                                 {isHeldByMe && <span className="ml-1 text-blue-600 dark:text-blue-400 font-bold">(You)</span>}
                               </span>
@@ -1532,11 +1627,11 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
                             {device.currentSessionStart && (
                               <div className="flex items-center justify-between text-xs">
-                                <span className="text-slate-400 dark:text-slate-400 flex items-center gap-1">
+                                <span className="text-slate-500 dark:text-slate-300 flex items-center gap-1 font-semibold">
                                   <Clock size={13} />
                                   <span>শুরু হয়েছে:</span>
                                 </span>
-                                <span className="font-semibold text-slate-600 dark:text-slate-300">
+                                <span className="font-bold text-slate-700 dark:text-slate-200">
                                   {formatBST(device.currentSessionStart, 'hh:mm a')}
                                 </span>
                               </div>
@@ -1544,7 +1639,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
                             {device.currentSessionStart && (
                               <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/50 dark:border-slate-700/60">
-                                <span className="text-slate-400 dark:text-slate-400 flex items-center gap-1">
+                                <span className="text-slate-500 dark:text-slate-300 flex items-center gap-1 font-semibold">
                                   <Timer size={13} className="text-blue-500" />
                                   <span>মোট সময়কাল:</span>
                                 </span>
@@ -1570,7 +1665,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                                   </div>
                                 )}
                                 {device.pendingHandoverNote && (
-                                  <p className="italic text-slate-500 dark:text-slate-400">"{device.pendingHandoverNote}"</p>
+                                  <p className="italic text-slate-600 dark:text-slate-300">"{device.pendingHandoverNote}"</p>
                                 )}
                               </div>
                             )}
@@ -1909,13 +2004,13 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
           <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
               <div className="relative w-full md:w-80">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-300" size={16} />
                 <input
                   type="text"
                   placeholder={isAdmin ? "Search by Agent, Phone, Emp ID..." : "Search in your records..."}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-2.5 pl-11 pr-4 text-xs font-medium focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-2.5 pl-11 pr-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400"
                 />
               </div>
 
@@ -1953,7 +2048,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   type="date"
                   value={startDateFilter}
                   onChange={(e) => setStartDateFilter(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2 text-xs font-medium focus:outline-none text-slate-700 dark:text-slate-200"
+                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2 text-xs font-semibold focus:outline-none text-slate-700 dark:text-slate-200"
                   title="Filter From Date"
                 />
 
@@ -1962,7 +2057,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   type="date"
                   value={endDateFilter}
                   onChange={(e) => setEndDateFilter(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2 text-xs font-medium focus:outline-none text-slate-700 dark:text-slate-200"
+                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2 text-xs font-semibold focus:outline-none text-slate-700 dark:text-slate-200"
                   title="Filter To Date"
                 />
 
@@ -1975,7 +2070,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                       setStartDateFilter('');
                       setEndDateFilter('');
                     }}
-                    className="text-xs text-blue-600 font-bold hover:underline px-2"
+                    className="text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline px-2"
                   >
                     Reset
                   </button>
@@ -1984,7 +2079,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
             </div>
 
             {!isAdmin && (
-              <div className="flex items-center gap-2 text-[11px] text-slate-400 bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-100 dark:border-slate-750">
+              <div className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-100 dark:border-slate-700">
                 <Shield size={14} className="text-blue-500" />
                 <span>প্রাইভেসি সুরক্ষায় এখানে শুধুমাত্র আপনার নিজের ফোন ব্যবহার ও হ্যান্ডওভার রেকর্ড প্রদর্শিত হচ্ছে।</span>
               </div>
@@ -1998,7 +2093,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                 <h3 className="font-black text-slate-800 dark:text-slate-100 text-base">
                   {isAdmin ? 'হ্যান্ডওভার ও মিসকল ভেরিফিকেশনের পূর্ণাঙ্গ হিস্ট্রি' : 'আমার ফোন ব্যবহারের হিস্ট্রি ও হ্যান্ডওভার রেকর্ড'}
                 </h3>
-                <p className="text-xs text-slate-400">Total {filteredLogs.length} logs recorded</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Total {filteredLogs.length} logs recorded</p>
               </div>
               <div className="flex items-center gap-3">
                 {isAdmin && filteredLogs.length > 0 && (
@@ -2023,7 +2118,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-black uppercase tracking-wider text-[10px]">
                   <tr>
                     <th className="py-4 px-5">Device</th>
                     <th className="py-4 px-5">Agent</th>
@@ -2038,7 +2133,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-200 font-medium">
                   {filteredLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={isAdmin ? 8 : 7} className="text-center py-10 text-slate-400 text-xs font-semibold">
+                      <td colSpan={isAdmin ? 8 : 7} className="text-center py-10 text-slate-500 dark:text-slate-300 text-xs font-semibold">
                         কোনো রেকর্ড পাওয়া যায়নি।
                       </td>
                     </tr>
@@ -2059,13 +2154,13 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                           <td className="py-4 px-5">
                             <div>
                               <p className="font-bold text-slate-800 dark:text-slate-100">{log.userName}</p>
-                              {log.userEmpId && <p className="text-[10px] text-slate-400">ID: {log.userEmpId}</p>}
+                              {log.userEmpId && <p className="text-[10px] text-slate-500 dark:text-slate-300 font-semibold">ID: {log.userEmpId}</p>}
                             </div>
                           </td>
 
                           <td className="py-4 px-5 whitespace-nowrap">
                             <div className="space-y-0.5">
-                              <p className="text-slate-600 dark:text-slate-300">
+                              <p className="text-slate-700 dark:text-slate-200 font-semibold">
                                 {formatBST(log.startTime, 'dd MMM, hh:mm a')}
                               </p>
                               <p className="text-[11px] font-black text-blue-600 dark:text-blue-400">
@@ -2084,13 +2179,13 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                                   <span>{log.handoverToName}</span>
                                 </p>
                                 {log.handoverToEmpId && (
-                                  <p className="text-[10px] text-slate-400">ID: {log.handoverToEmpId}</p>
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-300 font-semibold">ID: {log.handoverToEmpId}</p>
                                 )}
                               </div>
                             ) : log.note ? (
-                              <span className="italic text-slate-400">{log.note}</span>
+                              <span className="italic text-slate-600 dark:text-slate-300">{log.note}</span>
                             ) : (
-                              <span className="text-slate-400">Returned to Storage</span>
+                              <span className="text-slate-500 dark:text-slate-300">Returned to Storage</span>
                             )}
                           </td>
 
@@ -2118,7 +2213,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                             {log.receiverMissedCalls !== undefined || log.receiverReturnedCalls !== undefined ? (
                               <div className="space-y-1">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200">
+                                  <span className="text-[11px] font-bold text-slate-800 dark:text-slate-100">
                                     Missed: {log.receiverMissedCalls ?? 0} | Back: {log.receiverReturnedCalls ?? 0}
                                   </span>
                                   {log.verificationMismatch ? (
@@ -2134,7 +2229,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                                   )}
                                 </div>
                                 {log.receiverNote && (
-                                  <p className="text-[10px] italic text-slate-400">Note: "{log.receiverNote}"</p>
+                                  <p className="text-[10px] italic text-slate-600 dark:text-slate-300">Note: "{log.receiverNote}"</p>
                                 )}
                               </div>
                             ) : hasCallCounts ? (
@@ -2154,7 +2249,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                                 Handed Over
                               </span>
                             ) : (
-                              <span className="px-2.5 py-1 text-[10px] font-black uppercase rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                              <span className="px-2.5 py-1 text-[10px] font-black uppercase rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                                 Completed
                               </span>
                             )}

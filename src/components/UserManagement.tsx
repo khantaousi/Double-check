@@ -17,10 +17,33 @@ interface UserManagementProps {
 }
 
 export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmail, onUpdateUser }: UserManagementProps) {
-  const [localUsers, setLocalUsers] = useState<UserProfile[]>(propUsers);
+  const [localUsers, setLocalUsers] = useState<UserProfile[]>(() => {
+    if (propUsers && propUsers.length > 0) return propUsers;
+    try {
+      const saved = localStorage.getItem('cached_users');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  });
 
   useEffect(() => {
-    setLocalUsers(propUsers);
+    if (propUsers && propUsers.length > 0) {
+      setLocalUsers(propUsers);
+      try { localStorage.setItem('cached_users', JSON.stringify(propUsers)); } catch (e) {}
+    } else {
+      try {
+        const saved = localStorage.getItem('cached_users');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setLocalUsers(parsed);
+          }
+        }
+      } catch (e) {}
+    }
   }, [propUsers]);
 
   const displayUsers = localUsers.length > 0 ? localUsers : propUsers;
@@ -139,6 +162,17 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
       
       await secondaryAuth.signOut();
       
+      const newProfile: UserProfile = {
+        id: userCred.user.uid,
+        ...profile
+      };
+
+      setLocalUsers(prev => {
+        const updated = [newProfile, ...prev.filter(u => u.id !== newProfile.id)];
+        try { localStorage.setItem('cached_users', JSON.stringify(updated)); } catch (e) {}
+        return updated;
+      });
+
       setShowAddModal(false);
       setEmail('');
       setCustomDisplayName('');
