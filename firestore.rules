@@ -184,7 +184,7 @@ service cloud.firestore {
     // 10. Phone Devices Inventory
     match /phone_devices/{phoneId} {
       allow read: if isSignedIn();
-      allow create, delete: if isAdmin();
+      allow create, delete: if isSignedIn();
       allow update: if isSignedIn(); // allow agents to update currentHolder/status/pendingHandover
     }
 
@@ -192,7 +192,7 @@ service cloud.firestore {
     match /phone_usage_logs/{logId} {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn();
-      allow delete: if isAdmin();
+      allow delete: if isSignedIn();
     }
 
     // 12. Phone Deletion Audit Logs (Tracking which admin deleted what)
@@ -200,14 +200,7 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
       allow update: if false;
-      allow delete: if isSignedIn() && (
-        request.auth.token.email == 'khantaousi@gmail.com' ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.employeeId == '2146' ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.loginHandle == '2146' ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == 'khantaousi@gmail.com'
-        ))
-      );
+      allow delete: if isSignedIn();
     }
   }
 }

@@ -240,18 +240,8 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
         ...doc.data()
       })) as PhoneDevice[];
       list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-      if (list.length > 0) {
-        setDevices(list);
-        try { localStorage.setItem('cached_phone_devices', JSON.stringify(list)); } catch (e) {}
-      } else {
-        try {
-          const cached = localStorage.getItem('cached_phone_devices');
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.length > 0) setDevices(parsed);
-          }
-        } catch (e) {}
-      }
+      setDevices(list);
+      try { localStorage.setItem('cached_phone_devices', JSON.stringify(list)); } catch (e) {}
       setLoading(false);
     }, (err: any) => {
       try {
@@ -279,18 +269,8 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
         ...doc.data()
       })) as PhoneUsageLog[];
       list.sort((a, b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime());
-      if (list.length > 0) {
-        setLogs(list);
-        try { localStorage.setItem('cached_phone_logs', JSON.stringify(list)); } catch (e) {}
-      } else {
-        try {
-          const cached = localStorage.getItem('cached_phone_logs');
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.length > 0) setLogs(parsed);
-          }
-        } catch (e) {}
-      }
+      setLogs(list);
+      try { localStorage.setItem('cached_phone_logs', JSON.stringify(list)); } catch (e) {}
     }, (err: any) => {
       try {
         const cached = localStorage.getItem('cached_phone_logs');
@@ -317,18 +297,8 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
         ...doc.data()
       })) as PhoneDeletionAuditLog[];
       list.sort((a, b) => new Date(b.timestamp || b.createdAt || 0).getTime() - new Date(a.timestamp || a.createdAt || 0).getTime());
-      if (list.length > 0) {
-        setDeletionLogs(list);
-        try { localStorage.setItem('cached_phone_deletion_logs', JSON.stringify(list)); } catch (e) {}
-      } else {
-        try {
-          const cached = localStorage.getItem('cached_phone_deletion_logs');
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.length > 0) setDeletionLogs(parsed);
-          }
-        } catch (e) {}
-      }
+      setDeletionLogs(list);
+      try { localStorage.setItem('cached_phone_deletion_logs', JSON.stringify(list)); } catch (e) {}
     }, (err: any) => {
       try {
         const cached = localStorage.getItem('cached_phone_deletion_logs');
@@ -454,6 +424,13 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
       const summary = `Deleted Phone Device: "${name}" (Model: ${targetDev?.modelNumber || 'N/A'}, SIM: ${targetDev?.simNumber || 'N/A'}, Status: ${targetDev?.status || 'N/A'})`;
       const details = targetDev ? `Device ID: ${targetDev.id} | Holder: ${targetDev.currentHolderName || 'None'} (${targetDev.currentHolderEmpId || 'N/A'})` : '';
 
+      // Optimistically update local state & cache
+      setDevices(prev => {
+        const updated = prev.filter(d => d.id !== deviceId);
+        try { localStorage.setItem('cached_phone_devices', JSON.stringify(updated)); } catch (e) {}
+        return updated;
+      });
+
       await deleteDoc(doc(db, 'phone_devices', deviceId));
 
       await recordDeletionAudit('delete_device', summary, details, 1);
@@ -485,6 +462,13 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
         ? `Handover To: ${targetLog.handoverToName || 'None'} (${targetLog.handoverToEmpId || 'N/A'}) | Status: ${targetLog.status} | Sender Missed/Back: ${targetLog.senderMissedCalls ?? '-'}/${targetLog.senderReturnedCalls ?? '-'} | Receiver Missed/Back: ${targetLog.receiverMissedCalls ?? '-'}/${targetLog.receiverReturnedCalls ?? '-'}`
         : '';
 
+      // Optimistically update local state & cache
+      setLogs(prev => {
+        const updated = prev.filter(l => l.id !== logId);
+        try { localStorage.setItem('cached_phone_logs', JSON.stringify(updated)); } catch (e) {}
+        return updated;
+      });
+
       await deleteDoc(doc(db, 'phone_usage_logs', logId));
 
       await recordDeletionAudit('delete_history_log', summary, details, 1);
@@ -507,6 +491,15 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
       const summary = `Bulk Deleted ${count} History Records: Including ${sampleNames}`;
       const details = filteredLogs.map(l => `[${l.phoneName} | Agent: ${l.userName} (${l.userEmpId}) | Start: ${formatBST(l.startTime)} | Duration: ${l.durationMinutes || 0}m]`).join('\n');
 
+      const idsToDelete = new Set(filteredLogs.map(l => l.id));
+      
+      // Optimistically update local state & cache
+      setLogs(prev => {
+        const updated = prev.filter(l => !idsToDelete.has(l.id));
+        try { localStorage.setItem('cached_phone_logs', JSON.stringify(updated)); } catch (e) {}
+        return updated;
+      });
+
       const batch = writeBatch(db);
       filteredLogs.forEach(log => {
         batch.delete(doc(db, 'phone_usage_logs', log.id));
@@ -528,6 +521,12 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
     }
     if (!window.confirm("Are you sure you want to delete this deletion audit record?")) return;
     try {
+      setDeletionLogs(prev => {
+        const updated = prev.filter(l => l.id !== auditLogId);
+        try { localStorage.setItem('cached_phone_deletion_logs', JSON.stringify(updated)); } catch (e) {}
+        return updated;
+      });
+
       await deleteDoc(doc(db, 'phone_deletion_logs', auditLogId));
     } catch (err) {
       console.error("Error deleting audit log:", err);
@@ -544,6 +543,9 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
     if (deletionLogs.length === 0) return;
     if (!window.confirm(`Are you sure you want to delete all ${deletionLogs.length} deletion audit records?`)) return;
     try {
+      setDeletionLogs([]);
+      try { localStorage.setItem('cached_phone_deletion_logs', JSON.stringify([])); } catch (e) {}
+
       const batch = writeBatch(db);
       deletionLogs.forEach(l => {
         batch.delete(doc(db, 'phone_deletion_logs', l.id));
