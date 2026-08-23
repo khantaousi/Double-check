@@ -316,6 +316,111 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
     return () => unsubAudit();
   }, [isAdmin]);
 
+  // Helper: Resolve agent's clean display name and employee ID, strictly avoiding email addresses
+  const getAgentDisplay = useCallback((
+    userId?: string | null,
+    rawName?: string | null,
+    rawEmpId?: string | null
+  ): { name: string; empId: string; fullDisplay: string } => {
+    let matchedUser: UserProfile | undefined;
+
+    // 1. Match by user ID or email
+    if (userId) {
+      const uIdClean = userId.trim().toLowerCase();
+      matchedUser = allUsers.find(u => 
+        (u.id && u.id.toLowerCase() === uIdClean) || 
+        (u.email && u.email.toLowerCase() === uIdClean) ||
+        (u.loginHandle && u.loginHandle.toLowerCase() === uIdClean)
+      );
+    }
+
+    // 2. Match by rawEmpId
+    if (!matchedUser && rawEmpId && rawEmpId !== 'N/A') {
+      const empClean = rawEmpId.trim().toLowerCase();
+      matchedUser = allUsers.find(u => 
+        (u.employeeId && u.employeeId.toLowerCase() === empClean) ||
+        (u.loginHandle && u.loginHandle.toLowerCase() === empClean)
+      );
+    }
+
+    // 3. Match by rawName
+    if (!matchedUser && rawName && rawName !== 'N/A') {
+      const nameClean = rawName.trim().toLowerCase();
+      matchedUser = allUsers.find(u => 
+        (u.displayName && u.displayName.toLowerCase() === nameClean) ||
+        (u.loginHandle && u.loginHandle.toLowerCase() === nameClean) ||
+        (u.email && (u.email.toLowerCase() === nameClean || u.email.split('@')[0].toLowerCase() === nameClean))
+      );
+    }
+
+    let resolvedName = '';
+    let resolvedEmpId = '';
+
+    if (matchedUser) {
+      resolvedName = matchedUser.displayName?.trim() || '';
+      resolvedEmpId = matchedUser.employeeId?.trim() || '';
+
+      // If displayName is empty or looks like an email / raw login handle
+      if (!resolvedName || resolvedName.includes('@') || resolvedName === matchedUser.email) {
+        if (matchedUser.loginHandle && !matchedUser.loginHandle.includes('@')) {
+          resolvedName = matchedUser.loginHandle;
+        }
+      }
+    }
+
+    // Fallbacks if not resolved from matchedUser
+    if (!resolvedName) {
+      resolvedName = rawName?.trim() || '';
+    }
+    if (!resolvedEmpId && rawEmpId && rawEmpId !== 'N/A') {
+      resolvedEmpId = rawEmpId.trim();
+    }
+
+    // Strip @email.com if present in resolvedName
+    if (resolvedName.includes('@')) {
+      resolvedName = resolvedName.split('@')[0];
+    }
+
+    // Clean formatting for system usernames like "mdhabibullah33.vics" or "jihad2343"
+    if (resolvedName.toLowerCase().includes('.vics') || /^[a-z]+(\d+)?(\.[a-z]+)?$/i.test(resolvedName)) {
+      const base = resolvedName.replace(/\.vics$/i, '');
+      const match = base.match(/^([a-zA-Z]+)(\d+)?$/);
+      if (match) {
+        const letters = match[1];
+        const digits = match[2];
+        let formatted = letters;
+        if (/^md/i.test(formatted) && formatted.length > 2) {
+          formatted = 'Md ' + formatted.slice(2).charAt(0).toUpperCase() + formatted.slice(3);
+        } else {
+          formatted = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+        }
+        resolvedName = formatted;
+        if (!resolvedEmpId && digits) {
+          resolvedEmpId = digits;
+        }
+      } else {
+        resolvedName = base;
+      }
+    }
+
+    if (!resolvedEmpId && matchedUser?.loginHandle) {
+      const digitsMatch = matchedUser.loginHandle.match(/\d+/);
+      if (digitsMatch) {
+        resolvedEmpId = digitsMatch[0];
+      }
+    }
+
+    const fullDisplay = resolvedEmpId 
+      ? `${resolvedName || 'Agent'} (${resolvedEmpId})` 
+      : (resolvedName || 'Agent');
+
+    return {
+      name: resolvedName || 'Agent',
+      empId: resolvedEmpId,
+      fullDisplay
+    };
+  }, [allUsers]);
+
   // Helper: calculate live duration in minutes and format
   const formatDuration = (startTimeStr: string, endTimeStr?: string) => {
     try {
@@ -391,8 +496,9 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
     if (!currentUser) return;
     try {
       const auditRef = doc(collection(db, 'phone_deletion_logs'));
-      const adminName = currentUser.displayName || currentUser.loginHandle || currentUser.email.split('@')[0];
-      const adminEmpId = currentUser.employeeId || currentUser.loginHandle || '';
+      const adminInfo = getAgentDisplay(currentUser.id || currentUser.email, currentUser.displayName || currentUser.loginHandle || currentUser.email, currentUser.employeeId || currentUser.loginHandle);
+      const adminName = adminInfo.name;
+      const adminEmpId = adminInfo.empId;
       const now = getBSTISOString();
       const auditLog: PhoneDeletionAuditLog = {
         id: auditRef.id,
@@ -567,8 +673,9 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
     try {
       const now = getBSTISOString();
-      const currentUserName = currentUser.displayName || currentUser.loginHandle || currentUser.email.split('@')[0];
-      const currentUserEmpId = currentUser.employeeId || currentUser.loginHandle || '';
+      const agentInfo = getAgentDisplay(currentUser.id || currentUser.email, currentUser.displayName || currentUser.loginHandle || currentUser.email, currentUser.employeeId || currentUser.loginHandle);
+      const currentUserName = agentInfo.name;
+      const currentUserEmpId = agentInfo.empId;
 
       // Create new usage log
       const logRef = doc(collection(db, 'phone_usage_logs'));
@@ -646,9 +753,11 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
     setHandoverLoading(true);
     try {
       const now = getBSTISOString();
-      const targetName = targetUser.displayName || targetUser.loginHandle || targetUser.email.split('@')[0];
-      const targetEmpId = targetUser.employeeId || targetUser.loginHandle || '';
-      const currentSenderName = currentUser.displayName || currentUser.loginHandle || currentUser.email.split('@')[0];
+      const targetInfo = getAgentDisplay(targetUser.id, targetUser.displayName || targetUser.loginHandle || targetUser.email, targetUser.employeeId || targetUser.loginHandle);
+      const targetName = targetInfo.name;
+      const targetEmpId = targetInfo.empId;
+      const senderInfo = getAgentDisplay(currentUser.id || currentUser.email, currentUser.displayName || currentUser.loginHandle || currentUser.email, currentUser.employeeId || currentUser.loginHandle);
+      const currentSenderName = senderInfo.name;
 
       const batch = writeBatch(db);
 
@@ -725,6 +834,10 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
       const receiverReturned = Math.max(0, parseInt(receiverReturnedCallsInput, 10) || 0);
       const isMismatch = (senderMissed !== receiverMissed) || (senderReturned !== receiverReturned);
 
+      const receiverInfo = getAgentDisplay(currentUser.id || currentUser.email, currentUser.displayName || currentUser.loginHandle || currentUser.email, currentUser.employeeId || currentUser.loginHandle);
+      const newReceiverName = receiverInfo.name;
+      const newReceiverEmpId = receiverInfo.empId;
+
       // 1. Find the active log for the old holder and close it with complete handover details
       const oldHolderId = approvingDevice.currentHolderId;
       if (oldHolderId) {
@@ -745,8 +858,8 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
             durationMinutes: durationMins,
             status: 'handed_over',
             handoverToId: currentUser.id,
-            handoverToName: currentUser.displayName || currentUser.loginHandle || currentUser.email.split('@')[0],
-            handoverToEmpId: currentUser.employeeId || currentUser.loginHandle || '',
+            handoverToName: newReceiverName,
+            handoverToEmpId: newReceiverEmpId,
             handoverApprovedAt: now,
             senderMissedCalls: senderMissed,
             senderReturnedCalls: senderReturned,
@@ -760,9 +873,6 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
       // 2. Create new active usage log for the new holder
       const newLogRef = doc(collection(db, 'phone_usage_logs'));
-      const newReceiverName = currentUser.displayName || currentUser.loginHandle || currentUser.email.split('@')[0];
-      const newReceiverEmpId = currentUser.employeeId || currentUser.loginHandle || '';
-
       const newLog: PhoneUsageLog = {
         id: newLogRef.id,
         phoneId: approvingDevice.id,
@@ -834,8 +944,9 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
     setClaimLoading(true);
     try {
       const now = getBSTISOString();
-      const requesterName = currentUser.displayName || currentUser.loginHandle || currentUser.email.split('@')[0];
-      const requesterEmpId = currentUser.employeeId || currentUser.loginHandle || '';
+      const requesterInfo = getAgentDisplay(currentUser.id || currentUser.email, currentUser.displayName || currentUser.loginHandle || currentUser.email, currentUser.employeeId || currentUser.loginHandle);
+      const requesterName = requesterInfo.name;
+      const requesterEmpId = requesterInfo.empId;
 
       const batch = writeBatch(db);
       const devRef = doc(db, 'phone_devices', claimDevice.id);
@@ -887,15 +998,17 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
       return;
     }
     const requesterId = approvingClaimDevice.pendingHandoverToId;
-    const requesterName = approvingClaimDevice.pendingHandoverToName || 'Agent';
-    const requesterEmpId = approvingClaimDevice.pendingHandoverToEmpId || '';
+    const reqInfo = getAgentDisplay(requesterId, approvingClaimDevice.pendingHandoverToName, approvingClaimDevice.pendingHandoverToEmpId);
+    const requesterName = reqInfo.name;
+    const requesterEmpId = reqInfo.empId;
     if (!requesterId) return;
 
     setHolderApproveLoading(true);
     try {
       const now = getBSTISOString();
-      const holderName = currentUser.displayName || currentUser.loginHandle || currentUser.email.split('@')[0];
-      const holderEmpId = currentUser.employeeId || currentUser.loginHandle || '';
+      const holderInfo = getAgentDisplay(currentUser.id || currentUser.email, currentUser.displayName || currentUser.loginHandle || currentUser.email, currentUser.employeeId || currentUser.loginHandle);
+      const holderName = holderInfo.name;
+      const holderEmpId = holderInfo.empId;
       const missedCallsNum = Math.max(0, parseInt(holderMissedCallsInput, 10) || 0);
       const returnedCallsNum = Math.max(0, parseInt(holderReturnedCallsInput, 10) || 0);
 
@@ -1015,7 +1128,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
       if (device.pendingRequestType === 'receiver_requested') {
         if (device.pendingHandoverToId) {
           const notifRef = doc(collection(db, 'notifications'));
-          const currentUserName = currentUser.displayName || currentUser.loginHandle || currentUser.email.split('@')[0];
+          const currentUserName = getAgentDisplay(currentUser.id || currentUser.email, currentUser.displayName || currentUser.loginHandle || currentUser.email, currentUser.employeeId || currentUser.loginHandle).name;
           batch.set(notifRef, {
             userId: device.pendingHandoverToId,
             title: `❌ Handover Request Declined: ${device.name}`,
@@ -1030,7 +1143,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
         // If holder_initiated and target declined, notify the current holder
         if (device.currentHolderId && device.pendingHandoverToId === currentUser.id) {
           const notifRef = doc(collection(db, 'notifications'));
-          const rejectorName = currentUser.displayName || currentUser.loginHandle || currentUser.email.split('@')[0];
+          const rejectorName = getAgentDisplay(currentUser.id || currentUser.email, currentUser.displayName || currentUser.loginHandle || currentUser.email, currentUser.employeeId || currentUser.loginHandle).name;
           batch.set(notifRef, {
             userId: device.currentHolderId,
             title: `❌ Handover Declined: ${device.name}`,
@@ -1174,16 +1287,19 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
           ? '✅ Matched' 
           : 'N/A';
 
+      const agentInfo = getAgentDisplay(log.userId, log.userName, log.userEmpId);
+      const targetInfo = log.handoverToName ? getAgentDisplay(log.handoverToId, log.handoverToName, log.handoverToEmpId) : null;
+
       return {
         'SL': index + 1,
         'Device Name': log.phoneName || 'Unknown Phone',
-        'Agent Name': log.userName || 'N/A',
-        'Employee ID': log.userEmpId || 'N/A',
+        'Agent Name': agentInfo.name,
+        'Employee ID': agentInfo.empId || 'N/A',
         'Start Time (BST)': formatBST(log.startTime, 'yyyy-MM-dd hh:mm:ss a'),
         'End Time (BST)': log.endTime ? formatBST(log.endTime, 'yyyy-MM-dd hh:mm:ss a') : 'Currently In Use',
         'Total Duration': durationFormatted,
         'Session Status': log.status === 'active' ? 'Active (In Use)' : log.status === 'handed_over' ? 'Handed Over' : 'Returned / Completed',
-        'Handed Over To': log.handoverToName ? `${log.handoverToName} (${log.handoverToEmpId || 'N/A'})` : 'N/A',
+        'Handed Over To': targetInfo ? targetInfo.fullDisplay : 'N/A',
         'Sender Missed Calls': log.senderMissedCalls !== undefined ? log.senderMissedCalls : '-',
         'Sender Back Given Calls': log.senderReturnedCalls !== undefined ? log.senderReturnedCalls : '-',
         'Receiver Verified Missed': log.receiverMissedCalls !== undefined ? log.receiverMissedCalls : '-',
@@ -1342,7 +1458,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   </div>
 
                   <div className="text-xs text-slate-500 dark:text-slate-400 mt-2 space-y-1">
-                    <p>Sender: <strong className="text-slate-700 dark:text-slate-200">{dev.currentHolderName}</strong> (ID: {dev.currentHolderEmpId || 'N/A'})</p>
+                    <p>Sender: <strong className="text-slate-700 dark:text-slate-200">{getAgentDisplay(dev.currentHolderId, dev.currentHolderName, dev.currentHolderEmpId).name}</strong> {getAgentDisplay(dev.currentHolderId, dev.currentHolderName, dev.currentHolderEmpId).empId ? `(ID: ${getAgentDisplay(dev.currentHolderId, dev.currentHolderName, dev.currentHolderEmpId).empId})` : ''}</p>
                     
                     {/* Sender Declared Missed / Back Calls */}
                     <div className="mt-2 grid grid-cols-2 gap-2 p-2.5 bg-amber-50/80 dark:bg-amber-950/30 rounded-xl border border-amber-200/60 dark:border-amber-900/30">
@@ -1422,7 +1538,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   </div>
 
                   <div className="text-xs text-slate-500 dark:text-slate-400 mt-2 space-y-1">
-                    <p>Requester: <strong className="text-slate-700 dark:text-slate-200">{dev.pendingHandoverToName}</strong> (ID: {dev.pendingHandoverToEmpId || 'N/A'})</p>
+                    <p>Requester: <strong className="text-slate-700 dark:text-slate-200">{getAgentDisplay(dev.pendingHandoverToId, dev.pendingHandoverToName, dev.pendingHandoverToEmpId).name}</strong> {getAgentDisplay(dev.pendingHandoverToId, dev.pendingHandoverToName, dev.pendingHandoverToEmpId).empId ? `(ID: ${getAgentDisplay(dev.pendingHandoverToId, dev.pendingHandoverToName, dev.pendingHandoverToEmpId).empId})` : ''}</p>
                     {dev.pendingHandoverNote && (
                       <p className="italic text-slate-600 dark:text-slate-300 pt-1">Note: "{dev.pendingHandoverNote}"</p>
                     )}
@@ -1622,7 +1738,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-slate-500 dark:text-slate-300 font-semibold">Current Holder:</span>
                               <span className="font-black text-slate-800 dark:text-slate-100">
-                                {device.currentHolderName} {device.currentHolderEmpId ? `(${device.currentHolderEmpId})` : ''}
+                                {getAgentDisplay(device.currentHolderId, device.currentHolderName, device.currentHolderEmpId).fullDisplay}
                                 {isHeldByMe && <span className="ml-1 text-blue-600 dark:text-blue-400 font-bold">(You)</span>}
                               </span>
                             </div>
@@ -1655,8 +1771,8 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                               <div className="bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-xl border border-amber-200 dark:border-amber-900/40 text-[11px] text-amber-800 dark:text-amber-300 space-y-1.5">
                                 <p className="font-bold">
                                   {device.pendingRequestType === 'receiver_requested' 
-                                    ? `Handover requested by: ${device.pendingHandoverToName} (${device.pendingHandoverToEmpId || 'N/A'})`
-                                    : `Handover pending: ${device.pendingHandoverToName} (${device.pendingHandoverToEmpId || 'N/A'})`
+                                    ? `Handover requested by: ${getAgentDisplay(device.pendingHandoverToId, device.pendingHandoverToName, device.pendingHandoverToEmpId).fullDisplay}`
+                                    : `Handover pending: ${getAgentDisplay(device.pendingHandoverToId, device.pendingHandoverToName, device.pendingHandoverToEmpId).fullDisplay}`
                                   }
                                 </p>
                                 {device.pendingRequestType !== 'receiver_requested' && (
@@ -1921,7 +2037,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                       <div className="bg-blue-50 dark:bg-blue-950/40 p-4 rounded-2xl border border-blue-200 dark:border-blue-900/40 space-y-3">
                         <div>
                           <p className="text-xs font-black text-blue-900 dark:text-blue-300">
-                            🔔 {device.pendingHandoverToName} ({device.pendingHandoverToEmpId || 'N/A'}) requested to take this phone.
+                            🔔 {getAgentDisplay(device.pendingHandoverToId, device.pendingHandoverToName, device.pendingHandoverToEmpId).fullDisplay} requested to take this phone.
                           </p>
                           {device.pendingHandoverNote && (
                             <p className="text-[11px] italic text-slate-500 dark:text-slate-400 mt-1">
@@ -1952,7 +2068,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     ) : (
                       <div className="bg-amber-50 dark:bg-amber-950/40 p-4 rounded-2xl border border-amber-200 dark:border-amber-900/40 space-y-3">
                         <p className="text-xs font-bold text-amber-800 dark:text-amber-300">
-                          Handover request sent to: {device.pendingHandoverToName} ({device.pendingHandoverToEmpId || 'N/A'})
+                          Handover request sent to: {getAgentDisplay(device.pendingHandoverToId, device.pendingHandoverToName, device.pendingHandoverToEmpId).fullDisplay}
                         </p>
                         <div className="flex items-center gap-4 text-xs text-slate-600 dark:text-slate-300 font-semibold">
                           <span className="text-rose-600">Missed: {device.pendingSenderMissedCalls ?? 0}</span>
@@ -2039,7 +2155,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     <option value="all">All Agents</option>
                     {allUsers.map(u => (
                       <option key={u.id} value={u.id}>
-                        {u.displayName || u.loginHandle || u.email} {u.employeeId ? `(${u.employeeId})` : ''}
+                        {getAgentDisplay(u.id, u.displayName || u.loginHandle, u.employeeId).fullDisplay}
                       </option>
                     ))}
                   </select>
@@ -2154,10 +2270,15 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                           </td>
 
                           <td className="py-4 px-5">
-                            <div>
-                              <p className="font-bold text-slate-800 dark:text-slate-100">{log.userName}</p>
-                              {log.userEmpId && <p className="text-[10px] text-slate-500 dark:text-slate-300 font-semibold">ID: {log.userEmpId}</p>}
-                            </div>
+                            {(() => {
+                              const agent = getAgentDisplay(log.userId, log.userName, log.userEmpId);
+                              return (
+                                <div>
+                                  <p className="font-bold text-slate-800 dark:text-slate-100">{agent.name}</p>
+                                  {agent.empId && <p className="text-[10px] text-slate-500 dark:text-slate-300 font-semibold">ID: {agent.empId}</p>}
+                                </div>
+                              );
+                            })()}
                           </td>
 
                           <td className="py-4 px-5 whitespace-nowrap">
@@ -2174,17 +2295,20 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                           </td>
 
                           <td className="py-4 px-5">
-                            {log.handoverToName ? (
-                              <div className="space-y-0.5">
-                                <p className="font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
-                                  <ArrowRightLeft size={12} />
-                                  <span>{log.handoverToName}</span>
-                                </p>
-                                {log.handoverToEmpId && (
-                                  <p className="text-[10px] text-slate-500 dark:text-slate-300 font-semibold">ID: {log.handoverToEmpId}</p>
-                                )}
-                              </div>
-                            ) : log.note ? (
+                            {log.handoverToName ? (() => {
+                              const target = getAgentDisplay(log.handoverToId, log.handoverToName, log.handoverToEmpId);
+                              return (
+                                <div className="space-y-0.5">
+                                  <p className="font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
+                                    <ArrowRightLeft size={12} />
+                                    <span>{target.name}</span>
+                                  </p>
+                                  {target.empId && (
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-300 font-semibold">ID: {target.empId}</p>
+                                  )}
+                                </div>
+                              );
+                            })() : log.note ? (
                               <span className="italic text-slate-600 dark:text-slate-300">{log.note}</span>
                             ) : (
                               <span className="text-slate-500 dark:text-slate-300">Returned to Storage</span>
@@ -2383,19 +2507,21 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                         <tr key={audit.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
                           {/* Admin Info */}
                           <td className="py-4 px-5 whitespace-nowrap">
-                            <div className="space-y-0.5">
-                              <p className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-1.5">
-                                <span>{audit.adminName}</span>
-                                {audit.adminEmpId && (
-                                  <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded">
-                                    ID: {audit.adminEmpId}
-                                  </span>
-                                )}
-                              </p>
-                              {audit.adminEmail && (
-                                <p className="text-[11px] text-slate-400">{audit.adminEmail}</p>
-                              )}
-                            </div>
+                            {(() => {
+                              const admin = getAgentDisplay(audit.adminId, audit.adminName, audit.adminEmpId);
+                              return (
+                                <div className="space-y-0.5">
+                                  <p className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-1.5">
+                                    <span>{admin.name}</span>
+                                    {admin.empId && (
+                                      <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded">
+                                        ID: {admin.empId}
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
+                              );
+                            })()}
                           </td>
 
                           {/* Time */}
@@ -2621,7 +2747,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     <option value="">-- Select Agent from List --</option>
                     {allUsers.filter(u => u.id !== currentUser?.id).map(u => (
                       <option key={u.id} value={u.id}>
-                        {u.displayName || u.loginHandle || u.email} {u.employeeId ? `[ID: ${u.employeeId}]` : ''}
+                        {getAgentDisplay(u.id, u.displayName || u.loginHandle, u.employeeId).fullDisplay}
                       </option>
                     ))}
                   </select>
@@ -2758,7 +2884,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500 dark:text-slate-400">Sender:</span>
                   <span className="font-bold text-slate-700 dark:text-slate-200">
-                    {approvingDevice.currentHolderName} ({approvingDevice.currentHolderEmpId || 'N/A'})
+                    {getAgentDisplay(approvingDevice.currentHolderId, approvingDevice.currentHolderName, approvingDevice.currentHolderEmpId).fullDisplay}
                   </span>
                 </div>
                 
@@ -2910,7 +3036,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500 dark:text-slate-400">Current Holder:</span>
                   <span className="font-bold text-slate-700 dark:text-slate-200">
-                    {claimDevice.currentHolderName} ({claimDevice.currentHolderEmpId || 'N/A'})
+                    {getAgentDisplay(claimDevice.currentHolderId, claimDevice.currentHolderName, claimDevice.currentHolderEmpId).fullDisplay}
                   </span>
                 </div>
                 {claimDevice.currentSessionStart && (
@@ -2938,7 +3064,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                 </div>
 
                 <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-2xl text-xs text-blue-900 dark:text-blue-200">
-                  💡 Once you submit the request, the current holder ({claimDevice.currentHolderName}) will verify the call counts and approve it. The phone will then be assigned to you.
+                  💡 Once you submit the request, the current holder ({getAgentDisplay(claimDevice.currentHolderId, claimDevice.currentHolderName, claimDevice.currentHolderEmpId).name}) will verify the call counts and approve it. The phone will then be assigned to you.
                 </div>
 
                 <div className="pt-3 flex items-center gap-3">
@@ -3010,7 +3136,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500 dark:text-slate-400">Recipient:</span>
                   <span className="font-bold text-slate-700 dark:text-slate-200">
-                    {approvingClaimDevice.pendingHandoverToName} ({approvingClaimDevice.pendingHandoverToEmpId || 'N/A'})
+                    {getAgentDisplay(approvingClaimDevice.pendingHandoverToId, approvingClaimDevice.pendingHandoverToName, approvingClaimDevice.pendingHandoverToEmpId).fullDisplay}
                   </span>
                 </div>
                 {approvingClaimDevice.pendingHandoverNote && (
