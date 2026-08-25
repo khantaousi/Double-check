@@ -1443,6 +1443,12 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
     return devices.filter(d => d.currentHolderId === currentUser.id);
   }, [devices, currentUser]);
 
+  // 3. All pending handovers across the company (for Admin live overview)
+  const adminPendingHandovers = useMemo(() => {
+    if (!isAdmin) return [];
+    return devices.filter(d => d.status === 'pending_handover');
+  }, [devices, isAdmin]);
+
   return (
     <div className="space-y-8 animate-fadeIn">
       {/* Header Banner */}
@@ -1495,8 +1501,149 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
         </div>
       </div>
 
-      {/* Incoming Handover Alert Notification Banner */}
-      {incomingHandovers.length > 0 && (
+      {/* Admin Live Pending Handover Monitor Banner */}
+      {isAdmin && adminPendingHandovers.length > 0 && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-amber-500/10 border-2 border-amber-500/40 rounded-3xl p-5 sm:p-6 space-y-4"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-600 text-white flex items-center justify-center shadow-lg shadow-amber-500/20 shrink-0">
+                <ShieldAlert size={20} />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-amber-950 dark:text-amber-200 tracking-tight flex items-center gap-2">
+                  <span>Pending Handover Requests ({adminPendingHandovers.length})</span>
+                  <span className="text-[10px] uppercase font-black bg-amber-200 dark:bg-amber-900/80 text-amber-900 dark:text-amber-200 px-2 py-0.5 rounded-full">
+                    Admin Live Monitor
+                  </span>
+                </h3>
+                <p className="text-xs text-amber-800 dark:text-amber-300 font-medium">
+                  কে কার কাছে ফোন হস্তান্তরের অনুরোধ পাঠিয়েছে এবং কার অ্যাপ্রুভ করা বাকি তা নিচে বিস্তারিত দেওয়া হলো:
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {adminPendingHandovers.map(dev => {
+              const sender = getAgentDisplay(dev.currentHolderId, dev.currentHolderName, dev.currentHolderEmpId);
+              const receiver = getAgentDisplay(dev.pendingHandoverToId, dev.pendingHandoverToName, dev.pendingHandoverToEmpId);
+              const isClaim = dev.pendingRequestType === 'receiver_requested';
+              const requester = isClaim ? receiver : sender;
+              const pendingApprover = isClaim ? sender : receiver;
+
+              return (
+                <div 
+                  key={dev.id} 
+                  className="bg-white dark:bg-slate-900 p-5 rounded-2xl border-2 border-amber-200 dark:border-amber-900/50 shadow-sm flex flex-col justify-between gap-3.5"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Smartphone size={16} className="text-amber-600 shrink-0" />
+                        <span className="font-black text-sm text-slate-800 dark:text-slate-100 truncate">{dev.name}</span>
+                      </div>
+                      <span className="px-2 py-0.5 text-[10px] font-black uppercase rounded-full bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 shrink-0">
+                        {isClaim ? 'Claim Request' : 'Transfer Request'}
+                      </span>
+                    </div>
+
+                    {/* From & To Badges */}
+                    <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl text-xs">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block">From (হস্তান্তরকারী):</span>
+                        <strong className="text-slate-800 dark:text-slate-200 block truncate">{sender.name}</strong>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">{sender.empId ? `ID: ${sender.empId}` : ''}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block">To (গ্রহীতা):</span>
+                        <strong className="text-slate-800 dark:text-slate-200 block truncate">{receiver.name}</strong>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">{receiver.empId ? `ID: ${receiver.empId}` : ''}</span>
+                      </div>
+                    </div>
+
+                    {/* Clear breakdown: Who requested & Who has not approved */}
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex items-start gap-1.5 text-slate-600 dark:text-slate-300">
+                        <span className="text-slate-400 font-bold shrink-0">অনুরোধ পাঠিয়েছে:</span>
+                        <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                          {requester.fullDisplay} {isClaim ? '(দাবি করেছে)' : '(হস্তান্তর পাঠিয়েছে)'}
+                        </span>
+                      </div>
+
+                      <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 p-2.5 rounded-xl text-rose-800 dark:text-rose-300 space-y-0.5">
+                        <div className="flex items-center gap-1.5 font-black text-[11px]">
+                          <AlertTriangle size={13} className="text-rose-600 shrink-0" />
+                          <span>কে এখনো অ্যাপ্রুভ করেনি (Pending Approval):</span>
+                        </div>
+                        <p className="font-extrabold text-xs pl-4 underline decoration-rose-400 text-rose-900 dark:text-rose-200">
+                          {pendingApprover.fullDisplay}
+                        </p>
+                        <p className="text-[10px] text-rose-600 dark:text-rose-400 pl-4 font-medium">
+                          {isClaim 
+                            ? 'বর্তমান ধারক ফোনটি দেওয়ার অনুমতি এখনো দেয়নি।'
+                            : 'গ্রহীতা মিসড/ব্যাক কল ভেরিফাই করে এখনো গ্রহণ করেনি।'
+                          }
+                        </p>
+                      </div>
+
+                      {!isClaim && (
+                        <div className="flex items-center gap-3 text-[10px] text-slate-600 dark:text-slate-300 font-bold">
+                          <span className="text-rose-600 dark:text-rose-400">Missed: {dev.pendingSenderMissedCalls ?? 0}</span>
+                          <span>•</span>
+                          <span className="text-emerald-600 dark:text-emerald-400">Returned: {dev.pendingSenderReturnedCalls ?? 0}</span>
+                        </div>
+                      )}
+
+                      {dev.pendingHandoverNote && (
+                        <p className="italic text-[11px] text-slate-500 dark:text-slate-400">"{dev.pendingHandoverNote}"</p>
+                      )}
+                      
+                      {dev.pendingHandoverAt && (
+                        <p className="text-[10px] text-slate-400">
+                          Time: {formatBST(dev.pendingHandoverAt, 'hh:mm a, dd MMM')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Admin Force Action Controls */}
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      onClick={() => {
+                        if (dev.pendingRequestType === 'receiver_requested') {
+                          setApprovingClaimDevice(dev);
+                          setHolderMissedCallsInput('0');
+                          setHolderReturnedCallsInput('0');
+                        } else {
+                          openApproveModal(dev);
+                        }
+                      }}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1 shadow-sm active:scale-95 transition-all"
+                    >
+                      <CheckCircle2 size={14} />
+                      <span>Admin Force Approve</span>
+                    </button>
+                    <button
+                      onClick={() => handleCancelOrDeclineHandover(dev)}
+                      className="px-3 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/40 rounded-xl text-xs font-bold active:scale-95 transition-all"
+                      title="Cancel or Reject Handover"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Incoming Handover Alert Notification Banner (For Non-Admin Regular Agent) */}
+      {!isAdmin && incomingHandovers.length > 0 && (
         <motion.div 
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1840,26 +1987,85 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                               </div>
                             )}
 
-                            {isPendingHandover && (
-                              <div className="bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-xl border border-amber-200 dark:border-amber-900/40 text-[11px] text-amber-800 dark:text-amber-300 space-y-1.5">
-                                <p className="font-bold">
-                                  {device.pendingRequestType === 'receiver_requested' 
-                                    ? `Handover requested by: ${getAgentDisplay(device.pendingHandoverToId, device.pendingHandoverToName, device.pendingHandoverToEmpId).fullDisplay}`
-                                    : `Handover pending: ${getAgentDisplay(device.pendingHandoverToId, device.pendingHandoverToName, device.pendingHandoverToEmpId).fullDisplay}`
-                                  }
-                                </p>
-                                {device.pendingRequestType !== 'receiver_requested' && (
-                                  <div className="flex items-center gap-3 text-[10px] text-slate-600 dark:text-slate-300 font-semibold">
-                                    <span className="text-rose-600 dark:text-rose-400">Missed: {device.pendingSenderMissedCalls ?? 0}</span>
-                                    <span>•</span>
-                                    <span className="text-emerald-600 dark:text-emerald-400">Returned: {device.pendingSenderReturnedCalls ?? 0}</span>
+                            {isPendingHandover && (() => {
+                              const sender = getAgentDisplay(device.currentHolderId, device.currentHolderName, device.currentHolderEmpId);
+                              const receiver = getAgentDisplay(device.pendingHandoverToId, device.pendingHandoverToName, device.pendingHandoverToEmpId);
+                              const isClaim = device.pendingRequestType === 'receiver_requested';
+                              const requester = isClaim ? receiver : sender;
+                              const pendingApprover = isClaim ? sender : receiver;
+
+                              return (
+                                <div className="bg-amber-50/90 dark:bg-amber-950/40 p-3 rounded-2xl border border-amber-200 dark:border-amber-900/40 text-xs space-y-2">
+                                  <div className="flex items-center justify-between border-b border-amber-200/60 dark:border-amber-900/40 pb-1.5">
+                                    <span className="font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                                      <ArrowRightLeft size={13} className="text-amber-600 animate-pulse shrink-0" />
+                                      <span>Handover Pending</span>
+                                    </span>
+                                    <span className="text-[10px] font-black uppercase bg-amber-200/70 dark:bg-amber-900/80 text-amber-900 dark:text-amber-200 px-2 py-0.5 rounded-full">
+                                      {isClaim ? 'Claim Request' : 'Transfer Request'}
+                                    </span>
                                   </div>
-                                )}
-                                {device.pendingHandoverNote && (
-                                  <p className="italic text-slate-600 dark:text-slate-300">"{device.pendingHandoverNote}"</p>
-                                )}
-                              </div>
-                            )}
+
+                                  <div className="grid grid-cols-2 gap-2 text-[11px] bg-white/70 dark:bg-slate-900/60 p-2 rounded-xl border border-amber-200/50 dark:border-amber-900/30">
+                                    <div>
+                                      <span className="text-slate-500 dark:text-slate-400 block text-[10px] font-bold">From (হস্তান্তরকারী):</span>
+                                      <strong className="text-slate-800 dark:text-slate-100 truncate block">
+                                        {sender.name}
+                                      </strong>
+                                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">
+                                        {sender.empId ? `ID: ${sender.empId}` : ''}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-slate-500 dark:text-slate-400 block text-[10px] font-bold">To (গ্রহীতা):</span>
+                                      <strong className="text-slate-800 dark:text-slate-100 truncate block">
+                                        {receiver.name}
+                                      </strong>
+                                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">
+                                        {receiver.empId ? `ID: ${receiver.empId}` : ''}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-1 text-[11px]">
+                                    <div className="flex items-start gap-1 text-slate-700 dark:text-slate-300">
+                                      <span className="text-slate-500 dark:text-slate-400 font-bold shrink-0">অনুরোধ পাঠিয়েছে:</span>
+                                      <span className="font-bold text-indigo-700 dark:text-indigo-300">
+                                        {requester.fullDisplay} {isClaim ? '(দাবি করেছে)' : '(হস্তান্তর পাঠিয়েছে)'}
+                                      </span>
+                                    </div>
+
+                                    <div className="bg-rose-50/90 dark:bg-rose-950/30 p-2 rounded-xl border border-rose-200/60 dark:border-rose-900/40 text-rose-800 dark:text-rose-300 space-y-0.5">
+                                      <div className="flex items-center gap-1 font-black text-[11px]">
+                                        <AlertTriangle size={12} className="shrink-0 text-rose-600" />
+                                        <span>কে এখনো অ্যাপ্রুভ করেনি:</span>
+                                      </div>
+                                      <p className="font-extrabold text-xs pl-3.5 underline decoration-rose-400 text-rose-900 dark:text-rose-200">
+                                        {pendingApprover.fullDisplay}
+                                      </p>
+                                      <p className="text-[10px] text-rose-600 dark:text-rose-400 pl-3.5">
+                                        {isClaim
+                                          ? 'বর্তমান ধারক ফোন হস্তান্তর অনুমোদন এখনো দেয়নি।'
+                                          : 'গ্রহীতা মিসড/ব্যাক কল কাউন্ট ভেরিফাই করে এখনো গ্রহণ করেনি।'
+                                        }
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {!isClaim && (
+                                    <div className="flex items-center gap-3 text-[10px] text-slate-600 dark:text-slate-300 font-semibold pt-0.5">
+                                      <span className="text-rose-600 dark:text-rose-400">Missed: {device.pendingSenderMissedCalls ?? 0}</span>
+                                      <span>•</span>
+                                      <span className="text-emerald-600 dark:text-emerald-400">Returned: {device.pendingSenderReturnedCalls ?? 0}</span>
+                                    </div>
+                                  )}
+
+                                  {device.pendingHandoverNote && (
+                                    <p className="italic text-[11px] text-slate-600 dark:text-slate-300">Note: "{device.pendingHandoverNote}"</p>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </>
                         )}
                       </div>
