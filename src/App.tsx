@@ -2487,7 +2487,7 @@ export default function App() {
             </div>
             <div className={isSidebarCollapsed ? 'hidden' : 'block'}>
               <h1 className="font-black text-xl tracking-tighter text-slate-800 dark:text-slate-100">{siteSettings.companyName.split(' ')[0]} <span className="text-blue-600">{siteSettings.companyName.split(' ').slice(1).join(' ')}</span></h1>
-              <p className="text-[10px] font-bold uppercase text-slate-400 tracking-widest leading-none">Intelligence v2.0</p>
+              <p className="text-[10px] font-bold uppercase text-slate-400 tracking-widest leading-none">Intelligence v2.1</p>
             </div>
           </div>
           

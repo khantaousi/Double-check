@@ -146,6 +146,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
   const [selectedUserFilter, setSelectedUserFilter] = useState<string>('all');
   const [startDateFilter, setStartDateFilter] = useState<string>('');
   const [endDateFilter, setEndDateFilter] = useState<string>('');
+  const [specificTimeFilter, setSpecificTimeFilter] = useState<string>('');
 
   // Realtime Live Timer Tick & 24h Auto-Unassign Check
   const [, setTick] = useState(0);
@@ -1254,19 +1255,91 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
         return false;
       }
 
-      // Date Range Filter
-      if (startDateFilter) {
-        const logDate = formatBST(log.startTime, 'yyyy-MM-dd');
-        if (logDate < startDateFilter) return false;
-      }
-      if (endDateFilter) {
-        const logDate = formatBST(log.startTime, 'yyyy-MM-dd');
-        if (logDate > endDateFilter) return false;
+      // Specific Time Lookup Filter (checks which agent was actively holding the phone at that exact time)
+      if (specificTimeFilter) {
+        const targetDate = startDateFilter || formatBST(new Date(), 'yyyy-MM-dd');
+        try {
+          const targetStartMs = new Date(`${targetDate}T${specificTimeFilter}:00+06:00`).getTime();
+          const targetEndMs = targetStartMs + 59999;
+          if (!isNaN(targetStartMs)) {
+            const startMs = new Date(log.startTime).getTime();
+            const endMs = log.endTime 
+              ? new Date(log.endTime).getTime() 
+              : (log.status === 'active' ? Infinity : startMs);
+            const isOverlap = startMs <= targetEndMs && endMs >= targetStartMs;
+            if (!isOverlap) return false;
+          }
+        } catch (e) {}
+      } else {
+        // Date Range Filter (when specific time is not set)
+        if (startDateFilter) {
+          const logDate = formatBST(log.startTime, 'yyyy-MM-dd');
+          if (logDate < startDateFilter) return false;
+        }
+        if (endDateFilter) {
+          const logDate = formatBST(log.startTime, 'yyyy-MM-dd');
+          if (logDate > endDateFilter) return false;
+        }
       }
 
       return true;
     });
-  }, [accessibleLogs, searchQuery, selectedPhoneFilter, selectedUserFilter, startDateFilter, endDateFilter, isAdmin]);
+  }, [accessibleLogs, searchQuery, selectedPhoneFilter, selectedUserFilter, startDateFilter, endDateFilter, specificTimeFilter, isAdmin]);
+
+  // 8.1 Summary of which agent had which phone at the selected time
+  const timeLookupSummary = useMemo(() => {
+    if (!specificTimeFilter) return null;
+    const targetDate = startDateFilter || formatBST(new Date(), 'yyyy-MM-dd');
+    const targetStartMs = new Date(`${targetDate}T${specificTimeFilter}:00+06:00`).getTime();
+    const targetEndMs = targetStartMs + 59999;
+    if (isNaN(targetStartMs)) return null;
+
+    const deviceResults = devices.map(device => {
+      // Find matching log that overlapped with this exact time
+      const matchingLog = logs.find(log => {
+        if (log.phoneId !== device.id) return false;
+        const startMs = new Date(log.startTime).getTime();
+        const endMs = log.endTime 
+          ? new Date(log.endTime).getTime() 
+          : (log.status === 'active' ? Infinity : startMs);
+        return startMs <= targetEndMs && endMs >= targetStartMs;
+      });
+
+      if (matchingLog) {
+        const agent = getAgentDisplay(matchingLog.userId, matchingLog.userName, matchingLog.userEmpId);
+        return {
+          device,
+          hasHolder: true,
+          agentName: agent.name,
+          agentEmpId: agent.empId,
+          fullDisplay: agent.fullDisplay,
+          log: matchingLog,
+          status: matchingLog.status
+        };
+      } else {
+        return {
+          device,
+          hasHolder: false,
+          agentName: null,
+          agentEmpId: null,
+          fullDisplay: 'In Storage / Available',
+          log: null,
+          status: 'available'
+        };
+      }
+    });
+
+    const activeCount = deviceResults.filter(r => r.hasHolder).length;
+
+    return {
+      targetDate,
+      targetTime: specificTimeFilter,
+      formattedTarget: `${formatBST(`${targetDate}T${specificTimeFilter}:00+06:00`, 'dd MMM yyyy, hh:mm a')}`,
+      results: deviceResults,
+      activeCount,
+      totalCount: devices.length
+    };
+  }, [specificTimeFilter, startDateFilter, devices, logs, getAgentDisplay]);
 
   // 9. Excel Export Functionality
   const handleExportExcel = () => {
@@ -2119,82 +2192,205 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
       {activeSubTab === 'history' && (
         <div className="space-y-6">
           {/* Search & Filters */}
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="relative w-full md:w-80">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-300" size={16} />
-                <input
-                  type="text"
-                  placeholder={isAdmin ? "Search by Agent, Phone, Emp ID..." : "Search in your records..."}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-2.5 pl-11 pr-4 text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400"
-                />
-              </div>
+          <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+            {/* Top: Large Full-Width Search Bar */}
+            <div className="relative w-full">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-300" size={18} />
+              <input
+                type="text"
+                placeholder={isAdmin ? "Search by Agent, Phone, Emp ID..." : "Search in your records..."}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-2xl py-3 pl-12 pr-4 text-sm font-semibold focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-400 shadow-2xs"
+              />
+            </div>
 
-              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                {/* Phone Dropdown Filter */}
+            {/* Bottom: Filter Controls in a Row */}
+            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 w-full">
+              {/* Phone Dropdown Filter */}
+              <select
+                value={selectedPhoneFilter}
+                onChange={(e) => setSelectedPhoneFilter(e.target.value)}
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2.5 text-xs font-semibold focus:outline-none text-slate-700 dark:text-slate-200"
+              >
+                <option value="all">All Devices</option>
+                {devices.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+
+              {/* User Dropdown Filter - ADMIN ONLY */}
+              {isAdmin && (
                 <select
-                  value={selectedPhoneFilter}
-                  onChange={(e) => setSelectedPhoneFilter(e.target.value)}
+                  value={selectedUserFilter}
+                  onChange={(e) => setSelectedUserFilter(e.target.value)}
                   className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2.5 text-xs font-semibold focus:outline-none text-slate-700 dark:text-slate-200"
                 >
-                  <option value="all">All Devices</option>
-                  {devices.map(d => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
+                  <option value="all">All Agents</option>
+                  {allUsers.map(u => (
+                    <option key={u.id} value={u.id}>
+                      {getAgentDisplay(u.id, u.displayName || u.loginHandle, u.employeeId).fullDisplay}
+                    </option>
                   ))}
                 </select>
+              )}
 
-                {/* User Dropdown Filter - ADMIN ONLY */}
-                {isAdmin && (
-                  <select
-                    value={selectedUserFilter}
-                    onChange={(e) => setSelectedUserFilter(e.target.value)}
-                    className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2.5 text-xs font-semibold focus:outline-none text-slate-700 dark:text-slate-200"
-                  >
-                    <option value="all">All Agents</option>
-                    {allUsers.map(u => (
-                      <option key={u.id} value={u.id}>
-                        {getAgentDisplay(u.id, u.displayName || u.loginHandle, u.employeeId).fullDisplay}
-                      </option>
-                    ))}
-                  </select>
-                )}
+              {/* Start Date */}
+              <input
+                type="date"
+                value={startDateFilter}
+                onChange={(e) => setStartDateFilter(e.target.value)}
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2 text-xs font-semibold focus:outline-none text-slate-700 dark:text-slate-200"
+                title="Filter From Date"
+              />
 
-                {/* Start Date */}
+              {/* End Date */}
+              <input
+                type="date"
+                value={endDateFilter}
+                onChange={(e) => setEndDateFilter(e.target.value)}
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2 text-xs font-semibold focus:outline-none text-slate-700 dark:text-slate-200"
+                title="Filter To Date"
+              />
+
+              {/* Specific Time Filter (Check phone possession by time) */}
+              <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-1.5" title="Check which phone was held by whom at this exact time">
+                <Clock size={14} className="text-indigo-500 shrink-0" />
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Time:</span>
                 <input
-                  type="date"
-                  value={startDateFilter}
-                  onChange={(e) => setStartDateFilter(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2 text-xs font-semibold focus:outline-none text-slate-700 dark:text-slate-200"
-                  title="Filter From Date"
+                  type="time"
+                  value={specificTimeFilter}
+                  onChange={(e) => setSpecificTimeFilter(e.target.value)}
+                  className="bg-transparent text-xs font-semibold focus:outline-none text-slate-700 dark:text-slate-200"
+                  title="Check Phone Holder by Specific Time (BST)"
                 />
-
-                {/* End Date */}
-                <input
-                  type="date"
-                  value={endDateFilter}
-                  onChange={(e) => setEndDateFilter(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2 text-xs font-semibold focus:outline-none text-slate-700 dark:text-slate-200"
-                  title="Filter To Date"
-                />
-
-                {(searchQuery || selectedPhoneFilter !== 'all' || (isAdmin && selectedUserFilter !== 'all') || startDateFilter || endDateFilter) && (
+                {specificTimeFilter && (
                   <button
-                    onClick={() => {
-                      setSearchQuery('');
-                      setSelectedPhoneFilter('all');
-                      setSelectedUserFilter('all');
-                      setStartDateFilter('');
-                      setEndDateFilter('');
-                    }}
-                    className="text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline px-2"
+                    onClick={() => setSpecificTimeFilter('')}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs px-0.5"
+                    title="Clear time"
                   >
-                    Reset
+                    ✕
                   </button>
                 )}
               </div>
+
+              {/* Quick Check Current Time button */}
+              <button
+                type="button"
+                onClick={() => {
+                  const today = formatBST(new Date(), 'yyyy-MM-dd');
+                  const nowTime = formatBST(new Date(), 'HH:mm');
+                  setStartDateFilter(today);
+                  setEndDateFilter('');
+                  setSpecificTimeFilter(nowTime);
+                }}
+                className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 px-3 py-2 rounded-2xl text-xs font-bold transition-all"
+                title="Check phone holders at current BST time"
+              >
+                <Clock size={13} />
+                <span>Now</span>
+              </button>
+
+              {(searchQuery || selectedPhoneFilter !== 'all' || (isAdmin && selectedUserFilter !== 'all') || startDateFilter || endDateFilter || specificTimeFilter) && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedPhoneFilter('all');
+                    setSelectedUserFilter('all');
+                    setStartDateFilter('');
+                    setEndDateFilter('');
+                    setSpecificTimeFilter('');
+                  }}
+                  className="text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline px-2"
+                >
+                  Reset
+                </button>
+              )}
             </div>
+
+            {/* Time Lookup Summary Result Card */}
+            {timeLookupSummary && (
+              <div className="bg-gradient-to-r from-indigo-50/90 via-blue-50/80 to-slate-50 dark:from-indigo-950/40 dark:via-blue-950/30 dark:to-slate-900 border border-indigo-200 dark:border-indigo-900/50 rounded-2xl p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                      <Clock size={16} />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-indigo-950 dark:text-indigo-200 flex items-center gap-2">
+                        <span>Device Status at {timeLookupSummary.formattedTarget} (BST)</span>
+                        <span className="text-[11px] font-bold bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-300 px-2 py-0.5 rounded-full">
+                          {timeLookupSummary.activeCount} of {timeLookupSummary.totalCount} In Use
+                        </span>
+                      </h4>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        Check who had each phone at this time based on verified handover records.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSpecificTimeFilter('')}
+                    className="text-xs font-bold text-indigo-700 dark:text-indigo-300 hover:underline bg-white/80 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800"
+                  >
+                    Clear Time Filter
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 pt-1">
+                  {timeLookupSummary.results.map((res) => (
+                    <div
+                      key={res.device.id}
+                      className={`p-3 rounded-xl border transition-all ${
+                        res.hasHolder
+                          ? 'bg-white dark:bg-slate-800 border-indigo-200 dark:border-indigo-800/60 shadow-xs'
+                          : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200/60 dark:border-slate-700/40 opacity-70'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1.5">
+                        <span className="font-bold text-xs text-slate-800 dark:text-slate-100 truncate">
+                          {res.device.name}
+                        </span>
+                        {res.hasHolder ? (
+                          <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded">
+                            In Use
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
+                            In Storage
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mt-2 text-xs">
+                        {res.hasHolder ? (
+                          <div className="space-y-1">
+                            <p className="font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-1 truncate">
+                              <UserCheck size={13} className="shrink-0 text-indigo-500" />
+                              <span className="truncate">{res.agentName}</span>
+                            </p>
+                            {res.agentEmpId && (
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold pl-4">
+                                ID: {res.agentEmpId}
+                              </p>
+                            )}
+                            {res.log && (
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400 pl-4">
+                                Time: {formatBST(res.log.startTime, 'hh:mm a')} - {res.log.endTime ? formatBST(res.log.endTime, 'hh:mm a') : 'Active'}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-slate-500 dark:text-slate-400 text-[11px] italic">
+                            Available in storage
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {!isAdmin && (
               <div className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-100 dark:border-slate-700">
