@@ -302,3 +302,24 @@ export const REQUIRED_HEADERS = [
   'RecipientZone(*)', 'RecipientArea', 'AmountToCollect(*)', 
   'ItemQuantity', 'ItemWeight', 'ItemDesc', 'SpecialInstruction'
 ];
+
+export type ButtonLogoType = 'preset' | 'upload' | 'url';
+
+export interface CustomActionButton {
+  id: string;
+  title: string;
+  description?: string;
+  url: string;
+  targetAudience: 'all' | 'specific';
+  assignedUserEmails: string[];
+  assignedUserIds?: string[];
+  logoType?: ButtonLogoType;
+  logoUrl?: string; // base64 or external image link
+  icon?: string; // name of preset icon
+  color?: 'blue' | 'emerald' | 'indigo' | 'purple' | 'amber' | 'rose' | 'sky' | 'slate';
+  openInNewTab?: boolean;
+  createdAt: string;
+  createdBy?: string;
+  isActive: boolean;
+}
+

@@ -10,7 +10,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { AppNotice, AppNotification, DataRow, TaskHistoryEntry, ValidationRule, ProductPrice, DEFAULT_RULES, DeliverySettings as IDeliverySettings, DEFAULT_DELIVERY_SETTINGS, UserProfile, GiftRule, SiteSettings, DEFAULT_SITE_SETTINGS, TeamTask, SalaryApiConfig, DEFAULT_SALARY_API_CONFIG } from './types';
+import { AppNotice, AppNotification, DataRow, TaskHistoryEntry, ValidationRule, ProductPrice, DEFAULT_RULES, DeliverySettings as IDeliverySettings, DEFAULT_DELIVERY_SETTINGS, UserProfile, GiftRule, SiteSettings, DEFAULT_SITE_SETTINGS, TeamTask, SalaryApiConfig, DEFAULT_SALARY_API_CONFIG, CustomActionButton } from './types';
 import { processData, calculateRow } from './lib/processor';
 import { RuleEditor } from './components/RuleEditor';
 import { GiftRuleEditor } from './components/GiftRuleEditor';
@@ -21,15 +21,15 @@ import { TeamWork } from './components/TeamWork';
 import { DeliverySettings } from './components/DeliverySettings';
 import { GeneralSettings } from './components/GeneralSettings';
 import { AgentProfileSettings } from './components/AgentProfileSettings';
-import { SalarySettings } from './components/SalarySettings';
-import { SalaryPortal } from './components/SalaryPortal';
+import { CustomButtonsManager } from './components/CustomButtonsManager';
+import { CustomButtonsDisplay } from './components/CustomButtonsDisplay';
 import { FileUpload } from './components/FileUpload';
 import { DataTable } from './components/DataTable';
 import { UserManagement } from './components/UserManagement';
 import { NoticeBoard } from './components/NoticeBoard';
 import WelcomeScreen from './components/WelcomeScreen';
 import { LiveTenureTracker } from './components/LiveTenureTracker';
-import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera, Shield, ArrowRight, Barcode, QrCode, Coins, Eye, EyeOff, Palette, Power, PowerOff, Banknote, Wallet, Smartphone, CalendarDays } from 'lucide-react';
+import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera, Shield, ArrowRight, Barcode, QrCode, Coins, Eye, EyeOff, Palette, Power, PowerOff, Wallet, Smartphone, CalendarDays } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toPng } from 'html-to-image';
 import { db, auth, logInWithEmail, signOut, signInWithGoogle } from './lib/firebase';
@@ -166,7 +166,7 @@ const getInitialUsers = (): UserProfile[] => {
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'validation' | 'rules' | 'products' | 'settings' | 'users' | 'tracker' | 'printSlips' | 'team' | 'complaints' | 'notices' | 'salary' | 'phones'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'validation' | 'rules' | 'products' | 'settings' | 'users' | 'tracker' | 'printSlips' | 'team' | 'complaints' | 'notices' | 'phones'>('dashboard');
   const [data, setData] = useState<DataRow[]>([]);
   const [rules, setRules] = useState<ValidationRule[]>(getInitialRules);
   const [delivery, setDelivery] = useState<IDeliverySettings>(getInitialDelivery);
@@ -177,6 +177,13 @@ export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [allUsers, setAllUsers] = useState<UserProfile[]>(getInitialUsers);
+  const [customButtons, setCustomButtons] = useState<CustomActionButton[]>(() => {
+    try {
+      const cached = localStorage.getItem('cached_custom_buttons');
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
+    return [];
+  });
 
   const getNextBirthday = () => {
     if (allUsers.length === 0) return null;
@@ -1333,6 +1340,20 @@ export default function App() {
       console.warn('Firestore salary config sync note:', error);
     });
 
+    // Sync Custom Buttons
+    const unsubscribeCustomButtons = onSnapshot(doc(db, 'config', 'custom_buttons'), (docSnap) => {
+      if (docSnap.exists() && docSnap.data().buttons) {
+        const loadedButtons = docSnap.data().buttons as CustomActionButton[];
+        setCustomButtons(loadedButtons);
+        try { localStorage.setItem('cached_custom_buttons', JSON.stringify(loadedButtons)); } catch (e) {}
+      }
+    }, (error) => {
+      try {
+        const cached = localStorage.getItem('cached_custom_buttons');
+        if (cached) setCustomButtons(JSON.parse(cached));
+      } catch (e) {}
+    });
+
     // Auto-Maintenance Logic (Triggered by Admin)
     const runFrontendMaintenance = async () => {
       if (!isAdmin) return;
@@ -1496,6 +1517,7 @@ export default function App() {
       unsubscribeDelivery();
       unsubscribeGifts();
       unsubscribeSalaryConfig();
+      unsubscribeCustomButtons();
     };
   }, [user, isAdmin]);
 
@@ -1870,6 +1892,20 @@ export default function App() {
     }
   };
 
+  const handleSaveCustomButtons = async (newButtons: CustomActionButton[]) => {
+    setCustomButtons(newButtons);
+    try {
+      localStorage.setItem('cached_custom_buttons', JSON.stringify(newButtons));
+      await setDoc(doc(db, 'config', 'custom_buttons'), {
+        buttons: newButtons,
+        updatedAt: getBSTISOString()
+      }, { merge: true });
+    } catch (error) {
+      console.error("Failed to save custom action buttons:", error);
+      handleFirestoreError(error, OperationType.WRITE, 'config/custom_buttons');
+    }
+  };
+
   const handleAddProduct = async (name: string, price: number, wholesalePrice?: number, wholesaleThreshold?: number) => {
     if (!user) {
       alert("Please sign in to modify the product library.");
@@ -2022,7 +2058,7 @@ export default function App() {
     if (tab === 'users') return false;
     if (tab === 'complaints') return true;
     if (tab === 'settings') return true;
-    if (tab === 'salary' || tab === 'phones') return true;
+    if (tab === 'phones') return true;
     const key = tab === 'validation' ? 'dashboard' : tab;
     return (userProfile?.permissions?.[key as keyof UserProfile['permissions']] || 'none') !== 'none';
   };
@@ -2415,31 +2451,6 @@ export default function App() {
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/0 to-blue-500/[0.02] transform translate-x-full group-hover:translate-x-0 transition-transform duration-500" />
               </button>
             </div>
-
-            {/* Salary Portal Access */}
-            <div className="mt-4">
-              <a
-                href="https://employee-salary-portal-8azh.onrender.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`w-full border rounded-2xl p-4 flex items-center justify-between group relative overflow-hidden transition-all text-left ${isDarkMode ? 'bg-emerald-950/20 border-emerald-950/30 hover:border-emerald-500/40' : 'bg-emerald-50/40 border-emerald-100/80 hover:border-emerald-500/30 shadow-sm'}`}
-              >
-                <div className="flex items-center gap-3 relative z-10">
-                  <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${isDarkMode ? 'bg-emerald-950/40 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'}`}>
-                    <Coins size={14} className="text-emerald-500 group-hover:scale-110 transition-transform" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-black uppercase tracking-wider font-mono ${isDarkMode ? 'text-emerald-300' : 'text-emerald-700'}`}>SALARY PORTAL</span>
-                      <span className={`text-[7px] font-black border px-1 py-0.5 rounded tracking-widest uppercase ${isDarkMode ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-500 border-emerald-200'}`}>SECURE</span>
-                    </div>
-                    <p className={`text-[9px] font-semibold uppercase mt-0.5 tracking-wider ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>CHECK YOUR SALARY</p>
-                  </div>
-                </div>
-                <ArrowRight size={14} className={`group-hover:translate-x-1 transition-all shrink-0 z-10 ${isDarkMode ? 'text-slate-600 group-hover:text-emerald-400' : 'text-slate-400 group-hover:text-emerald-500'}`} />
-                <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/0 via-emerald-500/0 to-emerald-500/[0.02] transform translate-x-full group-hover:translate-x-0 transition-transform duration-500" />
-              </a>
-            </div>
           </div>
           
           {/* Footer information containing signature */}
@@ -2598,21 +2609,6 @@ export default function App() {
                   >
                     <Activity size={18} className="shrink-0" />
                     <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Product Tracking (PT)</span>
-                  </button>
-                )}
-
-                {userProfile && (
-                  <button 
-                    onClick={() => { setActiveTab('salary'); setIsSidebarOpen(false); }}
-                    title={isSidebarCollapsed ? "Salary Portal" : undefined}
-                    className={`w-full flex items-center gap-3 rounded-xl text-xs font-bold transition-all border ${isSidebarCollapsed ? 'justify-center py-3 px-0' : 'px-4 py-3'} ${
-                      activeTab === 'salary' 
-                        ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30 shadow-sm' 
-                        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    <Banknote size={18} className="shrink-0 text-emerald-500" />
-                    <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Salary Portal (বেতন)</span>
                   </button>
                 )}
 
@@ -2853,7 +2849,7 @@ export default function App() {
             </div>
             <div className="h-4 w-px bg-slate-200 dark:bg-slate-800" />
             <h2 className="text-slate-400 dark:text-slate-500 text-sm font-bold tracking-tight uppercase">
-              {activeTab === 'dashboard' ? 'Performance Dashboard' : activeTab === 'validation' ? 'Double Check' : activeTab === 'complaints' ? 'Anonymous Feedback' : activeTab === 'salary' ? 'Salary Portal' : activeTab === 'phones' ? 'Phone Tracker' : `Config / ${activeTab}`}
+              {activeTab === 'dashboard' ? 'Performance Dashboard' : activeTab === 'validation' ? 'Double Check' : activeTab === 'complaints' ? 'Anonymous Feedback' : activeTab === 'phones' ? 'Phone Tracker' : `Config / ${activeTab}`}
             </h2>
           </div>
           
@@ -3520,6 +3516,15 @@ export default function App() {
                         <LiveTenureTracker joiningDate={userProfile?.joiningDate} createdAt={userProfile?.createdAt} variant="banner" />
                       </motion.div>
                     )}
+
+                    {/* Quick Actions & Portals (Custom Buttons) */}
+                    <CustomButtonsDisplay
+                      buttons={customButtons}
+                      currentUser={userProfile}
+                      isAdmin={isAdmin}
+                      onManageClick={() => setActiveTab('settings')}
+                      onAddClick={() => setActiveTab('settings')}
+                    />
 
                     {/* Duty Roster Section */}
                     {(() => {
@@ -4392,10 +4397,12 @@ export default function App() {
                       </div>
 
                       <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none transition-colors duration-300">
-                        <SalarySettings 
-                          config={salaryApiConfig}
-                          onSave={handleSalaryConfigUpdate}
+                        <CustomButtonsManager
+                          buttons={customButtons}
+                          allUsers={allUsers}
+                          onSave={handleSaveCustomButtons}
                           canWrite={true}
+                          adminEmail={user?.email || ''}
                         />
                       </div>
                     </div>
@@ -4418,25 +4425,6 @@ export default function App() {
                   className="max-w-3xl mx-auto pt-10"
                 >
                   <Complaints userProfile={userProfile} user={user} />
-                </motion.div>
-              )}
-
-              {activeTab === 'salary' && hasAccess('salary') && (
-                <motion.div
-                  key="salary"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.2 }}
-                  className="max-w-6xl mx-auto pt-8 px-2"
-                >
-                  <SalaryPortal
-                    currentUser={userProfile}
-                    allUsers={allUsers}
-                    apiConfig={salaryApiConfig}
-                    companyName={siteSettings.companyName}
-                    onNavigateToSettings={() => setActiveTab('settings')}
-                  />
                 </motion.div>
               )}
 
