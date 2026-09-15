@@ -29,7 +29,7 @@ import { UserManagement } from './components/UserManagement';
 import { NoticeBoard } from './components/NoticeBoard';
 import WelcomeScreen from './components/WelcomeScreen';
 import { LiveTenureTracker } from './components/LiveTenureTracker';
-import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera, Shield, ArrowRight, Barcode, QrCode, Coins, Eye, EyeOff, Palette, Power, PowerOff, Banknote, Wallet, Smartphone } from 'lucide-react';
+import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera, Shield, ArrowRight, Barcode, QrCode, Coins, Eye, EyeOff, Palette, Power, PowerOff, Banknote, Wallet, Smartphone, CalendarDays } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toPng } from 'html-to-image';
 import { db, auth, logInWithEmail, signOut, signInWithGoogle } from './lib/firebase';
@@ -307,6 +307,36 @@ export default function App() {
   const [birthdayPortalSearch, setBirthdayPortalSearch] = useState('');
   const [selectedRosterId, setSelectedRosterId] = useState('');
   const [pendingTasksCount, setPendingTasksCount] = useState(0);
+
+  const rosterTimelineContainerRef = useRef<HTMLDivElement>(null);
+  const rosterTodayColumnRef = useRef<HTMLDivElement>(null);
+
+  const scrollToTodayRoster = (smooth = true) => {
+    const container = rosterTimelineContainerRef.current;
+    const todayEl = rosterTodayColumnRef.current || document.getElementById('roster-today-column');
+    if (container && todayEl) {
+      const containerRect = container.getBoundingClientRect();
+      const todayRect = todayEl.getBoundingClientRect();
+      const relativeLeft = todayRect.left - containerRect.left + container.scrollLeft;
+      const targetScrollLeft = relativeLeft - (container.clientWidth / 2) + (todayRect.width / 2);
+      container.scrollTo({
+        left: Math.max(0, targetScrollLeft),
+        behavior: smooth ? 'smooth' : 'auto'
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (showFullRoster) {
+      // Auto-scroll to today's shift column when expanding the full roster timeline
+      const timer1 = setTimeout(() => scrollToTodayRoster(true), 120);
+      const timer2 = setTimeout(() => scrollToTodayRoster(true), 320);
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+      };
+    }
+  }, [showFullRoster]);
 
   useEffect(() => {
     if (userProfile?.employeeId) {
@@ -3695,11 +3725,31 @@ export default function App() {
                                           initial={{ opacity: 0, height: 0 }}
                                           animate={{ opacity: 1, height: 'auto' }}
                                           exit={{ opacity: 0, height: 0 }}
+                                          onAnimationComplete={() => {
+                                            scrollToTodayRoster(true);
+                                          }}
                                           className="overflow-hidden mt-4"
                                         >
                                           <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/80 rounded-2xl">
-                                            <div className="text-xs font-extrabold uppercase text-slate-400 tracking-wider mb-3">Your Complete Roster Schedule Timeline:</div>
-                                            <div className="flex gap-3 overflow-x-auto pb-4 pt-1 snap-x scrollbar-thin">
+                                            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                              <div className="text-xs font-extrabold uppercase text-slate-400 tracking-wider">
+                                                Your Complete Roster Schedule Timeline:
+                                              </div>
+                                              <button
+                                                type="button"
+                                                onClick={() => scrollToTodayRoster(true)}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-white hover:bg-blue-600 dark:hover:bg-blue-600 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-900/50 transition-all cursor-pointer shadow-xs active:scale-95"
+                                                title="Scroll timeline to today's shift"
+                                              >
+                                                <CalendarDays size={13} />
+                                                <span>Scroll to Today</span>
+                                              </button>
+                                            </div>
+                                            <div 
+                                              ref={rosterTimelineContainerRef}
+                                              id="roster-timeline-container"
+                                              className="flex gap-3 overflow-x-auto pb-4 pt-1 snap-x scrollbar-thin scroll-smooth"
+                                            >
                                               {roster.headers.slice(2).map((hdr: string, idx: number) => {
                                                 const trueIdx = idx + 2;
                                                 const shiftTime = userRosterRow.shifts?.[hdr] || 'Day Off';
@@ -3709,9 +3759,11 @@ export default function App() {
                                                 return (
                                                   <div 
                                                     key={hdr} 
+                                                    id={isToday ? 'roster-today-column' : undefined}
+                                                    ref={isToday ? rosterTodayColumnRef : undefined}
                                                     className={`flex-none w-36 p-4 rounded-xl border snap-start flex flex-col justify-between ${
                                                       isToday 
-                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/10' 
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/10 ring-2 ring-blue-400/60 ring-offset-2 dark:ring-offset-slate-900' 
                                                         : isYesterday || isTomorrow
                                                         ? 'bg-slate-100 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700'
                                                         : getShiftStyle(shiftTime)

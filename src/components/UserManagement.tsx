@@ -16,6 +16,42 @@ interface UserManagementProps {
   onUpdateUser?: (updatedUser: UserProfile) => void;
 }
 
+function UserAvatarItem({ 
+  user, 
+  onPreview 
+}: { 
+  user: UserProfile; 
+  onPreview?: (url: string, title: string) => void;
+}) {
+  const [hasError, setHasError] = useState(false);
+  const displayName = user.displayName || user.loginHandle || user.email;
+
+  if (user.photoURL && !hasError) {
+    return (
+      <button
+        type="button"
+        onClick={() => onPreview && onPreview(user.photoURL!, displayName)}
+        className="w-10 h-10 rounded-xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700 transition-all hover:scale-105 active:scale-95 bg-slate-100 dark:bg-slate-800 block relative shrink-0 cursor-pointer focus:outline-none ring-offset-2 hover:ring-2 hover:ring-blue-500/40"
+        title="Click to view profile picture"
+      >
+        <img
+          src={user.photoURL}
+          alt={displayName}
+          className="w-full h-full object-cover"
+          referrerPolicy="no-referrer"
+          onError={() => setHasError(true)}
+        />
+      </button>
+    );
+  }
+
+  return (
+    <div className={`w-10 h-10 rounded-xl ${getAvatarColor(displayName)} flex items-center justify-center text-white text-xs font-black shadow-sm transition-transform hover:scale-105 shrink-0`}>
+      {getInitials(displayName)}
+    </div>
+  );
+}
+
 export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmail, onUpdateUser }: UserManagementProps) {
   const [localUsers, setLocalUsers] = useState<UserProfile[]>(() => {
     if (propUsers && propUsers.length > 0) return propUsers;
@@ -50,6 +86,7 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editTarget, setEditTarget] = useState<UserProfile | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -368,10 +405,11 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="relative">
-                        <div className={`w-10 h-10 rounded-xl ${getAvatarColor(user.displayName || user.email)} flex items-center justify-center text-white text-xs font-black shadow-sm transition-transform hover:scale-105`}>
-                          {getInitials(user.displayName || user.email)}
-                        </div>
-                        <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-900 ${isUserOnline(user) ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-slate-300 dark:bg-slate-700'}`} />
+                        <UserAvatarItem 
+                          user={user} 
+                          onPreview={(url, title) => setPreviewImage({ url, title })} 
+                        />
+                        <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-900 pointer-events-none ${isUserOnline(user) ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-slate-300 dark:bg-slate-700'}`} />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
@@ -585,6 +623,32 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setEditTarget(null)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
             <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-[2rem] p-10 shadow-2xl border border-slate-200 dark:border-slate-800">
               <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 mb-6 uppercase tracking-tighter">Edit Personnel</h2>
+
+              {editTarget.photoURL && (
+                <div className="flex items-center gap-3.5 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800 mb-6">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewImage({ url: editTarget.photoURL!, title: editTarget.displayName || editTarget.email })}
+                    className="w-14 h-14 rounded-xl overflow-hidden border-2 border-slate-200 dark:border-slate-700 shadow-sm shrink-0 bg-slate-100 dark:bg-slate-800 cursor-pointer hover:scale-105 transition-transform"
+                    title="Click to view full photo"
+                  >
+                    <img 
+                      src={editTarget.photoURL} 
+                      alt={editTarget.displayName || editTarget.email} 
+                      className="w-full h-full object-cover" 
+                      referrerPolicy="no-referrer"
+                    />
+                  </button>
+                  <div className="min-w-0">
+                    <p className="text-xs font-black text-slate-800 dark:text-slate-100 truncate">{editTarget.displayName || 'No Name'}</p>
+                    <p className="text-[10px] text-slate-400 font-semibold truncate">{editTarget.email}</p>
+                    <span className="inline-block mt-1 text-[9px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-md">
+                      Uploaded Profile Picture
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-6">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Display Name (Agent Name)</label>
@@ -845,6 +909,48 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
                 </button>
               </div>
             </motion.form>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Full-Size Profile Picture Lightbox Preview Modal */}
+      <AnimatePresence>
+        {previewImage && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setPreviewImage(null)}
+              className="absolute inset-0"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="relative max-w-xs sm:max-w-sm w-full bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col items-center gap-4 text-center z-10"
+            >
+              <button
+                type="button"
+                onClick={() => setPreviewImage(null)}
+                className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+              <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-2xl overflow-hidden border-2 border-slate-200 dark:border-slate-700 shadow-lg bg-slate-100 dark:bg-slate-800 mt-2">
+                <img
+                  src={previewImage.url}
+                  alt={previewImage.title}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              <div className="space-y-0.5">
+                <h4 className="text-base font-black text-slate-800 dark:text-slate-100">{previewImage.title}</h4>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">User Profile Picture</p>
+              </div>
+            </motion.div>
           </div>
         )}
       </AnimatePresence>
