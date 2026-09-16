@@ -29,7 +29,7 @@ import { UserManagement } from './components/UserManagement';
 import { NoticeBoard } from './components/NoticeBoard';
 import WelcomeScreen from './components/WelcomeScreen';
 import { LiveTenureTracker } from './components/LiveTenureTracker';
-import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera, Shield, ArrowRight, Barcode, QrCode, Coins, Eye, EyeOff, Palette, Power, PowerOff, Wallet, Smartphone, CalendarDays } from 'lucide-react';
+import { Printer, BarChart3, Database, ShieldAlert, Sparkles, XCircle, LogIn, LogOut, User, LayoutDashboard, Settings, BookOpen, Package, Moon, Sun, Users, Lock, Mail, AlertTriangle, Clock, Gift, CheckCircle2, ShieldCheck, Activity, Layout, Bell, X, Menu, FileSpreadsheet, UploadCloud, CalendarRange, Search, Download, Camera, Shield, ArrowRight, Barcode, QrCode, Coins, Eye, EyeOff, Palette, Power, PowerOff, Wallet, Smartphone, CalendarDays, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toPng } from 'html-to-image';
 import { db, auth, logInWithEmail, signOut, signInWithGoogle } from './lib/firebase';
@@ -44,6 +44,7 @@ import { getInitials, getAvatarColor } from './lib/avatar';
 import { PrintSlips } from './components/PrintSlips';
 import { Complaints } from './components/Complaints';
 import { PhoneTracker } from './components/PhoneTracker';
+import { ApplicationsManager } from './components/ApplicationsManager';
 
 const getInitialRules = (): ValidationRule[] => {
   try {
@@ -166,7 +167,7 @@ const getInitialUsers = (): UserProfile[] => {
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'validation' | 'rules' | 'products' | 'settings' | 'users' | 'tracker' | 'printSlips' | 'team' | 'complaints' | 'notices' | 'phones'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'validation' | 'rules' | 'products' | 'settings' | 'users' | 'tracker' | 'printSlips' | 'team' | 'complaints' | 'notices' | 'phones' | 'applications'>('dashboard');
   const [data, setData] = useState<DataRow[]>([]);
   const [rules, setRules] = useState<ValidationRule[]>(getInitialRules);
   const [delivery, setDelivery] = useState<IDeliverySettings>(getInitialDelivery);
@@ -2047,7 +2048,7 @@ export default function App() {
   const canWriteToTab = (tab: typeof activeTab) => {
     if (user?.email === 'khantaousi@gmail.com') return true;
     if (userProfile?.role === 'admin') return true;
-    if (tab === 'salary' || tab === 'phones') return true;
+    if (tab === 'salary' || tab === 'phones' || tab === 'applications') return true;
     const key = tab === 'validation' ? 'dashboard' : tab;
     return (userProfile?.permissions?.[key as keyof UserProfile['permissions']] || 'none') === 'write';
   };
@@ -2059,6 +2060,7 @@ export default function App() {
     if (tab === 'complaints') return true;
     if (tab === 'settings') return true;
     if (tab === 'phones') return true;
+    if (tab === 'applications') return true;
     const key = tab === 'validation' ? 'dashboard' : tab;
     return (userProfile?.permissions?.[key as keyof UserProfile['permissions']] || 'none') !== 'none';
   };
@@ -2075,7 +2077,7 @@ export default function App() {
     };
 
     return (
-      <div className={`flex flex-col lg:flex-row h-screen w-full ${isDarkMode ? 'bg-[#09090b] text-slate-100' : 'bg-[#f8fafc] text-slate-800'} overflow-y-auto lg:overflow-hidden font-sans select-none relative transition-colors duration-300`}>
+      <div className={`flex flex-col lg:flex-row min-h-screen lg:h-screen w-full max-w-full ${isDarkMode ? 'bg-[#09090b] text-slate-100' : 'bg-[#f8fafc] text-slate-800'} overflow-y-auto lg:overflow-hidden font-sans select-none relative transition-colors duration-300`}>
         {/* Subtle Cyber Grid Background overlay */}
         <div 
           className="absolute inset-0 pointer-events-none z-0 animate-[pulse_6s_ease-in-out_infinite]" 
@@ -2301,7 +2303,7 @@ export default function App() {
         </div>
         
         {/* Right Pane - Credentials Entrance Gateway */}
-        <div className={`w-full lg:w-5/12 xl:w-2/5 p-6 sm:p-12 flex flex-col justify-between border-l relative z-10 shrink-0 transition-colors duration-300 ${isDarkMode ? 'bg-[#040406] border-slate-900' : 'bg-[#f1f5f9] border-slate-200'}`}>
+        <div className={`w-full lg:w-5/12 xl:w-2/5 p-4 sm:p-8 lg:p-12 flex flex-col justify-between border-l relative z-10 transition-colors duration-300 ${isDarkMode ? 'bg-[#040406] border-slate-900' : 'bg-[#f1f5f9] border-slate-200'}`}>
           <div className={`absolute bottom-0 right-0 w-96 h-96 rounded-full blur-3xl pointer-events-none ${isDarkMode ? 'bg-blue-500/[0.03]' : 'bg-blue-500/[0.015]'}`} />
           
           {/* Top Header Selector & Theme Toggle */}
@@ -2340,7 +2342,7 @@ export default function App() {
           <div className="my-auto w-full max-w-md mx-auto">
             <form 
               onSubmit={handleLogin}
-              className={`border rounded-[2.5rem] p-8 sm:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.15)] relative overflow-hidden backdrop-blur-md transition-colors duration-300 ${isDarkMode ? 'bg-[#09090c]/90 border-slate-900' : 'bg-white border-slate-100'}`}
+              className={`border rounded-3xl sm:rounded-[2.5rem] p-5 sm:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.15)] relative overflow-hidden backdrop-blur-md transition-colors duration-300 ${isDarkMode ? 'bg-[#09090c]/90 border-slate-900' : 'bg-white border-slate-100'}`}
             >
               {/* Electric neon horizontal border highlight */}
               <div className="absolute top-0 left-8 right-8 h-[2px] bg-gradient-to-r from-transparent via-blue-500 to-transparent shadow-[0_0_15px_rgba(37,99,235,0.8)]" />
@@ -2501,7 +2503,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 overflow-hidden transition-colors duration-300">
+    <div className="flex h-screen w-full max-w-full bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 overflow-hidden transition-colors duration-300">
       {/* Mobile Sidebar Overlay */}
       <AnimatePresence>
         {isSidebarOpen && (
@@ -2516,7 +2518,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* Left Sidebar: Navigation */}
-      <aside className={`fixed md:static inset-y-0 left-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0 shadow-sm z-30 transition-all duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${isSidebarCollapsed ? 'w-20 md:translate-x-0' : 'w-72 md:translate-x-0'}`}>
+      <aside className={`fixed md:static inset-y-0 left-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0 shadow-sm z-30 transition-all duration-300 max-w-[85vw] ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${isSidebarCollapsed ? 'w-20 md:translate-x-0' : 'w-72 md:translate-x-0'}`}>
         <div className={`transition-all duration-300 ${isSidebarCollapsed ? 'p-3' : 'p-8'}`}>
           <div className={`flex items-center gap-3 mb-12 ${isSidebarCollapsed ? 'justify-center mb-6' : ''}`}>
             <div className="w-10 h-10 flex items-center justify-center overflow-hidden transition-shadow duration-300 shrink-0">
@@ -2626,6 +2628,21 @@ export default function App() {
                     <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Phone Tracker</span>
                   </button>
                 )}
+
+                {userProfile && (
+                  <button 
+                    onClick={() => { setActiveTab('applications'); setIsSidebarOpen(false); }}
+                    title={isSidebarCollapsed ? "Applications" : undefined}
+                    className={`w-full flex items-center gap-3 rounded-xl text-xs font-bold transition-all border text-left ${isSidebarCollapsed ? 'justify-center py-3 px-0' : 'px-4 py-3'} ${
+                      activeTab === 'applications' 
+                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 shadow-sm' 
+                        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <FileText size={18} className="shrink-0 text-blue-500" />
+                    <span className={isSidebarCollapsed ? 'hidden' : 'block'}>Applications</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -2673,7 +2690,7 @@ export default function App() {
                     }`}
                   >
                     <Settings size={18} className="shrink-0" />
-                    <span className={isSidebarCollapsed ? "hidden" : "block"}>Settings (সেটিংস)</span>
+                    <span className={isSidebarCollapsed ? "hidden" : "block"}>Settings</span>
                   </button>
                 )}
 
@@ -2791,7 +2808,7 @@ export default function App() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950 transition-colors duration-300 relative">
+      <main className="flex-1 min-w-0 w-full max-w-full flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950 transition-colors duration-300 relative">
         <AnimatePresence>
           {showWelcome && <WelcomeScreen onComplete={() => setShowWelcome(false)} userProfile={userProfile} user={user} />}
         </AnimatePresence>
@@ -2826,8 +2843,8 @@ export default function App() {
         )}
 
         {/* Top Header Bar */}
-        <header className="h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 md:px-10 shrink-0 sticky top-0 z-20 transition-colors duration-300">
-          <div className="flex items-center gap-5">
+        <header className="h-16 sm:h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-3 sm:px-6 md:px-10 shrink-0 sticky top-0 z-20 transition-colors duration-300 w-full max-w-full min-w-0">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
             <button
               onClick={() => {
                 if (window.innerWidth < 768) {
@@ -2836,30 +2853,30 @@ export default function App() {
                   setIsSidebarCollapsed(!isSidebarCollapsed);
                 }
               }}
-              className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-slate-200 dark:border-slate-700 active:scale-95 cursor-pointer flex items-center justify-center shadow-sm"
+              className="p-2 sm:p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-slate-200 dark:border-slate-700 active:scale-95 cursor-pointer flex items-center justify-center shadow-sm shrink-0"
               title={isSidebarCollapsed ? "Show Menu" : "Hide Menu"}
             >
               <Menu size={18} />
             </button>
-            <div className={`flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 transition-colors duration-300 ${data.length === 0 ? 'animate-border-green' : ''}`}>
+            <div className={`hidden sm:flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 transition-colors duration-300 shrink-0 ${data.length === 0 ? 'animate-border-green' : ''}`}>
               <span className={`w-2 h-2 rounded-full ${data.length > 0 ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
               <span className="text-[11px] font-bold uppercase tracking-tight text-slate-600 dark:text-slate-400">
                 {data.length > 0 ? 'Data Active' : 'System Ready'}
               </span>
             </div>
-            <div className="h-4 w-px bg-slate-200 dark:bg-slate-800" />
-            <h2 className="text-slate-400 dark:text-slate-500 text-sm font-bold tracking-tight uppercase">
-              {activeTab === 'dashboard' ? 'Performance Dashboard' : activeTab === 'validation' ? 'Double Check' : activeTab === 'complaints' ? 'Anonymous Feedback' : activeTab === 'phones' ? 'Phone Tracker' : `Config / ${activeTab}`}
+            <div className="hidden sm:block h-4 w-px bg-slate-200 dark:bg-slate-800 shrink-0" />
+            <h2 className="text-slate-400 dark:text-slate-500 text-xs sm:text-sm font-bold tracking-tight uppercase truncate max-w-[130px] sm:max-w-xs md:max-w-sm lg:max-w-none">
+              {activeTab === 'dashboard' ? 'Performance Dashboard' : activeTab === 'validation' ? 'Double Check' : activeTab === 'complaints' ? 'Anonymous Feedback' : activeTab === 'phones' ? 'Phone Tracker' : activeTab === 'applications' ? 'Employee Applications' : `Config / ${activeTab}`}
             </h2>
           </div>
           
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             {/* Dynamic UI Theme Selector Popover (Available for all agents/users locally) */}
             <div className="relative" id="header-theme-selector">
               <button 
                 onClick={() => setShowThemeDropdown(!showThemeDropdown)}
                 className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-slate-200 dark:border-slate-700 active:scale-95 flex items-center justify-center cursor-pointer shadow-sm"
-                title="Change Personal UI Theme (ব্যক্তিগত থিম পরিবর্তন)"
+                title="Change Personal UI Theme"
               >
                 <Palette size={18} />
               </button>
@@ -3013,28 +3030,28 @@ export default function App() {
             )}
 
             {user ? (
-              <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-1.5 px-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300">
-                <div className="relative">
+              <div className="flex items-center gap-2 sm:gap-3 bg-white dark:bg-slate-800 p-1 px-2 sm:p-1.5 sm:px-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300">
+                <div className="relative shrink-0">
                   {userProfile?.photoURL ? (
-                    <img src={userProfile.photoURL} alt="Avatar" className="w-8 h-8 rounded-lg object-cover shadow-sm border border-slate-200 dark:border-slate-700" />
+                    <img src={userProfile.photoURL} alt="Avatar" className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg object-cover shadow-sm border border-slate-200 dark:border-slate-700" />
                   ) : (
-                    <div className={`w-8 h-8 rounded-lg ${getAvatarColor(userProfile?.displayName || user.email)} flex items-center justify-center text-white text-xs font-black shadow-sm`}>
+                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg ${getAvatarColor(userProfile?.displayName || user.email)} flex items-center justify-center text-white text-xs font-black shadow-sm`}>
                       {getInitials(userProfile?.displayName || user.email)}
                     </div>
                   )}
-                  <div className={`absolute -bottom-1 -right-1 w-3 h-3 border-2 border-white dark:border-slate-800 rounded-full ${userProfile?.isActive !== false ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.3)]' : 'bg-slate-300'}`} />
+                  <div className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 sm:w-3 sm:h-3 border-2 border-white dark:border-slate-800 rounded-full ${userProfile?.isActive !== false ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.3)]' : 'bg-slate-300'}`} />
                   {userProfile?.isOnline && (
-                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-ping opacity-75" />
+                    <div className="absolute -bottom-1 -right-1 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-green-500 rounded-full animate-ping opacity-75" />
                   )}
                 </div>
-                <div className="flex flex-col">
+                <div className="hidden min-[520px]:flex flex-col">
                   <div className="flex items-center gap-1.5">
                     {isEditingName ? (
                       <div className="flex gap-1 items-center">
                         <input 
                           value={editedName} 
                           onChange={(e) => setEditedName(e.target.value)}
-                          className="text-xs font-bold bg-slate-100 dark:bg-slate-900 border px-1"
+                          className="text-xs font-bold bg-slate-100 dark:bg-slate-900 border px-1 max-w-[80px]"
                         />
                         <button onClick={saveDisplayName} className="text-xs text-green-600">Save</button>
                       </div>
@@ -3043,24 +3060,24 @@ export default function App() {
                         href="https://md-ahbab-khan-taousi.vercel.app/" 
                         target="_blank" 
                         rel="noopener noreferrer" 
-                        className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-tight cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                        className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-tight cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors truncate max-w-[100px] sm:max-w-[140px]"
                       >
                         {userProfile?.displayName || 'Taousi'}
                       </a>
                     ) : (
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-tight cursor-pointer hover:text-blue-600" onClick={() => setIsEditingName(true)}>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-tight cursor-pointer hover:text-blue-600 truncate max-w-[100px] sm:max-w-[140px]" onClick={() => setIsEditingName(true)}>
                         {userProfile?.displayName || user.email?.split('@')[0]}
                       </span>
                     )}
                     {userProfile && (
-                      <span className={`text-[8px] font-black uppercase px-1 rounded ${userProfile.role === 'admin' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'}`}>
+                      <span className={`text-[8px] font-black uppercase px-1 rounded shrink-0 ${userProfile.role === 'admin' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'}`}>
                         {userProfile.role}
                       </span>
                     )}
                   </div>
                   {userProfile?.employeeId && (
                     <div className="flex items-center gap-2 mt-0.5">
-                      <p className="text-[9px] font-black text-blue-600 dark:text-blue-400 tracking-wider bg-blue-500/10 dark:bg-blue-500/20 px-1 py-0.5 rounded">
+                      <p className="text-[9px] font-black text-blue-600 dark:text-blue-400 tracking-wider bg-blue-500/10 dark:bg-blue-500/20 px-1 py-0.5 rounded truncate">
                         ID: {userProfile.employeeId}
                       </p>
                     </div>
@@ -3079,19 +3096,19 @@ export default function App() {
                 {hasAccess('printSlips') && (
                   <button 
                     onClick={() => setActiveTab('printSlips')}
-                    className="flex items-center gap-2 bg-slate-900 dark:bg-slate-800 text-white dark:text-slate-200 hover:bg-slate-800 dark:hover:bg-slate-700 px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-lg shadow-black/10 dark:shadow-none active:scale-95"
+                    className="flex items-center gap-2 bg-slate-900 dark:bg-slate-800 text-white dark:text-slate-200 hover:bg-slate-800 dark:hover:bg-slate-700 px-3 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-lg shadow-black/10 dark:shadow-none active:scale-95 whitespace-nowrap"
                   >
                     <Printer size={16} />
-                    Print Slips
+                    <span className="hidden sm:inline">Print Slips</span>
                   </button>
                 )}
                 {canWriteToTab('validation') && (
                   <button 
                     onClick={handleClear}
-                    className="flex items-center gap-2 text-slate-500 hover:text-red-500 px-4 py-2 rounded-lg text-xs font-bold transition-colors"
+                    className="flex items-center gap-2 text-slate-500 hover:text-red-500 px-3 sm:px-4 py-2 rounded-lg text-xs font-bold transition-colors whitespace-nowrap"
                   >
                     <XCircle size={16} />
-                    Reset System
+                    <span className="hidden sm:inline">Reset System</span>
                   </button>
                 )}
               </div>
@@ -3100,8 +3117,8 @@ export default function App() {
         </header>
 
         {/* Dynamic Canvas Area */}
-        <section className="flex-1 overflow-y-auto p-10">
-          <div className="max-w-7xl mx-auto">
+        <section className="flex-1 min-w-0 w-full max-w-full overflow-y-auto overflow-x-hidden p-3 sm:p-6 lg:p-10">
+          <div className="max-w-7xl mx-auto w-full min-w-0">
             {!user ? (
               <motion.div 
                 initial={{ opacity: 0 }}
@@ -3323,7 +3340,7 @@ export default function App() {
                             className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-amber-500/10 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer self-start sm:self-center shrink-0 flex items-center gap-1.5"
                           >
                             <Gift size={13} className="animate-bounce" />
-                            View Birthday Portal (জন্মদিন পোর্টাল)
+                            View Birthday Portal
                           </button>
                         </motion.div>
 
@@ -3354,7 +3371,7 @@ export default function App() {
                                     </div>
                                     <div>
                                       <h3 className="font-black text-lg text-slate-800 dark:text-slate-100 tracking-tight leading-none">Team Birthday Portal</h3>
-                                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Calendar & Schedule (জন্মদিন তালিকা)</p>
+                                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Calendar & Schedule</p>
                                     </div>
                                   </div>
                                   <button 
@@ -3673,7 +3690,7 @@ export default function App() {
                                     {/* Yesterday's Duty */}
                                     <div className={`p-6 rounded-2xl border transition-all ${getShiftStyle(yesterdayShift?.shift || '')}`}>
                                       <div className="flex justify-between items-start mb-2">
-                                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Yesterday (গতকাল)</span>
+                                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Yesterday</span>
                                         <span className="text-xs font-bold">{yesterdayShift?.date || formatBST(yesterdayDate, 'dd-MMM-yyyy')}</span>
                                       </div>
                                       <h5 className="text-base font-black capitalize">{yesterdayShift?.weekday || formatBST(yesterdayDate, 'EEEE')}</h5>
@@ -3689,7 +3706,7 @@ export default function App() {
                                         <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                                       </div>
                                       <div className="flex justify-between items-start mb-2">
-                                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Today (আজকের ডিউটি)</span>
+                                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Today</span>
                                         <span className="text-xs font-bold">{todayShift?.date || formatBST(todayDate, 'dd-MMM-yyyy')}</span>
                                       </div>
                                       <h5 className="text-base font-black capitalize">{todayShift?.weekday || formatBST(todayDate, 'EEEE')}</h5>
@@ -3705,7 +3722,7 @@ export default function App() {
                                         <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-500"></span>
                                       </div>
                                       <div className="flex justify-between items-start mb-2">
-                                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Tomorrow (আগামীকাল)</span>
+                                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Tomorrow</span>
                                         <span className="text-xs font-bold">{tomorrowShift?.date || formatBST(tomorrowDate, 'dd-MMM-yyyy')}</span>
                                       </div>
                                       <h5 className="text-base font-black capitalize">{tomorrowShift?.weekday || formatBST(tomorrowDate, 'EEEE')}</h5>
@@ -3801,7 +3818,7 @@ export default function App() {
                               ) : (
                                 <div className="bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/30 p-8 rounded-2xl text-center space-y-3">
                                   <AlertTriangle className="mx-auto text-amber-500 animate-pulse" size={32} />
-                                  <h5 className="font-extrabold text-amber-800 dark:text-amber-400 text-sm">No Duty Assigned (কোনো ডিউটি খুঁজে পাওয়া যায়নি)</h5>
+                                  <h5 className="font-extrabold text-amber-800 dark:text-amber-400 text-sm">No Duty Assigned</h5>
                                   <p className="text-xs text-amber-600 dark:text-amber-500 max-w-md mx-auto leading-relaxed">
                                     No active duty hours were found matching your registered Employee ID on the uploaded roster.
                                   </p>
@@ -3860,7 +3877,7 @@ export default function App() {
                                     </div>
                                   </div>
  
-                                  <div id="admin-roster-table-container" className="overflow-x-auto border border-slate-100 dark:border-slate-800/80 rounded-2xl scrollbar-thin bg-white dark:bg-[#0b1329] p-4">
+                                  <div id="admin-roster-table-container" className="overflow-x-auto w-full max-w-full border border-slate-100 dark:border-slate-800/80 rounded-2xl scrollbar-thin bg-white dark:bg-[#0b1329] p-2 sm:p-4">
                                     <table className="w-full text-left border-collapse">
                                       <thead>
                                         <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
@@ -4125,7 +4142,7 @@ export default function App() {
                         Double Check Module Disabled
                       </h3>
                       <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
-                        ডাবল চেক সার্ভিসটি এডমিন কর্তৃক সাময়িকভাবে বন্ধ রাখা হয়েছে।
+                        Double Check service has been temporarily disabled by administrator.
                       </p>
                       <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500 mt-1">
                         Double Check feature is currently turned OFF by system administrator. Please contact your admin for access.
@@ -4338,7 +4355,7 @@ export default function App() {
                 >
                   <div className="text-center mb-6">
                     <h2 className="text-3xl font-black text-slate-800 dark:text-slate-100 tracking-tighter mb-2">
-                      Agent Profile & Settings (সেটিংস)
+                      Agent Profile & Settings
                     </h2>
                     <p className="text-slate-400 dark:text-slate-500 font-medium tracking-tight">
                       Manage your profile picture, change password, and customize your personal workspace theme.
@@ -4376,7 +4393,7 @@ export default function App() {
                     <div className="space-y-10 pt-8 border-t border-slate-200 dark:border-slate-800">
                       <div className="text-center">
                         <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-3.5 py-1.5 rounded-full border border-blue-200 dark:border-blue-800">
-                          System Administrator Controls (অ্যাডমিন সেটিংস)
+                          System Administrator Controls
                         </span>
                       </div>
 
@@ -4441,6 +4458,22 @@ export default function App() {
                     currentUser={userProfile}
                     allUsers={allUsers}
                     isAdmin={isAdmin}
+                  />
+                </motion.div>
+              )}
+
+              {activeTab === 'applications' && userProfile && (
+                <motion.div
+                  key="applications"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="max-w-7xl mx-auto pt-8 px-2"
+                >
+                  <ApplicationsManager
+                    currentUser={userProfile}
+                    allUsers={allUsers}
                   />
                 </motion.div>
               )}

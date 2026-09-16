@@ -134,7 +134,7 @@ export function ProductTracker({ data }: ProductTrackerProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full min-w-0">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
@@ -146,8 +146,8 @@ export function ProductTracker({ data }: ProductTrackerProps) {
           </div>
         </div>
         
-        <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3 w-full">
-          <div className="relative flex-1 min-w-[280px] w-full">
+        <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 min-w-0 sm:min-w-[240px] w-full">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input 
               type="text"
@@ -157,7 +157,7 @@ export function ProductTracker({ data }: ProductTrackerProps) {
               className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-xl py-2.5 pl-10 pr-4 text-[11px] font-black uppercase tracking-widest focus:ring-2 focus:ring-blue-500/20 outline-none transition-all placeholder:text-slate-400"
             />
           </div>
-          <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+          <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-full sm:w-auto justify-center">
             <button
               onClick={() => setViewMode('overall')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'overall' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
@@ -214,9 +214,9 @@ export function ProductTracker({ data }: ProductTrackerProps) {
           </div>
         </div>
 
-        <div className="md:col-span-3">
-          <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-            <div className="max-h-[500px] overflow-y-auto scrollbar-hide">
+        <div className="md:col-span-3 w-full max-w-full min-w-0">
+          <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm w-full max-w-full">
+            <div className="max-h-[500px] overflow-y-auto overflow-x-auto scrollbar-hide w-full max-w-full">
               {viewMode === 'overall' ? (
                 <table className="w-full text-left border-collapse">
                   <thead className="sticky top-0 bg-white dark:bg-slate-900 z-10">

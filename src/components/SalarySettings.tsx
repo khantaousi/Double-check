@@ -162,7 +162,7 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
     }));
 
     if (autoDetectedDetails.length > 0) {
-      setAutoDetectMsg(`✨ স্বয়ংক্রিয়ভাবে শনাক্ত ও সেট করা হয়েছে: ${autoDetectedDetails.join(' | ')}`);
+      setAutoDetectMsg(`✨ Automatically detected and configured: ${autoDetectedDetails.join(' | ')}`);
       setTimeout(() => setAutoDetectMsg(null), 5000);
     }
   };
@@ -416,7 +416,7 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
           </div>
           <div>
             <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
-              Salary & Payroll API Setup (স্যালারি এপিআই কনফিগারেশন)
+              Salary & Payroll API Setup
             </h3>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
               Only Admin can set the external API credentials for employee salary lookup
@@ -453,7 +453,7 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
           className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-3"
         >
           <CheckCircle2 size={18} className="shrink-0" />
-          <span>Salary API configuration saved successfully! (এপিআই কনফিগারেশন সফলভাবে সেভ হয়েছে)</span>
+          <span>Salary API configuration saved successfully!</span>
         </motion.div>
       )}
 
@@ -471,7 +471,7 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                 <Globe size={13} className="text-blue-500" />
-                External Salary Portal API Endpoint URL (এপিআই লিংক)
+                External Salary Portal API Endpoint URL
               </label>
               <button
                 type="button"
@@ -479,7 +479,7 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
                 className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 cursor-pointer"
               >
                 <Wand2 size={12} />
-                <span>Auto-Format & Clean URL (স্বয়ংক্রিয় ফরম্যাট)</span>
+                <span>Auto-Format & Clean URL</span>
               </button>
             </div>
             <input
@@ -507,7 +507,7 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
           <div className="md:col-span-2">
             <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5">
               <Lock size={13} className="text-amber-500" />
-              Secret API Key / Authorization Token (গোপন এপিআই কি)
+              Secret API Key / Authorization Token
             </label>
             <div className="relative">
               <input
@@ -532,7 +532,7 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
           <div>
             <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5">
               <ShieldCheck size={13} className="text-emerald-500" />
-              Authentication Method (অথেনটিকেশন ধরন)
+              Authentication Method
             </label>
             <select
               value={formData.authHeaderType}
@@ -573,7 +573,7 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
             <div>
               <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5">
                 <Sliders size={13} className="text-purple-500" />
-                Header Key Name (হেডার নাম - No spaces)
+                Header Key Name (No spaces)
               </label>
               <input
                 type="text"
@@ -640,8 +640,8 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
               disabled={!canWrite || isSaving}
               className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
             >
-              <option value="employeeId">User Employee ID (কর্মচারী আইডি - Default)</option>
-              <option value="email">User Email (ইমেইল)</option>
+              <option value="employeeId">User Employee ID (Default)</option>
+              <option value="email">User Email</option>
               <option value="loginHandle">Login Handle / Username</option>
             </select>
           </div>
@@ -649,7 +649,7 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
           {/* Admin Notes / Remarks */}
           <div className="md:col-span-2">
             <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-              Admin Notes / Remarks (নোট বা মন্তব্য - Optional)
+              Admin Notes / Remarks (Optional)
             </label>
             <input
               type="text"
@@ -665,7 +665,7 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
           <div className="md:col-span-2 flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
             <div>
               <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                Enable Salary Integration (স্যালারি পোর্টাল সক্রিয় করুন)
+                Enable Salary Integration
               </p>
               <p className="text-[10px] text-slate-400 mt-0.5">
                 When active, employees can view their salary in Salary Portal
@@ -693,7 +693,7 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
               className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
               <Save size={16} />
-              {isSaving ? 'Saving Configuration...' : 'Save API Configuration (এপিআই সেটিংস সেভ করুন)'}
+              {isSaving ? 'Saving Configuration...' : 'Save API Configuration'}
             </button>
           </div>
         )}
@@ -706,7 +706,7 @@ export function SalarySettings({ config, onSave, canWrite = true }: SalarySettin
             <div className="flex items-center gap-2">
               <Terminal size={18} className="text-indigo-500" />
               <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                Live Salary API Tester (এপিআই টেস্ট টুল)
+                Live Salary API Tester
               </h4>
             </div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">

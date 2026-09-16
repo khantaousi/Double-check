@@ -33,6 +33,9 @@ export interface UserProfile {
   isActive: boolean;    // For activating/deactivating users
   lastSeen?: string;    // ISO string of last activity
   isOnline?: boolean;   // Current online status
+  department?: string;  // e.g. 'Data & Delivery', 'DA Team', 'HR & Admin', etc.
+  designation?: string; // e.g. 'Senior Data Specialist', 'Team Leader', etc.
+  userRoleType?: 'user' | 'squad_leader' | 'team_leader' | 'hr_admin'; // Authority tier for application approvals
   permissions?: {
     dashboard: 'none' | 'read' | 'write';
     rules: 'none' | 'read' | 'write';
@@ -322,4 +325,118 @@ export interface CustomActionButton {
   createdBy?: string;
   isActive: boolean;
 }
+
+export const STANDARD_DEPARTMENTS = [
+  'Data & Delivery',
+  'DA Team',
+  'HR & Admin',
+  'Accounts',
+  'Sales',
+  'Operations',
+  'Customer Support',
+  'Quality Assurance',
+  'IT & Engineering'
+];
+
+export type ApplicationRecipient = 'squad_leader' | 'team_leader' | 'hr_admin' | 'operation_lead' | 'management' | 'other' | string;
+
+export type RecipientRoleType = ApplicationRecipient;
+
+export type ApplicationCategory = 'Leave' | 'Shift' | 'Administrative' | 'Financial' | 'Permission' | 'other' | string;
+
+export const RECIPIENT_LABELS: Record<string, string> = {
+  squad_leader: 'Squad Leader',
+  team_leader: 'Team Leader',
+  hr_admin: 'HR & Admin',
+  operation_lead: 'Operation Lead',
+  management: 'Management',
+  other: 'General Authority'
+};
+
+export type ApplicationStatus = 'draft' | 'submitted' | 'pending' | 'approved' | 'rejected' | 'archived';
+
+export interface ApplicationTemplateField {
+  id: string;
+  key?: string;            // unique identifier e.g. 'startDate', 'endDate', 'reason'
+  label: string;          // human readable e.g. 'Leave Start Date'
+  type: 'text' | 'date' | 'number' | 'textarea' | 'select';
+  placeholder?: string;
+  required: boolean;
+  options?: string[];     // for select type
+  defaultValue?: string;
+  helpText?: string;
+}
+
+export type ApplicationCustomField = ApplicationTemplateField;
+
+export interface ApplicationTemplate {
+  id: string;
+  name: string;           // e.g. 'Paid Leave', 'Casual Leave', 'Salary Advance'
+  typeKey?: string;        // e.g. 'paid_leave', 'casual_leave', 'reassignment'
+  category?: ApplicationCategory;
+  defaultRecipient?: ApplicationRecipient;
+  defaultRecipientRole?: ApplicationRecipient;
+  subjectTemplate: string;// e.g. 'Application for Paid Leave'
+  salutation?: string;    // Salutation e.g. 'Dear Sir/Madam,'
+  fixedOpening?: string;   // Salutation and opening statement
+  bodyTemplate?: string;   // Body template text
+  fixedClosing?: string;   // Formal closing statement
+  closing?: string;        // Formal closing statement e.g. 'Sincerely,'
+  fields: ApplicationTemplateField[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string;
+  createdBy?: string;
+}
+
+export interface EmployeeApplication {
+  id: string;                   // Firestore document ID
+  applicationId: string;        // Official formatted human ID: e.g. 'APP-2026-000001' or 'DRAFT-...'
+  templateId: string;
+  templateName?: string;
+  applicationType?: string;      // e.g. 'Paid Leave', 'Casual Leave', etc.
+  category?: string;
+  templateTypeKey?: string;
+  
+  // Recipient Information
+  recipient?: ApplicationRecipient;
+  recipientRole?: string;
+  recipientName?: string;
+  recipientTitle?: string;       // e.g. 'Team Leader', 'Squad Leader', 'HR & Admin'
+  recipientDepartment?: string; // e.g. 'Data & Delivery Team' or Company Name
+  
+  // Read-only Applicant Details (Frozen Snapshot at submission time)
+  userId: string;               // Auth UID
+  employeeId: string;           // Employee ID / User ID
+  userName: string;             // Full Name
+  department?: string;          // Department (permanent snapshot)
+  applicantDepartment?: string; // Synonym for department
+  designation?: string;         // Designation (permanent snapshot)
+  userEmail: string;
+  
+  // Application Letter Content
+  subject: string;
+  salutation?: string;
+  body: string;                 // Full generated letter body text
+  closing?: string;
+  fieldValues: Record<string, any>; // Editable fields entered by applicant
+  
+  // Workflow & Status
+  status: ApplicationStatus;
+  isLocked: boolean;            // True once submitted (read-only forever for user)
+  submittedAt?: string;         // ISO timestamp of submission
+  createdAt: string;
+  updatedAt?: string;
+  
+  // Approver Review & Audit
+  reviewedBy?: string;          // Approver display name
+  reviewerId?: string;          // Approver user UID
+  reviewerRole?: string;        // Approver role/title
+  reviewedAt?: string;          // ISO timestamp of review
+  adminComment?: string;        // Official remark / note / feedback
+  
+  // Archive/Soft Delete flag
+  isArchived?: boolean;
+}
+
 

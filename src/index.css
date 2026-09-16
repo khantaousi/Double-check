@@ -23,6 +23,17 @@
     color-scheme: dark;
   }
 
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html, body, #root {
+    width: 100%;
+    max-width: 100%;
+    min-height: 100%;
+    overflow-x: hidden;
+  }
+
   body {
     @apply transition-colors duration-300;
   }

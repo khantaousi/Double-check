@@ -49,7 +49,7 @@ export function AgentProfileSettings({
       onProfileUpdated({ birthday: formattedBirthday });
     }
 
-    setBirthdayMessage({ type: 'success', text: 'Birthday updated successfully! (জন্মতারিখ সফলভাবে আপডেট করা হয়েছে)' });
+    setBirthdayMessage({ type: 'success', text: 'Birthday updated successfully!' });
 
     try {
       await updateDoc(doc(db, 'users', user.uid), cleanObject({
@@ -243,7 +243,7 @@ export function AgentProfileSettings({
           </div>
           <div>
             <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
-              Profile Picture (প্রোফাইল ছবি)
+              Profile Picture
             </h3>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
               Upload or update your account avatar
@@ -345,7 +345,7 @@ export function AgentProfileSettings({
           </div>
           <div>
             <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
-              Birthday (জন্মতারিখ)
+              Birthday
             </h3>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
               Set or update your birth date
@@ -367,7 +367,7 @@ export function AgentProfileSettings({
         <form onSubmit={handleBirthdaySubmit} className="space-y-4 max-w-xl">
           <div>
             <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-              Birthday Date (জন্মতারিখ নির্বাচন করুন)
+              Birthday Date
             </label>
             <input
               type="date"
@@ -385,7 +385,7 @@ export function AgentProfileSettings({
             className="w-full sm:w-auto px-6 py-3 bg-pink-600 hover:bg-pink-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-pink-500/20 active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             <Cake size={14} />
-            {isUpdatingBirthday ? 'Updating...' : 'Save Birthday (জন্মতারিখ আপডেট করুন)'}
+            {isUpdatingBirthday ? 'Updating...' : 'Save Birthday'}
           </button>
         </form>
       </div>
@@ -398,7 +398,7 @@ export function AgentProfileSettings({
           </div>
           <div>
             <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
-              Change Password (পাসওয়ার্ড পরিবর্তন)
+              Change Password
             </h3>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
               Secure your account with a new password
@@ -424,7 +424,7 @@ export function AgentProfileSettings({
           {/* Current Password */}
           <div>
             <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-              Current Password (বর্তমান পাসওয়ার্ড)
+              Current Password
             </label>
             <div className="relative">
               <input
@@ -449,7 +449,7 @@ export function AgentProfileSettings({
           {/* New Password */}
           <div>
             <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-              New Password (নতুন পাসওয়ার্ড)
+              New Password
             </label>
             <div className="relative">
               <input
@@ -475,7 +475,7 @@ export function AgentProfileSettings({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Confirm New Password (নতুন পাসওয়ার্ড নিশ্চিত করুন)
+                Confirm New Password
               </label>
               {confirmPassword.length > 0 && (
                 <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-md border flex items-center gap-1 transition-all ${
@@ -529,7 +529,7 @@ export function AgentProfileSettings({
             className="w-full sm:w-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-indigo-500/20 active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
           >
             <Lock size={14} />
-            {isChangingPassword ? 'Updating Password...' : 'Update Password (পাসওয়ার্ড আপডেট করুন)'}
+            {isChangingPassword ? 'Updating Password...' : 'Update Password'}
           </button>
         </form>
       </div>
@@ -542,7 +542,7 @@ export function AgentProfileSettings({
           </div>
           <div>
             <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
-              Personal UI Theme (ব্যক্তিগত থিম নির্বাচন)
+              Personal UI Theme
             </h3>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
               Customize workspace appearance for your device only
@@ -596,7 +596,7 @@ export function AgentProfileSettings({
           })}
         </div>
 
-        {/* 4. Custom Theme Color Picker (কাস্টম কালার থিম) */}
+        {/* 4. Custom Theme Color Picker */}
         <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
           <div className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -637,7 +637,7 @@ export function AgentProfileSettings({
               <div>
                 <div className="flex items-center gap-2">
                   <h5 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
-                    Custom Color Theme (কাস্টম থিম)
+                    Custom Color Theme
                   </h5>
                   {(activeTheme.startsWith('custom:') || activeTheme.startsWith('#')) && (
                     <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-purple-500 text-white">
@@ -716,7 +716,7 @@ export function AgentProfileSettings({
                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-purple-500/20 active:scale-95 flex items-center gap-2 cursor-pointer shrink-0"
               >
                 <Palette size={14} />
-                Pick RGB Color (কালার সিলেক্ট করুন)
+                Pick RGB Color
               </button>
             </div>
           </div>

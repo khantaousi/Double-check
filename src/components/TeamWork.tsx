@@ -902,7 +902,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   const assignableUsers = (allUsers || []).filter(u => u.isActive);
 
   return (
-    <div className="space-y-5 pb-20 relative">
+    <div className="space-y-5 pb-20 relative w-full max-w-full min-w-0">
       {/* Background Decor */}
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/5 dark:bg-blue-500/10 rounded-full blur-[120px] pointer-events-none -z-10" />
       <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none -z-10" />
@@ -911,19 +911,19 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 mb-12 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-10 rounded-[3.5rem] border border-white/40 dark:border-slate-800 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.08)] relative overflow-hidden"
+        className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 sm:gap-8 mb-8 sm:mb-12 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-5 sm:p-8 lg:p-10 rounded-3xl sm:rounded-[3.5rem] border border-white/40 dark:border-slate-800 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.08)] relative overflow-hidden w-full max-w-full min-w-0"
       >
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
         
-        <div className="flex items-center gap-8 relative z-10">
+        <div className="flex items-center gap-4 sm:gap-8 relative z-10">
           <div className="flex flex-col items-center gap-2">
-            <div className="w-14 h-20 bg-gradient-to-b from-blue-500 to-blue-700 rounded-[2.5rem] flex items-center justify-center text-white shadow-[0_20px_40px_-10px_rgba(37,99,235,0.4)] border border-white/10 relative overflow-hidden group">
+            <div className="w-12 h-16 sm:w-14 sm:h-20 bg-gradient-to-b from-blue-500 to-blue-700 rounded-2xl sm:rounded-[2.5rem] flex items-center justify-center text-white shadow-[0_20px_40px_-10px_rgba(37,99,235,0.4)] border border-white/10 relative overflow-hidden group shrink-0">
               <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <Layout className="w-7 h-7 relative z-10 drop-shadow-md" strokeWidth={2.5} />
+              <Layout className="w-6 h-6 sm:w-7 sm:h-7 relative z-10 drop-shadow-md" strokeWidth={2.5} />
             </div>
           </div>
           <div>
-            <h2 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none mb-3">Team Work</h2>
+            <h2 className="text-2xl sm:text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none mb-2 sm:mb-3">Team Work</h2>
             <div className="flex items-center gap-3 mb-2">
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.4)] animate-pulse" />
               <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] leading-none opacity-80">
@@ -1367,7 +1367,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
               </div>
 
               {isAdmin && (
-                <div className="flex flex-col gap-2 min-w-[200px]">
+                <div className="flex flex-col gap-2 min-w-0 sm:min-w-[200px] w-full sm:w-auto">
                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 opacity-60">Agent Filter</span>
                   <div className="relative group">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-focus-within:text-blue-500 transition-colors" size={14} />

@@ -15,8 +15,8 @@ export const DataTable: React.FC<DataTableProps> = ({ data, onUpdatePrice, canEd
   const mismatchCount = data.filter(r => r.isMismatch || r.isDuplicate || r.isInvalid).length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 w-full max-w-full min-w-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
             <BarChart3 size={14} className="text-blue-500" />
@@ -29,16 +29,16 @@ export const DataTable: React.FC<DataTableProps> = ({ data, onUpdatePrice, canEd
         
         <button 
           onClick={() => generateStyledExcel(data)}
-          className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg text-xs font-bold shadow-lg shadow-blue-500/20 dark:shadow-blue-900/40 hover:bg-blue-700 transition-all active:scale-[0.98]"
+          className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg text-xs font-bold shadow-lg shadow-blue-500/20 dark:shadow-blue-900/40 hover:bg-blue-700 transition-all active:scale-[0.98] self-start sm:self-auto"
         >
           <Download size={14} />
           Export Report
         </button>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm shadow-slate-100 dark:shadow-none transition-colors duration-300">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[1000px]">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm shadow-slate-100 dark:shadow-none transition-colors duration-300 w-full max-w-full">
+        <div className="overflow-x-auto w-full max-w-full">
+          <table className="w-full text-left border-collapse min-w-[750px] md:min-w-[900px] lg:min-w-[1000px]">
             <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
             <tr className="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-[0.15em]">
                 <th className="p-4 pl-6">

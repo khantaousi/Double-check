@@ -1521,7 +1521,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                   </span>
                 </h3>
                 <p className="text-xs text-amber-800 dark:text-amber-300 font-medium">
-                  কে কার কাছে ফোন হস্তান্তরের অনুরোধ পাঠিয়েছে এবং কার অ্যাপ্রুভ করা বাকি তা নিচে বিস্তারিত দেওয়া হলো:
+                  Detailed breakdown of phone handover requests and pending approvals:
                 </p>
               </div>
             </div>
@@ -1554,12 +1554,12 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     {/* From & To Badges */}
                     <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl text-xs">
                       <div>
-                        <span className="text-[10px] font-bold text-slate-400 block">From (হস্তান্তরকারী):</span>
+                        <span className="text-[10px] font-bold text-slate-400 block">From:</span>
                         <strong className="text-slate-800 dark:text-slate-200 block truncate">{sender.name}</strong>
                         <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">{sender.empId ? `ID: ${sender.empId}` : ''}</span>
                       </div>
                       <div>
-                        <span className="text-[10px] font-bold text-slate-400 block">To (গ্রহীতা):</span>
+                        <span className="text-[10px] font-bold text-slate-400 block">To:</span>
                         <strong className="text-slate-800 dark:text-slate-200 block truncate">{receiver.name}</strong>
                         <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">{receiver.empId ? `ID: ${receiver.empId}` : ''}</span>
                       </div>
@@ -1568,24 +1568,24 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                     {/* Clear breakdown: Who requested & Who has not approved */}
                     <div className="space-y-1.5 text-xs">
                       <div className="flex items-start gap-1.5 text-slate-600 dark:text-slate-300">
-                        <span className="text-slate-400 font-bold shrink-0">অনুরোধ পাঠিয়েছে:</span>
+                        <span className="text-slate-400 font-bold shrink-0">Requested By:</span>
                         <span className="font-bold text-indigo-600 dark:text-indigo-400">
-                          {requester.fullDisplay} {isClaim ? '(দাবি করেছে)' : '(হস্তান্তর পাঠিয়েছে)'}
+                          {requester.fullDisplay} {isClaim ? '(Claimed)' : '(Transferred)'}
                         </span>
                       </div>
 
                       <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 p-2.5 rounded-xl text-rose-800 dark:text-rose-300 space-y-0.5">
                         <div className="flex items-center gap-1.5 font-black text-[11px]">
                           <AlertTriangle size={13} className="text-rose-600 shrink-0" />
-                          <span>কে এখনো অ্যাপ্রুভ করেনি (Pending Approval):</span>
+                          <span>Pending Approval From:</span>
                         </div>
                         <p className="font-extrabold text-xs pl-4 underline decoration-rose-400 text-rose-900 dark:text-rose-200">
                           {pendingApprover.fullDisplay}
                         </p>
                         <p className="text-[10px] text-rose-600 dark:text-rose-400 pl-4 font-medium">
                           {isClaim 
-                            ? 'বর্তমান ধারক ফোনটি দেওয়ার অনুমতি এখনো দেয়নি।'
-                            : 'গ্রহীতা মিসড/ব্যাক কল ভেরিফাই করে এখনো গ্রহণ করেনি।'
+                            ? 'Current holder has not approved the transfer yet.'
+                            : 'Receiver has not verified and accepted the transfer yet.'
                           }
                         </p>
                       </div>
@@ -1951,7 +1951,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                       <div className="bg-slate-50 dark:bg-slate-800/80 p-4 rounded-2xl space-y-2 border border-slate-100 dark:border-slate-700">
                         {isAvailable ? (
                           <div className="text-center py-2 text-xs font-bold text-slate-500 dark:text-slate-300">
-                            ফোনটি বর্তমানে অফিসে জমা আছে। যে কেউ কাজ শুরু করতে এটি নিজের কাছে নিতে পারেন।
+                            The phone is currently deposited at the office. Any agent can take it to start duty.
                           </div>
                         ) : (
                           <>
@@ -2008,7 +2008,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
                                   <div className="grid grid-cols-2 gap-2 text-[11px] bg-white/70 dark:bg-slate-900/60 p-2 rounded-xl border border-amber-200/50 dark:border-amber-900/30">
                                     <div>
-                                      <span className="text-slate-500 dark:text-slate-400 block text-[10px] font-bold">From (হস্তান্তরকারী):</span>
+                                      <span className="text-slate-500 dark:text-slate-400 block text-[10px] font-bold">From:</span>
                                       <strong className="text-slate-800 dark:text-slate-100 truncate block">
                                         {sender.name}
                                       </strong>
@@ -2017,7 +2017,7 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
                                       </span>
                                     </div>
                                     <div>
-                                      <span className="text-slate-500 dark:text-slate-400 block text-[10px] font-bold">To (গ্রহীতা):</span>
+                                      <span className="text-slate-500 dark:text-slate-400 block text-[10px] font-bold">To:</span>
                                       <strong className="text-slate-800 dark:text-slate-100 truncate block">
                                         {receiver.name}
                                       </strong>
@@ -2029,24 +2029,24 @@ export const PhoneTracker: React.FC<PhoneTrackerProps> = ({
 
                                   <div className="space-y-1 text-[11px]">
                                     <div className="flex items-start gap-1 text-slate-700 dark:text-slate-300">
-                                      <span className="text-slate-500 dark:text-slate-400 font-bold shrink-0">অনুরোধ পাঠিয়েছে:</span>
+                                      <span className="text-slate-500 dark:text-slate-400 font-bold shrink-0">Requested By:</span>
                                       <span className="font-bold text-indigo-700 dark:text-indigo-300">
-                                        {requester.fullDisplay} {isClaim ? '(দাবি করেছে)' : '(হস্তান্তর পাঠিয়েছে)'}
+                                        {requester.fullDisplay} {isClaim ? '(Claimed)' : '(Transferred)'}
                                       </span>
                                     </div>
 
                                     <div className="bg-rose-50/90 dark:bg-rose-950/30 p-2 rounded-xl border border-rose-200/60 dark:border-rose-900/40 text-rose-800 dark:text-rose-300 space-y-0.5">
                                       <div className="flex items-center gap-1 font-black text-[11px]">
                                         <AlertTriangle size={12} className="shrink-0 text-rose-600" />
-                                        <span>কে এখনো অ্যাপ্রুভ করেনি:</span>
+                                        <span>Pending Approval From:</span>
                                       </div>
                                       <p className="font-extrabold text-xs pl-3.5 underline decoration-rose-400 text-rose-900 dark:text-rose-200">
                                         {pendingApprover.fullDisplay}
                                       </p>
                                       <p className="text-[10px] text-rose-600 dark:text-rose-400 pl-3.5">
                                         {isClaim
-                                          ? 'বর্তমান ধারক ফোন হস্তান্তর অনুমোদন এখনো দেয়নি।'
-                                          : 'গ্রহীতা মিসড/ব্যাক কল কাউন্ট ভেরিফাই করে এখনো গ্রহণ করেনি।'
+                                          ? 'Current holder has not approved the transfer yet.'
+                                          : 'Receiver has not verified and accepted the transfer yet.'
                                         }
                                       </p>
                                     </div>

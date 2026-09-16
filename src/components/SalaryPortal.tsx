@@ -128,7 +128,7 @@ export function SalaryPortal({
     };
 
     // 2. Build a dynamic key-value item map for array-based items
-    // (e.g. [{ title: "Net Take-Home Salary", amount: "৳ ১২,৯৯৯" }, ...])
+    // (e.g. [{ title: "Net Take-Home Salary", amount: "12,999" }, ...])
     const itemMap: Record<string, any> = {};
     for (const obj of allCandidateObjects) {
       const labelVal = obj.label || obj.title || obj.name || obj.item || obj.key || obj.description || obj.field;
@@ -308,14 +308,14 @@ export function SalaryPortal({
     const displayName = employeeObj?.name || empName;
 
     const breakdownItems: { label: string; amount: number; type: 'earning' | 'deduction' }[] = [];
-    if (gross > 0) breakdownItems.push({ label: 'Gross Salary (মোট মূল বেতন)', amount: gross, type: 'earning' });
-    else if (basic > 0) breakdownItems.push({ label: 'Basic Salary (মূল বেতন)', amount: basic, type: 'earning' });
-    if (bonus > 0) breakdownItems.push({ label: 'Bonus / Incentives (বোনাস)', amount: bonus, type: 'earning' });
-    if (allowances > 0) breakdownItems.push({ label: 'Allowances & House Rent (ভাতা)', amount: allowances, type: 'earning' });
-    if (overtime > 0) breakdownItems.push({ label: 'Overtime Pay (ওভারটাইম)', amount: overtime, type: 'earning' });
-    if (deductions > 0) breakdownItems.push({ label: 'Fine & Deductions (জরিমানা ও কর্তন)', amount: deductions, type: 'deduction' });
-    if (tax > 0) breakdownItems.push({ label: 'Tax Deduction (আয়কর)', amount: tax, type: 'deduction' });
-    if (pf > 0) breakdownItems.push({ label: 'Provident Fund (পিএফ)', amount: pf, type: 'deduction' });
+    if (gross > 0) breakdownItems.push({ label: 'Gross Salary', amount: gross, type: 'earning' });
+    else if (basic > 0) breakdownItems.push({ label: 'Basic Salary', amount: basic, type: 'earning' });
+    if (bonus > 0) breakdownItems.push({ label: 'Bonus / Incentives', amount: bonus, type: 'earning' });
+    if (allowances > 0) breakdownItems.push({ label: 'Allowances & House Rent', amount: allowances, type: 'earning' });
+    if (overtime > 0) breakdownItems.push({ label: 'Overtime Pay', amount: overtime, type: 'earning' });
+    if (deductions > 0) breakdownItems.push({ label: 'Fine & Deductions', amount: deductions, type: 'deduction' });
+    if (tax > 0) breakdownItems.push({ label: 'Tax Deduction', amount: tax, type: 'deduction' });
+    if (pf > 0) breakdownItems.push({ label: 'Provident Fund', amount: pf, type: 'deduction' });
 
     return {
       employeeId: employeeObj?.employee_id || empId,
@@ -553,7 +553,7 @@ export function SalaryPortal({
         
         let errMsg = '';
         if (typeof remoteMsg === 'string' && (remoteMsg.includes('The page') || remoteMsg.includes('<!DOCTYPE') || remoteMsg.includes('Not Found'))) {
-          errMsg = `External API Endpoint পাওয়া যায়নি (HTTP ${statusCode}). API URL ভুল বা সার্ভার নিষ্ক্রিয়। দয়া করে Settings-এ গিয়ে সঠিক API Link প্রদান করুন।`;
+          errMsg = `External API Endpoint not found (HTTP ${statusCode}). The API URL may be incorrect or the server is down. Please verify the API Link in Settings.`;
         } else if (statusCode === 404) {
           errMsg = `Employee ID "${empId}" was not found in the payroll system (HTTP 404 Not Found).`;
         } else if (statusCode === 401 || statusCode === 403) {
@@ -603,7 +603,7 @@ export function SalaryPortal({
   });
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-12">
+    <div className="max-w-6xl mx-auto space-y-8 pb-12 w-full max-w-full min-w-0">
       {/* Top Header Card */}
       <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -613,7 +613,7 @@ export function SalaryPortal({
             </div>
             <div>
               <h2 className="text-xl sm:text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight flex items-center gap-2">
-                Salary & Payroll Portal (বেতন ও পে-স্লিপ)
+                Salary & Payroll Portal
               </h2>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                 View your monthly compensation, deductions, and payment status securely
@@ -777,7 +777,7 @@ export function SalaryPortal({
           <AlertTriangle size={22} className="shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
           <div className="space-y-1 text-xs">
             <h4 className="font-black uppercase tracking-tight text-sm">
-              Employee ID Missing (কর্মচারী আইডি যুক্ত নেই)
+              Employee ID Missing
             </h4>
             <p className="font-medium text-amber-700 dark:text-amber-300">
               Your profile does not have an Employee ID assigned. The salary portal queries external payroll systems using your unique Employee ID.
@@ -803,7 +803,7 @@ export function SalaryPortal({
           </div>
           <div className="max-w-md mx-auto space-y-1">
             <h3 className="text-base font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
-              Salary API Not Configured (স্যালারি এপিআই সংযুক্ত নেই)
+              Salary API Not Configured
             </h3>
             <p className="text-xs font-medium text-slate-400">
               Only system administrators can configure the external Salary & Payroll API Key and Endpoint in the Settings tab.
@@ -816,7 +816,7 @@ export function SalaryPortal({
               className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-blue-500/20 active:scale-95 inline-flex items-center gap-2"
             >
               <SettingsIcon size={16} />
-              <span>Configure Salary API in Settings (এপিআই সেট করুন)</span>
+              <span>Configure Salary API in Settings</span>
             </button>
           )}
         </div>
@@ -874,7 +874,7 @@ export function SalaryPortal({
                     {salaryData.month} {salaryData.year} Pay Statement
                   </span>
                   <h3 className="text-sm font-bold text-emerald-100 mt-3">
-                    Net Take-Home Salary (মোট প্রদেয় বেতন)
+                    Net Take-Home Salary
                   </h3>
                   <p className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight mt-1">
                     ৳ {salaryData.netSalary.toLocaleString('en-IN')}
@@ -911,7 +911,7 @@ export function SalaryPortal({
                     className="px-4 py-2 rounded-xl bg-white text-emerald-900 hover:bg-emerald-50 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
                   >
                     <Receipt size={14} />
-                    <span>View Official Pay Slip (পে-স্লিপ)</span>
+                    <span>View Official Pay Slip</span>
                   </button>
                 </div>
               </div>
@@ -927,7 +927,7 @@ export function SalaryPortal({
               <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                    Total Gross Earnings (মোট আয়)
+                    Total Gross Earnings
                   </p>
                   <p className="text-xl font-black text-slate-800 dark:text-slate-100 mt-0.5">
                     ৳ {(salaryData.totalEarnings || salaryData.grossSalary || salaryData.netSalary).toLocaleString('en-IN')}
@@ -942,7 +942,7 @@ export function SalaryPortal({
               <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                    Total Deductions (মোট কর্তন)
+                    Total Deductions
                   </p>
                   <p className="text-xl font-black text-red-600 dark:text-red-400 mt-0.5">
                     ৳ {(salaryData.totalDeductions || 0).toLocaleString('en-IN')}
@@ -970,13 +970,13 @@ export function SalaryPortal({
                   <TrendingUp size={16} />
                 </div>
                 <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                  Earnings & Allowances (আয় বিবরণী)
+                  Earnings & Allowances
                 </h4>
               </div>
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs py-1.5 border-b border-slate-50 dark:border-slate-800/60">
-                  <span className="font-bold text-slate-600 dark:text-slate-300">Basic Salary (মূল বেতন)</span>
+                  <span className="font-bold text-slate-600 dark:text-slate-300">Basic Salary</span>
                   <span className="font-black font-mono text-slate-800 dark:text-slate-100">
                     ৳ {(salaryData.basicSalary || salaryData.netSalary).toLocaleString('en-IN')}
                   </span>
@@ -1025,14 +1025,14 @@ export function SalaryPortal({
                   <TrendingDown size={16} />
                 </div>
                 <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                  Deductions & Contributions (কর্তন বিবরণী)
+                  Deductions & Contributions
                 </h4>
               </div>
 
               <div className="space-y-3">
                 {(salaryData.deductions || 0) > 0 && (
                   <div className="flex items-center justify-between text-xs py-1.5 border-b border-slate-50 dark:border-slate-800/60">
-                    <span className="font-bold text-slate-600 dark:text-slate-300">Fine & Deductions (জরিমানা ও কর্তন)</span>
+                    <span className="font-bold text-slate-600 dark:text-slate-300">Fine & Deductions</span>
                     <span className="font-black font-mono text-red-600 dark:text-red-400">
                       - ৳ {(salaryData.deductions || 0).toLocaleString('en-IN')}
                     </span>
@@ -1173,7 +1173,7 @@ export function SalaryPortal({
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
                     <tr>
-                      <td className="py-2.5 text-slate-700 dark:text-slate-300">Basic Salary (মূল বেতন)</td>
+                      <td className="py-2.5 text-slate-700 dark:text-slate-300">Basic Salary</td>
                       <td className="py-2.5 text-right font-mono font-bold text-slate-800 dark:text-slate-100">
                         ৳ {(salaryData.basicSalary || salaryData.netSalary).toLocaleString('en-IN')}
                       </td>
@@ -1213,7 +1213,7 @@ export function SalaryPortal({
                   </tbody>
                   <tfoot>
                     <tr className="border-t-2 border-slate-300 dark:border-slate-700 text-sm font-black">
-                      <td className="py-3 text-slate-900 dark:text-slate-100">Net Payable Amount (মোট প্রদেয় বেতন):</td>
+                      <td className="py-3 text-slate-900 dark:text-slate-100">Net Payable Amount:</td>
                       <td className="py-3 text-right font-mono text-emerald-600 dark:text-emerald-400">
                         ৳ {salaryData.netSalary.toLocaleString('en-IN')}
                       </td>

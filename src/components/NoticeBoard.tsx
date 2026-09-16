@@ -160,7 +160,7 @@ export const NoticeBoard: React.FC<NoticeBoardProps> = ({ notices, userProfile }
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 flex items-center gap-1.5">
                       <Clock size={12} className="text-amber-500" />
-                      <span>Duration in Days (সময়সীমা দিন হিসেবে) - Optional</span>
+                      <span>Duration in Days - Optional</span>
                     </label>
                     <input
                       type="number"
@@ -175,7 +175,7 @@ export const NoticeBoard: React.FC<NoticeBoardProps> = ({ notices, userProfile }
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 flex items-center gap-1.5">
                       <Clock size={12} className="text-blue-500" />
-                      <span>Scroll Speed in Seconds (স্ক্রোল স্পিড সেকেন্ডে)</span>
+                      <span>Scroll Speed in Seconds</span>
                     </label>
                     <input
                       type="number"
@@ -223,7 +223,7 @@ export const NoticeBoard: React.FC<NoticeBoardProps> = ({ notices, userProfile }
             <div className="bg-amber-50/60 dark:bg-amber-950/20 p-6 rounded-3xl border border-amber-200 dark:border-amber-800">
               <h3 className="text-sm font-black text-amber-800 dark:text-amber-300 uppercase tracking-tighter mb-4 flex items-center gap-2">
                 <Edit2 size={16} />
-                Edit Notice (নোটিশ এডিট করুন)
+                Edit Notice
               </h3>
               
               <div className="space-y-4">
@@ -265,7 +265,7 @@ export const NoticeBoard: React.FC<NoticeBoardProps> = ({ notices, userProfile }
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 flex items-center gap-1.5">
                       <Clock size={12} className="text-blue-500" />
-                      <span>Scroll Speed in Seconds (স্ক্রোল স্পিড)</span>
+                      <span>Scroll Speed in Seconds</span>
                     </label>
                     <input
                       type="number"
@@ -320,14 +320,14 @@ export const NoticeBoard: React.FC<NoticeBoardProps> = ({ notices, userProfile }
                     <button 
                       onClick={() => handleStartEdit(notice)}
                       className="text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 p-2 rounded-xl transition-colors"
-                      title="Edit Notice (এডিট করুন)"
+                      title="Edit Notice"
                     >
                       <Edit2 size={16} />
                     </button>
                     <button 
                       onClick={() => handleDelete(notice.id!)}
                       className="text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-xl transition-colors"
-                      title="Delete Notice (ডিলিট করুন)"
+                      title="Delete Notice"
                     >
                       <Trash2 size={16} />
                     </button>

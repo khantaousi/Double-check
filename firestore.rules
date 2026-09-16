@@ -202,5 +202,29 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if isSignedIn();
     }
+
+    // 13. Employee Applications
+    match /applications/{applicationId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (incoming().userId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && (
+        // Admin or Approvers can update status, remarks, reviewedBy etc.
+        isAdmin() ||
+        // Applicant can update their draft before lock/submission
+        (isOwner(existing().userId) && existing().status == 'draft' && existing().get('isLocked', false) == false) ||
+        // Status update by approvers
+        incoming().diff(existing()).affectedKeys().hasAny(['status', 'adminComment', 'reviewedBy', 'reviewerId', 'reviewerRole', 'reviewedAt', 'updatedAt'])
+      );
+      allow delete: if isSignedIn() && (
+        isAdmin() ||
+        (isOwner(existing().userId) && existing().status == 'draft')
+      );
+    }
+
+    // 14. Application Templates
+    match /application_templates/{templateId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
   }
 }

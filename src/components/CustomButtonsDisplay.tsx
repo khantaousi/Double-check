@@ -75,7 +75,7 @@ export function CustomButtonsDisplay({
           </div>
           <div>
             <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              Quick Actions & Portals (কুইক বাটন ও ডিরেক্ট লিঙ্ক)
+              Quick Actions & Portals
             </h4>
           </div>
         </div>

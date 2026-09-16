@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { UserProfile } from '../types';
-import { Shield, UserCheck, ShieldAlert, Plus, Mail, Lock, X, Activity, ToggleLeft, ToggleRight, Fingerprint, User, CheckCircle2, Clock, ChevronDown, ChevronUp, LayoutDashboard, BookOpen, Package, Settings, Printer, Eye, EyeOff } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { UserProfile, STANDARD_DEPARTMENTS } from '../types';
+import { Shield, UserCheck, ShieldAlert, Plus, Mail, Lock, X, Activity, ToggleLeft, ToggleRight, Fingerprint, User, CheckCircle2, Clock, ChevronDown, ChevronUp, LayoutDashboard, BookOpen, Package, Settings, Printer, Eye, EyeOff, Briefcase, Award } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { secondaryAuth, secondaryDb, db, auth } from '../lib/firebase';
 import { getInitials, getAvatarColor } from '../lib/avatar';
@@ -84,6 +84,30 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
 
   const displayUsers = localUsers.length > 0 ? localUsers : propUsers;
 
+  // Extract all currently active departments and designations from existing users
+  const existingDepartments = useMemo(() => {
+    const set = new Set<string>();
+    displayUsers.forEach(u => {
+      const d = u.department?.trim();
+      if (d) set.add(d);
+    });
+    // Include STANDARD_DEPARTMENTS as base recommendations if none exist
+    if (set.size === 0) {
+      STANDARD_DEPARTMENTS.forEach(d => set.add(d));
+    }
+    return Array.from(set).sort();
+  }, [displayUsers]);
+
+  const existingDesignations = useMemo(() => {
+    const set = new Set<string>();
+    displayUsers.forEach(u => {
+      const d = u.designation?.trim();
+      if (d) set.add(d);
+    });
+    return Array.from(set).sort();
+  }, [displayUsers]);
+
+  const [filterDepartment, setFilterDepartment] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editTarget, setEditTarget] = useState<UserProfile | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
@@ -96,6 +120,10 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
   const [employeeId, setEmployeeId] = useState('');
   const [joiningDate, setJoiningDate] = useState('');
   const [birthday, setBirthday] = useState('');
+  const [department, setDepartment] = useState('Data & Delivery');
+  const [customDepartment, setCustomDepartment] = useState('');
+  const [designation, setDesignation] = useState('');
+  const [userRoleType, setUserRoleType] = useState<'user' | 'squad_leader' | 'team_leader' | 'hr_admin'>('user');
   const [role, setRole] = useState<'admin' | 'user'>('user');
   const [isCreating, setIsCreating] = useState(false);
   const [now, setNow] = useState(new Date());
@@ -182,6 +210,7 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
       
       console.log('User created:', userCred.user.uid);
       
+      const selectedDept = department.trim() || 'General';
       const profile: UserProfile = {
         email: email,
         loginHandle: email,
@@ -191,6 +220,9 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
         employeeId: employeeId,
         joiningDate: joiningDate || '',
         birthday: birthday || '',
+        department: selectedDept,
+        designation: designation.trim() || '',
+        userRoleType: userRoleType || 'user',
         createdAt: getBSTISOString(),
         isActive: true
       };
@@ -216,6 +248,9 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
       setEmployeeId('');
       setJoiningDate('');
       setBirthday('');
+      setDepartment('');
+      setCustomDepartment('');
+      setDesignation('');
       setPassword('');
       setConfirmPassword('');
       setShowPassword(false);
@@ -274,7 +309,10 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
       permissions: editTarget.permissions,
       employeeId: editTarget.employeeId || '',
       joiningDate: editTarget.joiningDate || '',
-      birthday: editTarget.birthday || ''
+      birthday: editTarget.birthday || '',
+      department: editTarget.department || 'Data & Delivery',
+      designation: editTarget.designation || '',
+      userRoleType: editTarget.userRoleType || 'user'
     };
 
     const updatedUserObj: UserProfile = {
@@ -353,21 +391,41 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
     }
   };
 
+  const visibleUsers = filterDepartment === 'all' 
+    ? displayUsers 
+    : displayUsers.filter(u => u.department === filterDepartment);
+
   return (
-    <div className="space-y-6">
-      <div className="flex justify-end">
+    <div className="space-y-6 w-full max-w-full min-w-0">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Department:</span>
+          <select
+            value={filterDepartment}
+            onChange={e => setFilterDepartment(e.target.value)}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500/20 shadow-xs"
+          >
+            <option value="all">All Departments ({displayUsers.length})</option>
+            {existingDepartments.map(d => (
+              <option key={d} value={d}>
+                {d} ({displayUsers.filter(u => u.department === d).length})
+              </option>
+            ))}
+          </select>
+        </div>
+
         <button 
           onClick={() => setShowAddModal(true)}
-          className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 hover:bg-blue-700 transition-all active:scale-95"
+          className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-blue-700 transition-all active:scale-95 shadow-sm"
         >
           <Plus size={18} />
           Create Personnel
         </button>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[1150px]">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm w-full max-w-full">
+        <div className="overflow-x-auto w-full max-w-full">
+          <table className="w-full text-left border-collapse min-w-[700px] md:min-w-[900px] lg:min-w-[1100px]">
           <thead>
             <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 text-[10px] font-bold uppercase tracking-widest text-slate-400">
               <th className="w-12 py-4 pl-6 pr-0 text-center">Access</th>
@@ -378,7 +436,7 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {displayUsers.map((user) => (
+            {visibleUsers.map((user) => (
               <React.Fragment key={user.id}>
                 <motion.tr 
                   initial={{ opacity: 0 }} 
@@ -416,6 +474,23 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
                           <p className="text-sm font-black text-slate-800 dark:text-slate-100">{user.displayName || 'No Name'}</p>
                           {isUserOnline(user) && (
                             <span className="flex h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40">
+                            <Briefcase size={10} />
+                            {user.department || 'Data & Delivery'}
+                          </span>
+                          {user.designation && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800">
+                              {user.designation}
+                            </span>
+                          )}
+                          {user.userRoleType && user.userRoleType !== 'user' && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40">
+                              <Award size={10} />
+                              {user.userRoleType === 'squad_leader' ? 'Squad Leader' : user.userRoleType === 'team_leader' ? 'Team Leader' : 'HR & Admin'}
+                            </span>
                           )}
                         </div>
                         <div className="flex flex-col gap-0.5 mt-0.5">
@@ -649,24 +724,124 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
                 </div>
               )}
 
-              <div className="space-y-6">
+              <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Display Name (Agent Name)</label>
-                  <input type="text" value={editTarget.displayName || ''} onChange={e => setEditTarget({...editTarget, displayName: e.target.value})} className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20" />
+                  <input type="text" value={editTarget.displayName || ''} onChange={e => setEditTarget({...editTarget, displayName: e.target.value})} className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Employee ID</label>
-                  <input type="text" value={editTarget.employeeId || ''} onChange={e => setEditTarget({...editTarget, employeeId: e.target.value})} placeholder="e.g. EMP420" className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20" />
+                  <input type="text" value={editTarget.employeeId || ''} onChange={e => setEditTarget({...editTarget, employeeId: e.target.value})} placeholder="e.g. EMP420" className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100" />
                 </div>
+                
+                {/* Department */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Joining Date</label>
-                  <input type="date" value={editTarget.joiningDate || ''} onChange={e => setEditTarget({...editTarget, joiningDate: e.target.value})} className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20" />
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex items-center justify-between">
+                    <span>Department</span>
+                    <span className="text-blue-500 text-[9px] font-semibold">Auto-fills applications</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      list="existing-depts-edit-list"
+                      placeholder="Type department name (e.g. Data & Delivery, Sales, HR)..."
+                      value={editTarget.department || ''}
+                      onChange={e => setEditTarget({ ...editTarget, department: e.target.value })}
+                      className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100"
+                    />
+                    <datalist id="existing-depts-edit-list">
+                      {existingDepartments.map(dept => (
+                        <option key={dept} value={dept} />
+                      ))}
+                    </datalist>
+                  </div>
+                  {existingDepartments.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                      <span className="text-[9px] text-slate-400 font-bold uppercase">Quick select:</span>
+                      {existingDepartments.map(dept => (
+                        <button
+                          key={dept}
+                          type="button"
+                          onClick={() => setEditTarget({ ...editTarget, department: dept })}
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
+                            editTarget.department === dept
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+                          }`}
+                        >
+                          {dept}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
+
+                {/* Designation */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Birthday (YYYY-MM-DD)</label>
-                  <input type="date" value={editTarget.birthday || ''} onChange={e => setEditTarget({...editTarget, birthday: e.target.value})} className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20" />
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Designation / Title</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      list="existing-desigs-edit-list"
+                      placeholder="Type designation (e.g. Senior Data Analyst, Junior Specialist)..."
+                      value={editTarget.designation || ''}
+                      onChange={e => setEditTarget({ ...editTarget, designation: e.target.value })}
+                      className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100"
+                    />
+                    <datalist id="existing-desigs-edit-list">
+                      {existingDesignations.map(desig => (
+                        <option key={desig} value={desig} />
+                      ))}
+                    </datalist>
+                  </div>
+                  {existingDesignations.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                      <span className="text-[9px] text-slate-400 font-bold uppercase">Quick select:</span>
+                      {existingDesignations.map(desig => (
+                        <button
+                          key={desig}
+                          type="button"
+                          onClick={() => setEditTarget({ ...editTarget, designation: desig })}
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
+                            editTarget.designation === desig
+                              ? 'bg-purple-600 text-white shadow-xs'
+                              : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+                          }`}
+                        >
+                          {desig}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <button onClick={handleEditUserSave} className="w-full bg-blue-600 text-white rounded-2xl py-4 font-bold text-xs uppercase tracking-widest hover:bg-blue-700">Save Changes</button>
+
+                {/* Authority & Approver Tier */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Approval Authority Tier</label>
+                  <select
+                    value={editTarget.userRoleType || 'user'}
+                    onChange={e => setEditTarget({ ...editTarget, userRoleType: e.target.value as any })}
+                    className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100"
+                  >
+                    <option value="user">General Staff / User (Applicant)</option>
+                    <option value="squad_leader">Squad Leader (Review Squad Requests)</option>
+                    <option value="team_leader">Team Leader (Review Team Requests)</option>
+                    <option value="hr_admin">HR & Admin (Global Approval Authority)</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Joining Date</label>
+                    <input type="date" value={editTarget.joiningDate || ''} onChange={e => setEditTarget({...editTarget, joiningDate: e.target.value})} className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-2.5 px-3 text-xs font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Birthday</label>
+                    <input type="date" value={editTarget.birthday || ''} onChange={e => setEditTarget({...editTarget, birthday: e.target.value})} className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-2.5 px-3 text-xs font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100" />
+                  </div>
+                </div>
+
+                <button onClick={handleEditUserSave} className="w-full mt-4 bg-blue-600 text-white rounded-2xl py-3.5 font-bold text-xs uppercase tracking-widest hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all">Save Changes</button>
               </div>
             </motion.div>
           </div>
@@ -730,6 +905,102 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
                           className="w-full bg-slate-50 dark:bg-slate-805 border border-slate-200/50 dark:border-slate-800 rounded-xl py-3 pl-10 pr-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100 transition-all" 
                         />
                       </div>
+                    </div>
+
+                    {/* Department */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex items-center justify-between">
+                        <span>Department</span>
+                        <span className="text-blue-500 text-[9px] font-semibold">Auto-fills applications</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          list="existing-depts-add-list"
+                          placeholder="Type department name (e.g. Data & Delivery, Sales, HR)..."
+                          value={department}
+                          onChange={e => setDepartment(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-805 border border-slate-200/50 dark:border-slate-800 rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100 transition-all"
+                        />
+                        <datalist id="existing-depts-add-list">
+                          {existingDepartments.map(dept => (
+                            <option key={dept} value={dept} />
+                          ))}
+                        </datalist>
+                      </div>
+                      {existingDepartments.length > 0 && (
+                        <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                          <span className="text-[9px] text-slate-400 font-bold uppercase">Quick select:</span>
+                          {existingDepartments.map(dept => (
+                            <button
+                              key={dept}
+                              type="button"
+                              onClick={() => setDepartment(dept)}
+                              className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
+                                department === dept
+                                  ? 'bg-blue-600 text-white shadow-xs'
+                                  : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+                              }`}
+                            >
+                              {dept}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Designation */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Designation / Title</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          list="existing-desigs-add-list"
+                          placeholder="Type designation (e.g. Senior Data Analyst, Junior Specialist)..."
+                          value={designation}
+                          onChange={e => setDesignation(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-805 border border-slate-200/50 dark:border-slate-800 rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100 transition-all"
+                        />
+                        <datalist id="existing-desigs-add-list">
+                          {existingDesignations.map(desig => (
+                            <option key={desig} value={desig} />
+                          ))}
+                        </datalist>
+                      </div>
+                      {existingDesignations.length > 0 && (
+                        <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                          <span className="text-[9px] text-slate-400 font-bold uppercase">Quick select:</span>
+                          {existingDesignations.map(desig => (
+                            <button
+                              key={desig}
+                              type="button"
+                              onClick={() => setDesignation(desig)}
+                              className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
+                                designation === desig
+                                  ? 'bg-purple-600 text-white shadow-xs'
+                                  : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+                              }`}
+                            >
+                              {desig}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Authority Tier */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Application Approval Authority</label>
+                      <select
+                        value={userRoleType}
+                        onChange={e => setUserRoleType(e.target.value as any)}
+                        className="w-full bg-slate-50 dark:bg-slate-805 border border-slate-200/50 dark:border-slate-800 rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-100 transition-all"
+                      >
+                        <option value="user">General Staff / User</option>
+                        <option value="squad_leader">Squad Leader</option>
+                        <option value="team_leader">Team Leader</option>
+                        <option value="hr_admin">HR & Admin</option>
+                      </select>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">

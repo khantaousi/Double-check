@@ -164,9 +164,66 @@
         "status": { "type": "string", "enum": ["active", "completed", "handed_over"] }
       },
       "required": ["phoneId", "phoneName", "userId", "startTime", "status"]
+    },
+    "ApplicationTemplate": {
+      "title": "Application Template",
+      "description": "Admin-configured reusable templates for formal employee applications",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "typeKey": { "type": "string" },
+        "defaultRecipient": { "type": "string", "enum": ["squad_leader", "team_leader", "hr_admin"] },
+        "subjectTemplate": { "type": "string" },
+        "fixedOpening": { "type": "string" },
+        "fixedClosing": { "type": "string" },
+        "fields": { "type": "array" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "typeKey", "subjectTemplate"]
+    },
+    "EmployeeApplication": {
+      "title": "Employee Application",
+      "description": "Formal requests submitted by employees for approval",
+      "type": "object",
+      "properties": {
+        "applicationId": { "type": "string" },
+        "templateId": { "type": "string" },
+        "applicationType": { "type": "string" },
+        "recipient": { "type": "string", "enum": ["squad_leader", "team_leader", "hr_admin"] },
+        "recipientTitle": { "type": "string" },
+        "recipientDepartment": { "type": "string" },
+        "userId": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "userName": { "type": "string" },
+        "department": { "type": "string" },
+        "designation": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "subject": { "type": "string" },
+        "body": { "type": "string" },
+        "fieldValues": { "type": "object" },
+        "status": { "type": "string", "enum": ["draft", "pending", "approved", "rejected"] },
+        "isLocked": { "type": "boolean" },
+        "submittedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "reviewedBy": { "type": "string" },
+        "reviewerId": { "type": "string" },
+        "reviewerRole": { "type": "string" },
+        "reviewedAt": { "type": "string", "format": "date-time" },
+        "adminComment": { "type": "string" }
+      },
+      "required": ["applicationId", "userId", "userName", "department", "subject", "status"]
     }
   },
   "firestore": {
+    "/applications/{applicationId}": {
+      "schema": "EmployeeApplication",
+      "description": "Formal employee requests and status history"
+    },
+    "/application_templates/{templateId}": {
+      "schema": "ApplicationTemplate",
+      "description": "Reusable formal letter templates managed by admin"
+    },
     "/phone_devices/{phoneId}": {
       "schema": "PhoneDevice",
       "description": "Phone inventory documents"

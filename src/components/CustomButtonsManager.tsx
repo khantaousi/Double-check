@@ -282,13 +282,13 @@ export function CustomButtonsManager({
 
     const cleanTitle = title.trim();
     if (!cleanTitle) {
-      setFormError('Please enter a title for this button (বাটনের নাম লিখুন)');
+      setFormError('Please enter a title for this button');
       return;
     }
 
     const cleanLink = url.trim();
     if (!cleanLink) {
-      setFormError('Please enter the target redirect URL / link (ক্লিক করলে কোন লিংকে যাবে তা দিন)');
+      setFormError('Please enter the target redirect URL / link');
       return;
     }
 
@@ -393,7 +393,7 @@ export function CustomButtonsManager({
             </span>
             <div>
               <h4 className="text-base font-black text-slate-800 dark:text-slate-100 tracking-tight">
-                Quick Action Buttons & Direct Links (কুইক বাটন ও ডিরেক্ট লিঙ্ক)
+                Quick Action Buttons & Direct Links
               </h4>
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                 Create custom portal buttons with default or uploaded logos, target specific employees, and set redirect links.
@@ -520,7 +520,7 @@ export function CustomButtonsManager({
                     <div className="flex items-center gap-1.5">
                       {btn.targetAudience === 'all' ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800">
-                          <Users size={11} /> Everyone (সবাই)
+                          <Users size={11} /> Everyone
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800">
@@ -609,7 +609,7 @@ export function CustomButtonsManager({
                   </div>
                   <div>
                     <h3 className="font-black text-base text-slate-800 dark:text-slate-100 tracking-tight">
-                      {editingButton ? 'Edit Action Button (বাটন এডিট করুন)' : 'Create New Action Button (নতুন বাটন তৈরি করুন)'}
+                      {editingButton ? 'Edit Action Button' : 'Create New Action Button'}
                     </h3>
                     <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
                       Configure title, redirect link, logo (presets or upload/link), and target audience.
@@ -638,7 +638,7 @@ export function CustomButtonsManager({
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                      Button Title (বাটনের নাম) *
+                      Button Title *
                     </label>
                     <input
                       type="text"
@@ -652,7 +652,7 @@ export function CustomButtonsManager({
 
                   <div>
                     <label className="block text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                      Target Link / URL (ক্লিক করলে যেখানে যাবে) *
+                      Target Link / URL *
                     </label>
                     <div className="relative">
                       <Link2 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
@@ -669,7 +669,7 @@ export function CustomButtonsManager({
 
                   <div>
                     <label className="block text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                      Optional Short Note / Description (ছোট বিবরণ)
+                      Optional Short Note / Description
                     </label>
                     <input
                       type="text"
@@ -685,7 +685,7 @@ export function CustomButtonsManager({
                 <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
                   <div className="flex items-center justify-between">
                     <label className="block text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                      Button Logo & Icon (বাটনের লোগো ও আইকন)
+                      Button Logo & Icon
                     </label>
                     <span className="text-[11px] text-slate-400 font-medium">
                       Select default preset, upload logo, or enter image link
@@ -906,7 +906,7 @@ export function CustomButtonsManager({
                 {/* 3. Color Theme Selector */}
                 <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                   <label className="block text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Card Theme & Accents (রং ও থিম)
+                    Card Theme & Accents
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {COLOR_THEMES.map(th => {
@@ -934,7 +934,7 @@ export function CustomButtonsManager({
                 <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
                   <div className="flex items-center justify-between">
                     <label className="block text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                      Target Audience (কাদের কাছে শো করবে) *
+                      Target Audience *
                     </label>
                     <span className="text-[11px] text-slate-400 font-medium">
                       Control visibility per employee or company-wide
@@ -955,7 +955,7 @@ export function CustomButtonsManager({
                         <Users size={18} />
                       </div>
                       <div>
-                        <div className="text-xs font-black">All Employees (সবাই)</div>
+                        <div className="text-xs font-black">All Employees</div>
                         <div className="text-[10px] text-slate-400">Available to all staff members</div>
                       </div>
                     </button>
@@ -973,7 +973,7 @@ export function CustomButtonsManager({
                         <UserCheck size={18} />
                       </div>
                       <div>
-                        <div className="text-xs font-black">Specific Employees (নির্দিষ্ট)</div>
+                        <div className="text-xs font-black">Specific Employees</div>
                         <div className="text-[10px] text-slate-400">Only selected team members</div>
                       </div>
                     </button>
@@ -1061,7 +1061,7 @@ export function CustomButtonsManager({
                 {/* 5. Live UI Preview */}
                 <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                   <label className="block text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Live UI Preview (ইউআইতে কেমন দেখাবে)
+                    Live UI Preview
                   </label>
 
                   <div className={`p-4 rounded-2xl border transition-all flex items-center justify-between relative overflow-hidden shadow-xs ${selectedColorTheme.bgLight} ${selectedColorTheme.bgDark} ${selectedColorTheme.borderLight} ${selectedColorTheme.borderDark}`}>
