@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, STANDARD_DEPARTMENTS } from '../types';
-import { Shield, UserCheck, ShieldAlert, Plus, Mail, Lock, X, Activity, ToggleLeft, ToggleRight, Fingerprint, User, CheckCircle2, Clock, ChevronDown, ChevronUp, LayoutDashboard, BookOpen, Package, Settings, Printer, Eye, EyeOff, Briefcase, Award } from 'lucide-react';
+import { Shield, UserCheck, ShieldAlert, Plus, Mail, Lock, X, Activity, ToggleLeft, ToggleRight, Fingerprint, User, CheckCircle2, Clock, ChevronDown, ChevronUp, LayoutDashboard, BookOpen, Package, Settings, Printer, Eye, EyeOff, Briefcase, Award, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { secondaryAuth, secondaryDb, db, auth } from '../lib/firebase';
 import { getInitials, getAvatarColor } from '../lib/avatar';
@@ -108,6 +108,7 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
   }, [displayUsers]);
 
   const [filterDepartment, setFilterDepartment] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editTarget, setEditTarget] = useState<UserProfile | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
@@ -391,32 +392,73 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
     }
   };
 
-  const visibleUsers = filterDepartment === 'all' 
-    ? displayUsers 
-    : displayUsers.filter(u => u.department === filterDepartment);
+  const visibleUsers = useMemo(() => {
+    let result = filterDepartment === 'all' 
+      ? displayUsers 
+      : displayUsers.filter(u => u.department === filterDepartment);
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter(u => {
+        const nameMatch = (u.displayName || '').toLowerCase().includes(q);
+        const empIdMatch = (u.employeeId || '').toLowerCase().includes(q);
+        const uidMatch = (u.id || '').toLowerCase().includes(q);
+        const emailMatch = (u.email || '').toLowerCase().includes(q);
+        const handleMatch = (u.loginHandle || '').toLowerCase().includes(q);
+        return nameMatch || empIdMatch || uidMatch || emailMatch || handleMatch;
+      });
+    }
+
+    return result;
+  }, [displayUsers, filterDepartment, searchQuery]);
 
   return (
     <div className="space-y-6 w-full max-w-full min-w-0">
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Department:</span>
-          <select
-            value={filterDepartment}
-            onChange={e => setFilterDepartment(e.target.value)}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500/20 shadow-xs"
-          >
-            <option value="all">All Departments ({displayUsers.length})</option>
-            {existingDepartments.map(d => (
-              <option key={d} value={d}>
-                {d} ({displayUsers.filter(u => u.department === d).length})
-              </option>
-            ))}
-          </select>
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 min-w-0">
+          {/* Search by Name or ID */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search by name or ID..."
+              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl pl-10 pr-9 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-xs placeholder:text-slate-400 placeholder:font-normal transition-all"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-0.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
+                title="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Department Filter */}
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider shrink-0">Department:</span>
+            <select
+              value={filterDepartment}
+              onChange={e => setFilterDepartment(e.target.value)}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500/20 shadow-xs cursor-pointer"
+            >
+              <option value="all">All Departments ({displayUsers.length})</option>
+              {existingDepartments.map(d => (
+                <option key={d} value={d}>
+                  {d} ({displayUsers.filter(u => u.department === d).length})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <button 
           onClick={() => setShowAddModal(true)}
-          className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-blue-700 transition-all active:scale-95 shadow-sm"
+          className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-blue-700 transition-all active:scale-95 shadow-sm shrink-0 cursor-pointer"
         >
           <Plus size={18} />
           Create Personnel
@@ -436,7 +478,27 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {visibleUsers.map((user) => (
+            {visibleUsers.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="py-12 text-center text-slate-400 dark:text-slate-500">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <Search size={28} className="opacity-40" />
+                    <p className="text-xs font-bold uppercase tracking-wider">
+                      {searchQuery ? `No personnel found for "${searchQuery}"` : 'No personnel found'}
+                    </p>
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="text-blue-600 dark:text-blue-400 text-xs font-bold hover:underline cursor-pointer mt-1"
+                      >
+                        Clear search
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              visibleUsers.map((user) => (
               <React.Fragment key={user.id}>
                 <motion.tr 
                   initial={{ opacity: 0 }} 
@@ -686,7 +748,7 @@ export function UserManagement({ users: propUsers, onUpdateRole, currentUserEmai
                   )}
                 </AnimatePresence>
               </React.Fragment>
-            ))}
+            )))}
           </tbody>
         </table>
         </div>

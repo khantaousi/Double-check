@@ -4,7 +4,7 @@ import { db, auth } from '../lib/firebase';
 import { collection, addDoc, query, where, onSnapshot, updateDoc, doc, deleteDoc, orderBy, getDocs, writeBatch } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/errors';
 import { cleanObject, getBSTISOString, formatBST } from '../lib/utils';
-import { CheckCircle2, Clock, Plus, UserPlus, Trash2, Calendar, Layout, User, Play, Pause, BarChart3, TrendingUp, Timer, Database, Edit, CheckCheck, X, Bell, ChevronDown, ChevronUp, History, Download, RotateCcw, SlidersHorizontal } from 'lucide-react';
+import { CheckCircle2, Clock, Plus, UserPlus, Trash2, Calendar, Layout, User, Play, Pause, BarChart3, TrendingUp, Timer, Database, Edit, CheckCheck, X, Bell, ChevronDown, ChevronUp, History, Download, RotateCcw, SlidersHorizontal, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, differenceInMinutes, parseISO, subDays } from 'date-fns';
 import { TaskHistoryEntry, AppNotification } from '../types';
@@ -43,6 +43,7 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
   const [boardCustomStart, setBoardCustomStart] = useState(formatBST(new Date(), 'yyyy-MM-dd'));
   const [boardCustomEnd, setBoardCustomEnd] = useState(formatBST(new Date(), 'yyyy-MM-dd'));
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isVerifyingAll, setIsVerifyingAll] = useState(false);
   const [editingTask, setEditingTask] = useState<TeamTask | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<'all' | TeamTask['status'] | 'needs-verification'>('all');
@@ -363,6 +364,61 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `tasks/${task.id}`);
+    }
+  };
+
+  const handleVerifyAllTasks = async (tasksToVerify: TeamTask[]) => {
+    if (!tasksToVerify || tasksToVerify.length === 0) return;
+    const count = tasksToVerify.length;
+    if (!window.confirm(`Are you sure you want to verify and approve all ${count} completed protocol(s) at once?`)) {
+      return;
+    }
+
+    setIsVerifyingAll(true);
+    try {
+      const now = new Date();
+      const bstNow = getBSTISOString(now);
+      const adminUid = auth.currentUser?.uid || 'admin';
+
+      // Batch in chunks of 400 to respect Firestore 500 limit
+      const batchSize = 400;
+      for (let i = 0; i < tasksToVerify.length; i += batchSize) {
+        const chunk = tasksToVerify.slice(i, i + batchSize);
+        const batch = writeBatch(db);
+
+        for (const task of chunk) {
+          const newHistory = [...(task.history || []), createHistoryEntry('approved', 'Bulk verified by admin')];
+          const taskRef = doc(db, 'tasks', task.id);
+          batch.update(taskRef, cleanObject({
+            isApproved: true,
+            isRejected: false,
+            approvedBy: adminUid,
+            approvedAt: bstNow,
+            updatedAt: bstNow,
+            history: newHistory
+          }));
+        }
+
+        await batch.commit();
+      }
+
+      // Notify unique assignees
+      const uniqueAssignees = Array.from(new Set(tasksToVerify.map(t => t.assigneeId).filter(Boolean)));
+      for (const assigneeId of uniqueAssignees) {
+        const userTaskCount = tasksToVerify.filter(t => t.assigneeId === assigneeId).length;
+        sendNotification({
+          userId: assigneeId,
+          title: 'Work Verified',
+          message: `Admin has verified and approved ${userTaskCount} of your completed protocol(s).`,
+          type: 'task_approved',
+          taskId: 'bulk-verified'
+        });
+      }
+    } catch (error) {
+      console.error("Error bulk verifying tasks:", error);
+      handleFirestoreError(error, OperationType.UPDATE, 'tasks/batch');
+    } finally {
+      setIsVerifyingAll(false);
     }
   };
 
@@ -977,17 +1033,30 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
                   </button>
                 ))}
                 {isAdmin && (
-                  <button
-                    onClick={() => setStatusFilter('needs-verification')}
-                    className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 relative ${
-                      statusFilter === 'needs-verification' ? 'bg-white dark:bg-slate-700 shadow-[0_4px_12px_rgba(0,0,0,0.05)] text-red-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    Verification
-                    {tasks.filter(t => t.status === 'completed' && !t.isApproved && !t.isRejected).length > 0 && (
-                      <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setStatusFilter('needs-verification')}
+                      className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 relative ${
+                        statusFilter === 'needs-verification' ? 'bg-white dark:bg-slate-700 shadow-[0_4px_12px_rgba(0,0,0,0.05)] text-red-600' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      Verification
+                      {tasks.filter(t => t.status === 'completed' && !t.isApproved && !t.isRejected).length > 0 && (
+                        <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                      )}
+                    </button>
+                    {statusFilter === 'needs-verification' && filteredTasks.length > 0 && (
+                      <button
+                        onClick={() => handleVerifyAllTasks(filteredTasks)}
+                        disabled={isVerifyingAll}
+                        title="Verify all completed protocols"
+                        className="px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-emerald-600 hover:bg-emerald-500 text-white transition-all whitespace-nowrap flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+                      >
+                        <ShieldCheck size={12} />
+                        <span>{isVerifyingAll ? 'Verifying...' : `Verify All (${filteredTasks.length})`}</span>
+                      </button>
                     )}
-                  </button>
+                  </div>
                 )}
               </div>
               
@@ -1128,14 +1197,52 @@ export const TeamWork: React.FC<TeamWorkProps> = ({ userProfile, allUsers }) => 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="grid grid-cols-1 gap-6"
+            className="space-y-6"
           >
+            {isAdmin && statusFilter === 'needs-verification' && (
+              <div className="bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-emerald-500/10 dark:from-blue-950/40 dark:via-indigo-950/40 dark:to-emerald-950/40 border border-blue-200/80 dark:border-blue-800/50 p-5 sm:p-6 rounded-3xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20">
+                    <ShieldCheck size={24} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-black text-sm uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                        Work Verification Center
+                      </h3>
+                      <span className="bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400 text-[10px] font-black px-2.5 py-0.5 rounded-full">
+                        {filteredTasks.length} Pending
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      {filteredTasks.length > 0 
+                        ? `You have ${filteredTasks.length} completed protocol(s) waiting for verification. You can verify each individually or approve all at once.`
+                        : 'All completed tasks for this view have been verified and approved.'}
+                    </p>
+                  </div>
+                </div>
+
+                {filteredTasks.length > 0 && (
+                  <button
+                    onClick={() => handleVerifyAllTasks(filteredTasks)}
+                    disabled={isVerifyingAll}
+                    className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-500/25 active:scale-95 transition-all flex items-center justify-center gap-2.5 shrink-0 disabled:opacity-50 cursor-pointer"
+                  >
+                    <CheckCircle2 size={16} />
+                    <span>{isVerifyingAll ? 'Verifying All...' : `Verify All Work (${filteredTasks.length})`}</span>
+                  </button>
+                )}
+              </div>
+            )}
+
             {filteredTasks.length === 0 ? (
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-20 text-center">
                 <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <CheckCircle2 className="text-slate-200" size={32} />
                 </div>
-                <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">No Tasks for this period</p>
+                <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">
+                  {statusFilter === 'needs-verification' ? 'All completed tasks are verified' : 'No Tasks for this period'}
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -2518,9 +2518,10 @@ export default function App() {
       </AnimatePresence>
 
       {/* Left Sidebar: Navigation */}
-      <aside className={`fixed md:static inset-y-0 left-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0 shadow-sm z-30 transition-all duration-300 max-w-[85vw] ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${isSidebarCollapsed ? 'w-20 md:translate-x-0' : 'w-72 md:translate-x-0'}`}>
-        <div className={`transition-all duration-300 ${isSidebarCollapsed ? 'p-3' : 'p-8'}`}>
-          <div className={`flex items-center gap-3 mb-12 ${isSidebarCollapsed ? 'justify-center mb-6' : ''}`}>
+      <aside className={`fixed md:static inset-y-0 left-0 h-screen max-h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0 shadow-xl md:shadow-sm z-30 transition-all duration-300 max-w-[85vw] ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${isSidebarCollapsed ? 'w-20 md:translate-x-0' : 'w-72 md:translate-x-0'}`}>
+        {/* Sidebar Header: Brand & Logo */}
+        <div className={`shrink-0 flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 transition-all duration-300 ${isSidebarCollapsed ? 'p-3 justify-center' : 'p-4 sm:p-5'}`}>
+          <div className={`flex items-center gap-3 ${isSidebarCollapsed ? 'justify-center' : 'min-w-0 flex-1'}`}>
             <div className="w-10 h-10 flex items-center justify-center overflow-hidden transition-shadow duration-300 shrink-0">
               {siteSettings.logoUrl ? (
                 <img src={siteSettings.logoUrl} alt="Logo" className="w-full h-full object-contain" />
@@ -2528,13 +2529,27 @@ export default function App() {
                 <Database className="text-slate-600 dark:text-slate-400" size={20} />
               )}
             </div>
-            <div className={isSidebarCollapsed ? 'hidden' : 'block'}>
-              <h1 className="font-black text-xl tracking-tighter text-slate-800 dark:text-slate-100">{siteSettings.companyName.split(' ')[0]} <span className="text-blue-600">{siteSettings.companyName.split(' ').slice(1).join(' ')}</span></h1>
-              <p className="text-[10px] font-bold uppercase text-slate-400 tracking-widest leading-none">Intelligence v2.1</p>
+            <div className={isSidebarCollapsed ? 'hidden' : 'block min-w-0'}>
+              <h1 className="font-black text-lg sm:text-xl tracking-tighter text-slate-800 dark:text-slate-100 truncate">
+                {siteSettings.companyName.split(' ')[0]} <span className="text-blue-600">{siteSettings.companyName.split(' ').slice(1).join(' ')}</span>
+              </h1>
+              <p className="text-[10px] font-bold uppercase text-slate-400 tracking-widest leading-none">Intelligence v2.2</p>
             </div>
           </div>
-          
-          <nav className="space-y-8">
+          {!isSidebarCollapsed && (
+            <button
+              onClick={() => setIsSidebarOpen(false)}
+              className="md:hidden p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Close Menu"
+            >
+              <X size={18} />
+            </button>
+          )}
+        </div>
+        
+        {/* Scrollable Navigation Body */}
+        <div className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden transition-all duration-300 custom-scrollbar ${isSidebarCollapsed ? 'p-2 space-y-4' : 'p-4 sm:p-5 space-y-6'}`}>
+          <nav className="space-y-6">
             <div>
               <p className={`text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4 pl-4 ${isSidebarCollapsed ? 'hidden' : 'block'}`}>Core Workspace</p>
               <div className="space-y-1">
@@ -2755,7 +2770,7 @@ export default function App() {
           </nav>
         </div>
         
-        <div className="mt-auto p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-4">
+        <div className="shrink-0 mt-auto p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 space-y-3">
           {user && (
             <button 
               onClick={() => setShowSignOutConfirm(true)}
@@ -2871,12 +2886,12 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-            {/* Dynamic UI Theme Selector Popover (Available for all agents/users locally) */}
+            {/* Dynamic UI Theme & Mode Selector Popover (Available for all agents/users locally) */}
             <div className="relative" id="header-theme-selector">
               <button 
                 onClick={() => setShowThemeDropdown(!showThemeDropdown)}
                 className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-slate-200 dark:border-slate-700 active:scale-95 flex items-center justify-center cursor-pointer shadow-sm"
-                title="Change Personal UI Theme"
+                title="Theme & Display Mode"
               >
                 <Palette size={18} />
               </button>
@@ -2891,7 +2906,38 @@ export default function App() {
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
                       className="absolute right-0 mt-3 w-64 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] z-50 overflow-hidden p-4"
                     >
+                      {/* Dark / Light Mode Switch inside Theme Changer */}
                       <div className="pb-3 mb-3 border-b border-slate-100 dark:border-slate-800/60">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Display Mode</span>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setIsDarkMode(false)}
+                            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                              !isDarkMode 
+                                ? 'border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 shadow-xs' 
+                                : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                            }`}
+                          >
+                            <Sun size={14} className="text-amber-500 shrink-0" />
+                            <span>Light</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIsDarkMode(true)}
+                            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                              isDarkMode 
+                                ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 shadow-xs' 
+                                : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                            }`}
+                          >
+                            <Moon size={14} className="text-blue-500 shrink-0" />
+                            <span>Dark</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="pb-2 mb-2">
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Personal Theme</span>
                         <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase block mt-0.5">
                           👤 Personal local setting (Only affects you)
@@ -2947,14 +2993,6 @@ export default function App() {
                 )}
               </AnimatePresence>
             </div>
-
-            <button 
-              onClick={() => setIsDarkMode(!isDarkMode)}
-              className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-slate-200 dark:border-slate-700 active:scale-95"
-              aria-label="Toggle theme"
-            >
-              {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
 
             {user && (
               <div className="relative">
