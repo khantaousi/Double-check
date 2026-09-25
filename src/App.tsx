@@ -45,6 +45,7 @@ import { PrintSlips } from './components/PrintSlips';
 import { Complaints } from './components/Complaints';
 import { PhoneTracker } from './components/PhoneTracker';
 import { ApplicationsManager } from './components/ApplicationsManager';
+import { sounds } from './lib/sounds';
 
 const getInitialRules = (): ValidationRule[] => {
   try {
@@ -289,6 +290,17 @@ export default function App() {
     }
     return false;
   });
+
+  const toggleThemeMode = (targetDark: boolean) => {
+    if (targetDark === isDarkMode) return;
+    if (targetDark) {
+      sounds.playDarkThemeSound();
+      setIsDarkMode(true);
+    } else {
+      sounds.playRoosterCrow();
+      setIsDarkMode(false);
+    }
+  };
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
@@ -2739,7 +2751,11 @@ export default function App() {
                 {isAdmin && (
                   <>
                     <button 
-                      onClick={() => { setActiveTab('notices'); setIsSidebarOpen(false); }}
+                      onClick={() => { 
+                        sounds.playBatSound();
+                        setActiveTab('notices'); 
+                        setIsSidebarOpen(false); 
+                      }}
                       title={isSidebarCollapsed ? "Notices" : undefined}
                       className={`w-full flex items-center gap-3 rounded-xl text-xs font-bold transition-all border ${isSidebarCollapsed ? 'justify-center py-3 px-0' : 'px-4 py-3'} ${
                         activeTab === 'notices' 
@@ -2831,7 +2847,11 @@ export default function App() {
         {/* Global Announcement Banner (Sobar Opore Top Notice Banner) */}
         {notices.length > 0 && (
           <div className="bg-blue-50/90 dark:bg-[#030712] border-b border-blue-200/80 dark:border-cyan-950/80 text-slate-800 dark:text-slate-100 shadow-md dark:shadow-xl backdrop-blur-md overflow-hidden px-4 py-2 flex items-center gap-3 shrink-0 relative z-30 transition-colors duration-300">
-            <div className="flex items-center gap-2 bg-blue-100/90 dark:bg-slate-900/90 border border-blue-200 dark:border-slate-800 px-3 py-1.5 rounded-xl shrink-0 shadow-inner">
+            <div 
+              onClick={() => sounds.playBatSound()} 
+              className="flex items-center gap-2 bg-blue-100/90 dark:bg-slate-900/90 border border-blue-200 dark:border-slate-800 px-3 py-1.5 rounded-xl shrink-0 shadow-inner cursor-pointer"
+              title="Notice Alert"
+            >
               <Bell size={14} className="text-blue-600 dark:text-cyan-400 animate-pulse" />
               <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-cyan-400">ALERT</span>
             </div>
@@ -2912,7 +2932,7 @@ export default function App() {
                         <div className="grid grid-cols-2 gap-2">
                           <button
                             type="button"
-                            onClick={() => setIsDarkMode(false)}
+                            onClick={() => toggleThemeMode(false)}
                             className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                               !isDarkMode 
                                 ? 'border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 shadow-xs' 
@@ -2924,7 +2944,7 @@ export default function App() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setIsDarkMode(true)}
+                            onClick={() => toggleThemeMode(true)}
                             className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                               isDarkMode 
                                 ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 shadow-xs' 
@@ -2998,6 +3018,7 @@ export default function App() {
               <div className="relative">
                 <button 
                   onClick={() => {
+                    sounds.playBatSound();
                     setShowNotifications(!showNotifications);
                     if (!showNotifications) markAllAsRead();
                   }}
