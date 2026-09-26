@@ -22,7 +22,10 @@ import {
   Download,
   HelpCircle,
   Clock,
-  Sparkles
+  Sparkles,
+  Edit3,
+  RotateCcw,
+  PenTool
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -80,8 +83,36 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [showConfirmSubmit, setShowConfirmSubmit] = useState<boolean>(false);
 
+  // Application Writing Mode: Use Official Template vs Write On My Own (Nije Likhbe)
+  const [bodyMode, setBodyMode] = useState<'template' | 'custom'>(() => {
+    if (initialDraft) {
+      return initialDraft.templateId === 'custom_self' ? 'custom' : 'template';
+    }
+    return 'template';
+  });
+
+  // Editable body text
+  const [bodyText, setBodyText] = useState<string>(() => {
+    return initialDraft?.body || '';
+  });
+  const [isBodyManuallyEdited, setIsBodyManuallyEdited] = useState<boolean>(
+    Boolean(initialDraft?.body)
+  );
+
   // Active template
   const activeTemplate = templates.find(t => t.id === selectedTemplateId) || templates[0];
+
+  // Helper to compute rendered body from template and current fields
+  const computeRenderedBody = (tmpl?: ApplicationTemplate, fVals: Record<string, any> = {}) => {
+    if (!tmpl) return '';
+    return renderApplicationBody(tmpl.bodyTemplate || tmpl, fVals, {
+      userName: currentUser.displayName || currentUser.loginHandle || 'Applicant',
+      userEmail: currentUser.email,
+      employeeId: currentUser.employeeId || 'N/A',
+      department: currentUser.department || 'General',
+      designation: currentUser.designation || ''
+    });
+  };
 
   // Initialize form when template changes
   useEffect(() => {
@@ -110,6 +141,11 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
         }
       });
       setFieldValues(initialFields);
+
+      // Initialize body text from template if user hasn't edited it manually
+      if (!isBodyManuallyEdited) {
+        setBodyText(computeRenderedBody(activeTemplate, initialFields));
+      }
     }
   }, [selectedTemplateId, activeTemplate, initialDraft, currentUser]);
 
@@ -139,6 +175,10 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
         }
       });
       setFieldValues(initialFields);
+
+      const generated = computeRenderedBody(tmpl, initialFields);
+      setBodyText(generated);
+      setIsBodyManuallyEdited(false);
     }
   };
 
@@ -151,17 +191,30 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
   });
 
   const handleFieldChange = (fieldId: string, value: any) => {
-    setFieldValues(prev => ({
-      ...prev,
+    const updated = {
+      ...fieldValues,
       [fieldId]: value
-    }));
+    };
+    setFieldValues(updated);
+
+    // If user hasn't manually customized the text, keep the rendered template body synchronized
+    if (!isBodyManuallyEdited && activeTemplate && bodyMode === 'template') {
+      setBodyText(computeRenderedBody(activeTemplate, updated));
+    }
   };
+
+  // Effective body for letter preview, submission and download
+  const effectiveBody = bodyText.trim() || (bodyMode === 'template' && activeTemplate ? computeRenderedBody(activeTemplate, fieldValues) : '');
 
   const validateRequiredFields = (): string | null => {
     if (!subject.trim()) return 'Application Subject is required';
     if (!recipientName.trim()) return 'Recipient Name / Title is required';
 
-    if (activeTemplate) {
+    if (!effectiveBody.trim()) {
+      return 'Application Body is required. Please write or generate the application body text.';
+    }
+
+    if (bodyMode === 'template' && activeTemplate) {
       for (const field of activeTemplate.fields) {
         if (field.required) {
           const val = fieldValues[field.id];
@@ -174,29 +227,18 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
     return null;
   };
 
-  // Generate rendered body for preview / submission
-  const renderedBody = activeTemplate 
-    ? renderApplicationBody(activeTemplate.bodyTemplate, fieldValues, {
-        userName: currentUser.displayName || currentUser.loginHandle || 'Applicant',
-        userEmail: currentUser.email,
-        employeeId: currentUser.employeeId || 'N/A',
-        department: currentUser.department || 'General',
-        designation: currentUser.designation || ''
-      })
-    : '';
-
   const getApplicationPayload = (status: 'draft' | 'submitted'): Partial<EmployeeApplication> => {
     return {
-      templateId: selectedTemplateId,
-      templateName: activeTemplate?.name || 'Custom Application',
-      category: activeTemplate?.category || 'other',
+      templateId: bodyMode === 'custom' ? 'custom_self' : selectedTemplateId,
+      templateName: bodyMode === 'custom' ? 'Custom Self-Written Application' : (activeTemplate?.name || 'Custom Application'),
+      category: bodyMode === 'custom' ? 'other' : (activeTemplate?.category || 'other'),
       recipientRole,
       recipientName,
       recipientDepartment: recipientDepartment || undefined,
       subject: subject.trim(),
       salutation: salutation.trim(),
-      fieldValues,
-      body: renderedBody,
+      fieldValues: bodyMode === 'template' ? fieldValues : {},
+      body: effectiveBody,
       closing: closing.trim(),
       status,
       isLocked: status === 'submitted',
@@ -249,16 +291,16 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
       department: currentUser.department || 'Data & Delivery',
       applicantDepartment: currentUser.department || 'Data & Delivery',
       designation: currentUser.designation,
-      templateId: selectedTemplateId,
-      templateName: activeTemplate?.name || 'Application',
-      category: activeTemplate?.category || 'other',
+      templateId: bodyMode === 'custom' ? 'custom_self' : selectedTemplateId,
+      templateName: bodyMode === 'custom' ? 'Custom Self-Written Application' : (activeTemplate?.name || 'Application'),
+      category: bodyMode === 'custom' ? 'other' : (activeTemplate?.category || 'other'),
       recipientRole,
       recipientName,
       recipientDepartment,
       subject,
       salutation,
       fieldValues,
-      body: renderedBody,
+      body: effectiveBody,
       closing,
       status: 'draft',
       isLocked: false,
@@ -359,26 +401,127 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
             /* Form View */
             <div className="space-y-5">
               
+              {/* Option: Use Official Template vs Write On My Own (Nije Likhbe) */}
+              <div className="bg-slate-50/90 dark:bg-slate-850/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <Sparkles size={13} className="text-blue-500" />
+                      Application Writing Method / আবেদনের নিয়ম
+                    </span>
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5">
+                      Choose whether to use preset official templates or write your own custom letter
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Option 1: Use Official Template */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBodyMode('template');
+                      if (!bodyText.trim() && activeTemplate) {
+                        setBodyText(computeRenderedBody(activeTemplate, fieldValues));
+                      }
+                    }}
+                    className={`p-3.5 rounded-xl border text-left transition-all flex items-start gap-3 ${
+                      bodyMode === 'template'
+                        ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-500 shadow-sm ring-2 ring-blue-500/20'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                    }`}
+                  >
+                    <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                      bodyMode === 'template'
+                        ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30'
+                        : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                    }`}>
+                      <FileText size={18} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-black text-slate-800 dark:text-slate-100">
+                          Use Official Template
+                        </span>
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">
+                          টেমপ্লেট ব্যবহার
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
+                        Select a standard template, fill parameters &amp; <strong className="text-blue-600 dark:text-blue-400 font-bold">edit the letter body directly</strong>.
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Option 2: Write On My Own */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBodyMode('custom');
+                    }}
+                    className={`p-3.5 rounded-xl border text-left transition-all flex items-start gap-3 ${
+                      bodyMode === 'custom'
+                        ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-500 shadow-sm ring-2 ring-indigo-500/20'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                    }`}
+                  >
+                    <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                      bodyMode === 'custom'
+                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/30'
+                        : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                    }`}>
+                      <PenTool size={18} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-black text-slate-800 dark:text-slate-100">
+                          Write On My Own
+                        </span>
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300">
+                          নিজে লিখুন
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
+                        Write your entire official letter body freely in your own words without preset constraints.
+                      </p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
               {/* Template & Recipient Selection Row */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Application Type / Template */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex items-center justify-between">
-                    <span>Application Type</span>
-                    <span className="text-blue-500 text-[9px] font-bold">{templates.length} templates available</span>
-                  </label>
-                  <select
-                    value={selectedTemplateId}
-                    onChange={e => handleTemplateChange(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3.5 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20"
-                  >
-                    {templates.map(tmpl => (
-                      <option key={tmpl.id} value={tmpl.id}>
-                        {tmpl.name} ({tmpl.category})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {/* Application Type / Template (shown when in template mode) */}
+                {bodyMode === 'template' ? (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex items-center justify-between">
+                      <span>Application Type / Template</span>
+                      <span className="text-blue-500 text-[9px] font-bold">{templates.length} templates available</span>
+                    </label>
+                    <select
+                      value={selectedTemplateId}
+                      onChange={e => handleTemplateChange(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3.5 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20"
+                    >
+                      {templates.map(tmpl => (
+                        <option key={tmpl.id} value={tmpl.id}>
+                          {tmpl.name} ({tmpl.category})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex items-center justify-between">
+                      <span>Application Type</span>
+                      <span className="text-indigo-500 text-[9px] font-bold">Custom Self-Written</span>
+                    </label>
+                    <div className="w-full bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50 rounded-xl py-2.5 px-3.5 text-sm font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-2">
+                      <PenTool size={15} />
+                      <span>Custom Letter / নিজস্ব আবেদনপত্র</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Recipient Role Authority */}
                 <div className="space-y-1.5">
@@ -473,8 +616,8 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                 />
               </div>
 
-              {/* Dynamic Template Fields Section */}
-              {activeTemplate && activeTemplate.fields.length > 0 && (
+              {/* Dynamic Template Fields Section (when using template) */}
+              {bodyMode === 'template' && activeTemplate && activeTemplate.fields.length > 0 && (
                 <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-4 bg-slate-50/40 dark:bg-slate-850/40 space-y-4">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-200/60 dark:border-slate-800">
                     <span className="text-[11px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
@@ -529,6 +672,101 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              )}
+
+              {/* APPLICATION BODY SECTION */}
+              {bodyMode === 'template' ? (
+                /* Template Mode: Editable Body with Template Sync & Reset */
+                <div className="border border-blue-200/80 dark:border-blue-900/50 rounded-2xl p-4 bg-blue-50/25 dark:bg-blue-950/20 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-blue-150 dark:border-blue-900/40">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                        <Edit3 size={13} />
+                      </div>
+                      <div>
+                        <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                          Application Body Template (Official Letter Format)
+                        </span>
+                        <span className="ml-2 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-md">
+                          ✓ Editable / আপনি এডিট করতে পারেন
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (activeTemplate) {
+                          const refreshed = computeRenderedBody(activeTemplate, fieldValues);
+                          setBodyText(refreshed);
+                          setIsBodyManuallyEdited(false);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 transition-all shadow-xs"
+                      title="Reset letter body to standard template wording and variables"
+                    >
+                      <RotateCcw size={12} />
+                      <span>Reset from Template</span>
+                    </button>
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                    This official letter body was generated from the selected template. You can directly customize, add sentences, or change any wording below:
+                  </p>
+
+                  <textarea
+                    rows={8}
+                    value={bodyText}
+                    onChange={e => {
+                      setBodyText(e.target.value);
+                      setIsBodyManuallyEdited(true);
+                    }}
+                    placeholder="Application letter body..."
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-xs font-sans leading-relaxed text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20"
+                  />
+
+                  <div className="flex flex-wrap items-center justify-between text-[10px] text-slate-400 gap-2">
+                    <span className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                      Your manual customizations are saved directly to this application.
+                    </span>
+                    <span className="font-mono">{bodyText.length} characters</span>
+                  </div>
+                </div>
+              ) : (
+                /* Custom Mode: User Writes On Their Own (Nije Likhbe) */
+                <div className="border border-indigo-200/80 dark:border-indigo-900/50 rounded-2xl p-4 bg-indigo-50/25 dark:bg-indigo-950/20 space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-indigo-150 dark:border-indigo-900/40">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                        <PenTool size={13} />
+                      </div>
+                      <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                        Application Body (Write On My Own / নিজে লিখুন)
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded-md">
+                      Custom Application Letter
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Write your complete application letter body freely in your own words.
+                  </p>
+
+                  <textarea
+                    rows={9}
+                    value={bodyText}
+                    onChange={e => setBodyText(e.target.value)}
+                    placeholder={'I am writing to formally request...\n\nReason and details:\n...\n\nThank you for your understanding and consideration.'}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-xs font-sans leading-relaxed text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/20"
+                  />
+
+                  <div className="flex flex-wrap items-center justify-between text-[10px] text-slate-400 gap-2">
+                    <span>Include all relevant details, reasons, and dates needed for approval.</span>
+                    <span className="font-mono">{bodyText.length} characters</span>
                   </div>
                 </div>
               )}
@@ -603,7 +841,7 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
 
                 {/* Body */}
                 <div className="whitespace-pre-line text-xs font-sans leading-relaxed text-slate-700 dark:text-slate-300">
-                  {renderedBody || '(Application body will appear here once fields are filled)'}
+                  {effectiveBody || '(Application body will appear here once fields are filled or written)'}
                 </div>
 
                 {/* Closing */}

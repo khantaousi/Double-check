@@ -450,6 +450,9 @@ export const ApplicationTemplatesManager: React.FC<ApplicationTemplatesManagerPr
                     Placeholders: {currentFields.map(f => `{${f.id}}`).join(' ')}
                   </span>
                 </label>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 pl-1 leading-snug">
+                  This official letter format is provided to employees. Employees can choose to use this template or write their own letter, and if they use this template, they can also edit the text directly before submitting.
+                </p>
                 <textarea
                   rows={8}
                   required
