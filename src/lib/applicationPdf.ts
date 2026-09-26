@@ -511,8 +511,17 @@ export async function downloadApplicationPdf(
   // ==========================================
   // CREDENTIALS & DECISION BLOCK (TWO COLUMNS)
   // ==========================================
-  const bottomBlockHeight = 44;
-  ensureSpace(bottomBlockHeight + 10);
+  // Calculate dynamic decision box height based on actual content
+  let decisionBoxHeight = 24;
+  if (app.reviewedBy && app.reviewedAt) {
+    decisionBoxHeight = 29;
+  }
+  if (app.adminComment) {
+    decisionBoxHeight = 42;
+  }
+
+  const bottomBlockNeeded = Math.max(38, decisionBoxHeight) + 12;
+  ensureSpace(bottomBlockNeeded);
 
   // Top dashed divider
   doc.setDrawColor(203, 213, 225); // #cbd5e1
@@ -523,9 +532,10 @@ export async function downloadApplicationPdf(
 
   currentY += 6;
 
-  const colWidth = (contentWidth - 6) / 2; // ~86mm each
-  const leftColX = marginX;
-  const rightColX = marginX + colWidth + 6;
+  const leftColWidth = 85;
+  const rightColWidth = 85;
+  const leftColX = marginX; // 16mm
+  const rightColX = marginX + leftColWidth + 8; // 16 + 85 + 8 = 109mm (8mm clear buffer)
 
   // LEFT COLUMN: APPLICANT DETAILS
   doc.setFont('helvetica', 'bold');
@@ -547,7 +557,11 @@ export async function downloadApplicationPdf(
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(15, 23, 42);
     }
-    doc.text(val, leftColX + 26, credY);
+
+    // Ensure value text is bounded within the left column width
+    const maxValW = leftColWidth - 28;
+    const truncatedVal = doc.getTextWidth(val) > maxValW ? val.substring(0, 26) + '...' : val;
+    doc.text(truncatedVal, leftColX + 26, credY);
     credY += 4.5;
   };
 
@@ -559,10 +573,16 @@ export async function downloadApplicationPdf(
   }
   printCred('Email:', app.userEmail || '');
 
+  // Verified & Submitted line - wrapped strictly inside left column so it NEVER overflows into right column
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text(`✓ Electronically Verified & Submitted on ${submissionDate}`, leftColX, credY + 2);
+  const verifyLines = doc.splitTextToSize(`Electronically Verified & Submitted on ${submissionDate}`, leftColWidth - 4);
+  credY += 1.5;
+  verifyLines.forEach((vl: string) => {
+    doc.text(vl, leftColX, credY);
+    credY += 3.8;
+  });
 
   // RIGHT COLUMN: AUTHORITY DECISION STAMP
   const statusColorRgb =
@@ -584,7 +604,7 @@ export async function downloadApplicationPdf(
   doc.setFillColor(statusBgRgb[0], statusBgRgb[1], statusBgRgb[2]);
   doc.setDrawColor(statusColorRgb[0], statusColorRgb[1], statusColorRgb[2]);
   doc.setLineWidth(0.6);
-  doc.roundedRect(rightColX, currentY - 2, colWidth, bottomBlockHeight, 2, 2, 'FD');
+  doc.roundedRect(rightColX, currentY - 2, rightColWidth, decisionBoxHeight, 2, 2, 'FD');
 
   // Header of box
   doc.setFont('helvetica', 'bold');
@@ -596,12 +616,12 @@ export async function downloadApplicationPdf(
   doc.setFontSize(8.5);
   doc.setTextColor(statusColorRgb[0], statusColorRgb[1], statusColorRgb[2]);
   const statusLblW = doc.getTextWidth(statusLabel);
-  doc.text(statusLabel, rightColX + colWidth - statusLblW - 4, currentY + 3.5);
+  doc.text(statusLabel, rightColX + rightColWidth - statusLblW - 4, currentY + 3.5);
 
   // Divider inside box
   doc.setDrawColor(statusColorRgb[0], statusColorRgb[1], statusColorRgb[2]);
   doc.setLineWidth(0.2);
-  doc.line(rightColX + 3, currentY + 6, rightColX + colWidth - 3, currentY + 6);
+  doc.line(rightColX + 3, currentY + 6, rightColX + rightColWidth - 3, currentY + 6);
 
   let decY = currentY + 11;
   if (app.reviewedBy) {
@@ -635,7 +655,7 @@ export async function downloadApplicationPdf(
     doc.setDrawColor(statusColorRgb[0], statusColorRgb[1], statusColorRgb[2]);
     doc.setLineWidth(0.2);
     doc.setLineDashPattern([1.5, 1.5], 0);
-    doc.line(rightColX + 3, decY, rightColX + colWidth - 3, decY);
+    doc.line(rightColX + 3, decY, rightColX + rightColWidth - 3, decY);
     doc.setLineDashPattern([], 0);
     decY += 4;
 
@@ -648,7 +668,7 @@ export async function downloadApplicationPdf(
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(8);
     doc.setTextColor(15, 23, 42);
-    const commentLines = doc.splitTextToSize(`"${app.adminComment}"`, colWidth - 8);
+    const commentLines = doc.splitTextToSize(`"${app.adminComment}"`, rightColWidth - 8);
     commentLines.slice(0, 3).forEach((line: string) => {
       doc.text(line, rightColX + 4, decY);
       decY += 3.8;
