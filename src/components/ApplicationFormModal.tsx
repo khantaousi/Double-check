@@ -31,7 +31,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   renderApplicationBody, 
   formatRecipientBlock, 
-  generateNextApplicationId 
+  generateNextApplicationId,
+  cleanTemplateName
 } from '../lib/applicationFormatters';
 import { downloadApplicationPdf } from '../lib/applicationPdf';
 import { getBSTISOString } from '../lib/utils';
@@ -307,7 +308,7 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
       createdAt: getBSTISOString(),
       updatedAt: getBSTISOString()
     };
-    await downloadApplicationPdf(dummyApp, 'Company Office');
+    await downloadApplicationPdf(dummyApp, 'Vics Ventures');
   };
 
   if (!isOpen) return null;
@@ -505,7 +506,7 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                     >
                       {templates.map(tmpl => (
                         <option key={tmpl.id} value={tmpl.id}>
-                          {tmpl.name} ({tmpl.category})
+                          {cleanTemplateName(tmpl.name)}
                         </option>
                       ))}
                     </select>

@@ -1,381 +1,686 @@
+import { jsPDF } from 'jspdf';
 import { EmployeeApplication } from '../types';
-import { formatOfficialDate } from './applicationFormatters';
+import { formatOfficialDate, cleanApplicationCategory, cleanTemplateName } from './applicationFormatters';
+
+const FIELD_LABEL_MAP: Record<string, string> = {
+  f_notice_date: 'Notice Date',
+  notice_date: 'Notice Date',
+  noticeDate: 'Notice Date',
+  f_last_working_day: 'Proposed Last Working Day',
+  last_working_day: 'Proposed Last Working Day',
+  lastWorkingDay: 'Proposed Last Working Day',
+  f_start_date: 'Leave Start Date',
+  start_date: 'Leave Start Date',
+  startDate: 'Leave Start Date',
+  f_end_date: 'Leave End Date',
+  end_date: 'Leave End Date',
+  endDate: 'Leave End Date',
+  f_total_days: 'Total Days Count',
+  total_days: 'Total Days Count',
+  totalDays: 'Total Days Count',
+  f_advance_amount: 'Requested Advance Amount (BDT)',
+  advance_amount: 'Requested Advance Amount (BDT)',
+  advanceAmount: 'Requested Advance Amount (BDT)',
+  f_adjustment_month: 'Salary Month for Deduction',
+  adjustment_month: 'Salary Month for Deduction',
+  adjustmentMonth: 'Salary Month for Deduction',
+  f_reason: 'Reason for Request',
+  reason: 'Reason for Request',
+  f_handover_notes: 'Handover & Knowledge Transfer Plan',
+  handover_notes: 'Handover & Knowledge Transfer Plan',
+  handoverNotes: 'Handover & Knowledge Transfer Plan',
+  f_handover: 'Handover & Knowledge Transfer Plan',
+  handover_plan: 'Handover & Knowledge Transfer Plan',
+  handoverPlan: 'Handover & Knowledge Transfer Plan',
+  f_emergency_contact: 'Emergency Contact & Phone',
+  emergency_contact: 'Emergency Contact & Phone',
+  emergencyContact: 'Emergency Contact & Phone',
+};
 
 /**
- * Helper to turn camelCase or snake_case keys into clean, human-readable labels
+ * Turns camelCase or snake_case keys into clean, human-readable labels.
+ * Strips leading 'f_' or 'f-' prefix (e.g. 'f_notice_date' -> 'Notice Date', NOT 'F Notice Date').
  */
 function formatFieldLabel(key: string): string {
-  return key
+  if (FIELD_LABEL_MAP[key]) {
+    return FIELD_LABEL_MAP[key];
+  }
+
+  // Strip leading 'f_' or 'f-' prefix used in application template field IDs
+  const cleanKey = key.replace(/^f[_-]/i, '');
+  if (FIELD_LABEL_MAP[cleanKey]) {
+    return FIELD_LABEL_MAP[cleanKey];
+  }
+
+  return cleanKey
     .replace(/([A-Z])/g, ' $1')
     .replace(/[_-]/g, ' ')
-    .replace(/^\w/, (c) => c.toUpperCase())
+    .replace(/\b\w/g, (c) => c.toUpperCase())
     .trim();
 }
 
 /**
- * Downloads a high-fidelity, beautifully styled PDF of an official Employee Application.
- * Fixes blank/white PDF issues caused by off-screen positioning (-9999px).
- * Uses html2pdf with fallback to html-to-image + jsPDF and browser print.
+ * Strips any Bengali Unicode characters (\u0980-\u09FF) or Bengali currency signs (৳ -> BDT)
+ * to ensure PDF renders 100% clean English text with zero corrupted font glyphs.
+ */
+function sanitizePdfString(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/৳/g, 'BDT ')
+    .replace(/\s*\([^)]*[\u0980-\u09FF][^)]*\)/g, '')
+    .replace(/[\u0980-\u09FF]/g, '')
+    .replace(/\s*\(\s*\)/g, '')
+    .trim();
+}
+
+/**
+ * Loads an image from a URL into base64 data URL for jsPDF embedding
+ */
+async function loadBase64Image(url: string): Promise<{ data: string; width: number; height: number } | null> {
+  return new Promise((resolve) => {
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth || img.width;
+          canvas.height = img.naturalHeight || img.height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return resolve(null);
+          ctx.drawImage(img, 0, 0);
+          const dataUrl = canvas.toDataURL('image/png');
+          resolve({
+            data: dataUrl,
+            width: canvas.width,
+            height: canvas.height
+          });
+        } catch {
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+/**
+ * Downloads a high-fidelity, beautifully styled vector PDF of an official Employee Application.
+ * Built with native vector jsPDF rendering to guarantee 100% crisp, selectable text and ZERO blank pages.
  */
 export async function downloadApplicationPdf(
   app: EmployeeApplication,
-  companyName: string = 'Company Enterprise',
+  companyName: string = 'Vics Ventures',
   companyLogoUrl?: string
 ): Promise<void> {
   // Attempt to resolve real company name & logo from cached settings if available
-  let effectiveCompanyName = companyName;
+  let effectiveCompanyName = companyName || 'Vics Ventures';
   let effectiveLogoUrl = companyLogoUrl;
 
   try {
     const cachedSettings = localStorage.getItem('cached_site_settings');
     if (cachedSettings) {
       const parsed = JSON.parse(cachedSettings);
-      if (parsed?.companyName && (!companyName || companyName === 'Company Enterprise' || companyName === 'Parcel Intelligence' || companyName === 'Company Office')) {
+      if (
+        parsed?.companyName &&
+        parsed.companyName !== 'Company Enterprise' &&
+        parsed.companyName !== 'Company Office' &&
+        parsed.companyName !== 'Parcel Intelligence'
+      ) {
         effectiveCompanyName = parsed.companyName;
       }
       if (!effectiveLogoUrl && parsed?.logoUrl) {
         effectiveLogoUrl = parsed.logoUrl;
       }
     }
-  } catch (e) {
+  } catch {
     // Ignore localStorage errors
   }
 
+  // Ensure default company name is Vics Ventures if still placeholder
+  if (
+    !effectiveCompanyName ||
+    effectiveCompanyName === 'Company Enterprise' ||
+    effectiveCompanyName === 'Company Office' ||
+    effectiveCompanyName === 'Parcel Intelligence'
+  ) {
+    effectiveCompanyName = 'Vics Ventures';
+  }
+
   // Determine recipient display
-  const recipientDisplay = 
-    app.recipientTitle || 
-    app.recipientName || 
+  const recipientDisplay =
+    app.recipientTitle ||
+    app.recipientName ||
     (app.recipientRole ? app.recipientRole.replace(/_/g, ' ').toUpperCase() : 'The Respected Authority');
 
-  const recipientDeptDisplay = 
-    app.recipientDepartment || 
+  const recipientDeptDisplay =
+    app.recipientDepartment ||
     (app.department ? `${app.department} Department` : 'Management & Human Resources');
 
-  const statusColor = 
-    app.status === 'approved' ? '#059669' :
-    app.status === 'rejected' ? '#dc2626' :
-    app.status === 'draft' ? '#64748b' : '#d97706';
+  const submissionDate = formatOfficialDate(app.submittedAt || app.createdAt) || 'Recent';
+  const reviewedDate = app.reviewedAt ? formatOfficialDate(app.reviewedAt) : '';
 
-  const statusBg =
-    app.status === 'approved' ? '#ecfdf5' :
-    app.status === 'rejected' ? '#fef2f2' :
-    app.status === 'draft' ? '#f8fafc' : '#fffbeb';
+  const cleanFilename = `${app.applicationId || 'Application'}_${(app.userName || 'Employee').replace(/\s+/g, '_')}.pdf`;
+
+  // Initialize jsPDF A4 document (210mm x 297mm)
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const marginX = 16;
+  const contentWidth = pageWidth - marginX * 2; // 178mm
+  const bottomThreshold = 265; // Trigger page break if exceeded
+  let currentY = 16;
+
+  // Helper: check space and break page if needed
+  const ensureSpace = (neededHeight: number) => {
+    if (currentY + neededHeight > bottomThreshold) {
+      doc.addPage();
+      currentY = 20;
+      drawSubsequentHeader();
+    }
+  };
+
+  // Helper: draw small header on page 2+
+  const drawSubsequentHeader = () => {
+    doc.setFillColor(30, 58, 138); // #1e3a8a
+    doc.rect(0, 0, pageWidth, 3, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(100, 116, 139); // #64748b
+    doc.text(effectiveCompanyName.toUpperCase(), marginX, 12);
+
+    const refText = `${app.applicationId || 'APPLICATION'} (Continued)`;
+    const refWidth = doc.getTextWidth(refText);
+    doc.text(refText, pageWidth - marginX - refWidth, 12);
+
+    doc.setDrawColor(226, 232, 240); // #e2e8f0
+    doc.setLineWidth(0.3);
+    doc.line(marginX, 15, pageWidth - marginX, 15);
+    currentY = 22;
+  };
+
+  // Optional: load company logo
+  let logoData: { data: string; width: number; height: number } | null = null;
+  if (effectiveLogoUrl) {
+    try {
+      logoData = await loadBase64Image(effectiveLogoUrl);
+    } catch {
+      // Continue without logo
+    }
+  }
+
+  // ==========================================
+  // PAGE 1: OFFICIAL LETTERHEAD HEADER
+  // ==========================================
+
+  // Top accent bars
+  doc.setFillColor(30, 58, 138); // Deep Navy #1e3a8a
+  doc.rect(0, 0, pageWidth, 4, 'F');
+  doc.setFillColor(37, 99, 235); // Royal Blue #2563eb
+  doc.rect(0, 4, 130, 1.5, 'F');
+
+  currentY = 16;
+
+  // Logo if available
+  if (logoData) {
+    try {
+      const maxLogoW = 38;
+      const maxLogoH = 14;
+      const aspect = logoData.width / logoData.height;
+      let renderW = maxLogoW;
+      let renderH = maxLogoW / aspect;
+      if (renderH > maxLogoH) {
+        renderH = maxLogoH;
+        renderW = maxLogoH * aspect;
+      }
+      doc.addImage(logoData.data, 'PNG', marginX, currentY, renderW, renderH);
+      currentY += renderH + 3;
+    } catch {
+      // If error rendering logo, ignore
+    }
+  }
+
+  // Company Name & Portal Title (Left column)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(17);
+  doc.setTextColor(15, 23, 42); // #0f172a
+  doc.text(effectiveCompanyName.toUpperCase(), marginX, currentY + 4);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139); // #64748b
+  doc.text('OFFICIAL EMPLOYEE REQUEST & FORMAL APPLICATION', marginX, currentY + 8.5);
+
+  // Application Reference & Metadata (Right column)
+  const appIdText = app.applicationId || 'APP-RECORD';
+  doc.setFont('courier', 'bold');
+  doc.setFontSize(9.5);
+  const appIdWidth = doc.getTextWidth(appIdText) + 8;
+  const badgeX = pageWidth - marginX - appIdWidth;
+
+  // Dark badge for ID
+  doc.setFillColor(15, 23, 42); // #0f172a
+  doc.roundedRect(badgeX, currentY - 2, appIdWidth, 7, 1.5, 1.5, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.text(appIdText, badgeX + 4, currentY + 2.8);
+
+  // Submission Date
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(71, 85, 105); // #475569
+  const dateLabel = `Date: `;
+  const dateVal = submissionDate;
+  const dateFullW = doc.getTextWidth(dateLabel + dateVal);
+  doc.text(dateLabel, pageWidth - marginX - dateFullW, currentY + 10.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(dateVal, pageWidth - marginX - doc.getTextWidth(dateVal), currentY + 10.5);
+
+  // Category - guaranteed clean English without any Bengali text or corrupted font glyphs
+  const catText = cleanApplicationCategory(app.category, app.applicationType || app.templateName);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  const catLabel = `Category: `;
+  const catFullW = doc.getTextWidth(catLabel + catText);
+  doc.text(catLabel, pageWidth - marginX - catFullW, currentY + 15);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(37, 99, 235);
+  doc.text(catText, pageWidth - marginX - doc.getTextWidth(catText), currentY + 15);
+
+  currentY += 21;
+
+  // Divider line
+  doc.setDrawColor(15, 23, 42); // #0f172a
+  doc.setLineWidth(0.6);
+  doc.line(marginX, currentY, pageWidth - marginX, currentY);
+
+  currentY += 8;
+
+  // ==========================================
+  // RECIPIENT SECTION
+  // ==========================================
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(100, 116, 139); // #64748b
+  doc.text('TO,', marginX, currentY);
+  currentY += 4.5;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42); // #0f172a
+  doc.text(recipientDisplay, marginX, currentY);
+  currentY += 4.5;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(51, 65, 85); // #334155
+  doc.text(recipientDeptDisplay, marginX, currentY);
+  currentY += 4.2;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
+  doc.text(effectiveCompanyName, marginX, currentY);
+  currentY += 8;
+
+  // ==========================================
+  // SUBJECT BANNER
+  // ==========================================
+  const subjectPrefix = 'Subject: ';
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10.5);
+
+  const subjectText = app.subject || 'Application';
+  const wrappedSubject = doc.splitTextToSize(`${subjectPrefix}${subjectText}`, contentWidth - 14);
+  const subjectBoxHeight = Math.max(14, wrappedSubject.length * 5.2 + 6);
+
+  ensureSpace(subjectBoxHeight + 6);
+
+  // Background Box
+  doc.setFillColor(248, 250, 252); // #f8fafc
+  doc.setDrawColor(226, 232, 240); // #e2e8f0
+  doc.setLineWidth(0.3);
+  doc.roundedRect(marginX, currentY, contentWidth, subjectBoxHeight, 2, 2, 'FD');
+
+  // Blue Left Accent Stripe
+  doc.setFillColor(37, 99, 235); // #2563eb
+  doc.rect(marginX, currentY, 2.5, subjectBoxHeight, 'F');
+
+  // Text inside subject box
+  doc.setTextColor(37, 99, 235);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('SUBJECT:', marginX + 6, currentY + 5.5);
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+
+  const subjectOnlyLines = doc.splitTextToSize(subjectText, contentWidth - 12);
+  let subTextY = currentY + 10.5;
+  subjectOnlyLines.forEach((line: string) => {
+    doc.text(line, marginX + 6, subTextY);
+    subTextY += 4.8;
+  });
+
+  currentY += subjectBoxHeight + 8;
+
+  // ==========================================
+  // SALUTATION
+  // ==========================================
+  ensureSpace(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(15, 23, 42);
+  doc.text(app.salutation || 'Dear Sir/Madam,', marginX, currentY);
+  currentY += 7;
+
+  // ==========================================
+  // MAIN BODY PARAGRAPHS
+  // ==========================================
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9.8);
+  doc.setTextColor(30, 41, 59); // #1e293b
+
+  const bodyText = app.body || 'I am writing to formally submit this application.';
+  const paragraphs = bodyText.split(/\n+/);
+
+  paragraphs.forEach((para) => {
+    const trimmed = para.trim();
+    if (!trimmed) {
+      currentY += 3;
+      return;
+    }
+
+    const lines = doc.splitTextToSize(trimmed, contentWidth);
+    lines.forEach((line: string) => {
+      ensureSpace(5.5);
+      doc.text(line, marginX, currentY);
+      currentY += 5.2;
+    });
+    currentY += 3.5; // Spacing after paragraph
+  });
+
+  currentY += 3;
+
+  // ==========================================
+  // APPLICATION PARTICULARS TABLE (Field Values)
+  // ==========================================
+  const fieldEntries = Object.entries(app.fieldValues || {}).filter(
+    ([_, val]) => val !== undefined && val !== null && String(val).trim() !== ''
+  );
+
+  if (fieldEntries.length > 0) {
+    ensureSpace(22);
+
+    // Section Header
+    doc.setFillColor(241, 245, 249); // #f1f5f9
+    doc.setDrawColor(226, 232, 240); // #e2e8f0
+    doc.setLineWidth(0.3);
+    doc.rect(marginX, currentY, contentWidth, 7, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(51, 65, 85); // #334155
+    doc.text('DOCUMENTED APPLICATION PARTICULARS & DETAILS', marginX + 4, currentY + 4.8);
+    currentY += 7;
+
+    const labelColW = 58;
+    const valueColW = contentWidth - labelColW;
+
+    fieldEntries.forEach(([key, val], idx) => {
+      const rawLabel = formatFieldLabel(key);
+      const label = sanitizePdfString(rawLabel);
+      const rawVal =
+        typeof val === 'string' && /^\d{4}-\d{2}-\d{2}/.test(val)
+          ? formatOfficialDate(val)
+          : String(val);
+      const displayVal = sanitizePdfString(rawVal);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      const labelLines = doc.splitTextToSize(label, labelColW - 6);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      const valLines = doc.splitTextToSize(displayVal, valueColW - 6);
+
+      const maxLines = Math.max(labelLines.length, valLines.length);
+      const rowHeight = Math.max(7, maxLines * 4.4 + 3);
+
+      ensureSpace(rowHeight);
+
+      // Row background (alternating)
+      if (idx % 2 === 1) {
+        doc.setFillColor(248, 250, 252); // #f8fafc
+        doc.rect(marginX, currentY, contentWidth, rowHeight, 'F');
+      }
+
+      // Row borders
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.2);
+      doc.rect(marginX, currentY, contentWidth, rowHeight, 'S');
+      doc.line(marginX + labelColW, currentY, marginX + labelColW, currentY + rowHeight);
+
+      // Label Text
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(71, 85, 105); // #475569
+      let lblY = currentY + 4.6;
+      labelLines.forEach((l: string) => {
+        doc.text(l, marginX + 3.5, lblY);
+        lblY += 4.2;
+      });
+
+      // Value Text
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(15, 23, 42); // #0f172a
+      let valY = currentY + 4.6;
+      valLines.forEach((v: string) => {
+        doc.text(v, marginX + labelColW + 3.5, valY);
+        valY += 4.2;
+      });
+
+      currentY += rowHeight;
+    });
+
+    currentY += 8;
+  }
+
+  // ==========================================
+  // CLOSING SIGN-OFF
+  // ==========================================
+  ensureSpace(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(51, 65, 85);
+  doc.text(app.closing || 'Sincerely,', marginX, currentY);
+  currentY += 8;
+
+  // ==========================================
+  // CREDENTIALS & DECISION BLOCK (TWO COLUMNS)
+  // ==========================================
+  const bottomBlockHeight = 44;
+  ensureSpace(bottomBlockHeight + 10);
+
+  // Top dashed divider
+  doc.setDrawColor(203, 213, 225); // #cbd5e1
+  doc.setLineWidth(0.3);
+  doc.setLineDashPattern([2, 2], 0);
+  doc.line(marginX, currentY, pageWidth - marginX, currentY);
+  doc.setLineDashPattern([], 0); // Reset dash
+
+  currentY += 6;
+
+  const colWidth = (contentWidth - 6) / 2; // ~86mm each
+  const leftColX = marginX;
+  const rightColX = marginX + colWidth + 6;
+
+  // LEFT COLUMN: APPLICANT DETAILS
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text('APPLICANT SIGNATURE & CREDENTIALS', leftColX, currentY);
+
+  let credY = currentY + 5;
+  const printCred = (lbl: string, val: string, isMono: boolean = false) => {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(lbl, leftColX, credY);
+
+    if (isMono) {
+      doc.setFont('courier', 'bold');
+      doc.setTextColor(37, 99, 235);
+    } else {
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+    }
+    doc.text(val, leftColX + 26, credY);
+    credY += 4.5;
+  };
+
+  printCred('Full Name:', app.userName || 'Employee');
+  printCred('Employee ID:', app.employeeId || app.userId || 'N/A', true);
+  printCred('Department:', app.department || app.applicantDepartment || 'General');
+  if (app.designation) {
+    printCred('Designation:', app.designation);
+  }
+  printCred('Email:', app.userEmail || '');
+
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`✓ Electronically Verified & Submitted on ${submissionDate}`, leftColX, credY + 2);
+
+  // RIGHT COLUMN: AUTHORITY DECISION STAMP
+  const statusColorRgb =
+    app.status === 'approved' ? [5, 150, 105] :
+    app.status === 'rejected' ? [220, 38, 38] :
+    app.status === 'draft' ? [100, 116, 139] : [217, 119, 6];
+
+  const statusBgRgb =
+    app.status === 'approved' ? [236, 253, 245] :
+    app.status === 'rejected' ? [254, 242, 242] :
+    app.status === 'draft' ? [248, 250, 252] : [255, 251, 235];
 
   const statusLabel =
     app.status === 'approved' ? 'OFFICIALLY APPROVED' :
     app.status === 'rejected' ? 'REJECTED / NOT APPROVED' :
     app.status === 'draft' ? 'DRAFT COPY' : 'PENDING APPROVAL';
 
-  const submissionDate = formatOfficialDate(app.submittedAt || app.createdAt) || 'Recent';
-  const reviewedDate = app.reviewedAt ? formatOfficialDate(app.reviewedAt) : '';
+  // Decision box background & border
+  doc.setFillColor(statusBgRgb[0], statusBgRgb[1], statusBgRgb[2]);
+  doc.setDrawColor(statusColorRgb[0], statusColorRgb[1], statusColorRgb[2]);
+  doc.setLineWidth(0.6);
+  doc.roundedRect(rightColX, currentY - 2, colWidth, bottomBlockHeight, 2, 2, 'FD');
 
-  // Filter valid field entries
-  const fieldEntries = Object.entries(app.fieldValues || {}).filter(
-    ([_, val]) => val !== undefined && val !== null && String(val).trim() !== ''
-  );
+  // Header of box
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(100, 116, 139);
+  doc.text('AUTHORITY STATUS', rightColX + 4, currentY + 3.5);
 
-  // Create isolated container positioned at (0, 0) behind viewport so html2canvas captures it accurately
-  const container = document.createElement('div');
-  container.id = `application-pdf-render-${app.applicationId || Date.now()}`;
-  container.style.position = 'fixed';
-  container.style.left = '0';
-  container.style.top = '0';
-  container.style.width = '794px'; // Standard A4 width at 96 DPI
-  container.style.minHeight = '1120px'; // Standard A4 height at 96 DPI
-  container.style.zIndex = '-999999';
-  container.style.pointerEvents = 'none';
-  container.style.opacity = '1';
-  container.style.visibility = 'visible';
-  container.style.boxSizing = 'border-box';
-  container.style.backgroundColor = '#ffffff';
-  container.style.color = '#0f172a';
-  container.style.padding = '44px 52px';
-  container.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-  container.style.lineHeight = '1.6';
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(statusColorRgb[0], statusColorRgb[1], statusColorRgb[2]);
+  const statusLblW = doc.getTextWidth(statusLabel);
+  doc.text(statusLabel, rightColX + colWidth - statusLblW - 4, currentY + 3.5);
 
-  const cleanFilename = `${app.applicationId || 'Application'}_${(app.userName || 'Employee').replace(/\s+/g, '_')}.pdf`;
+  // Divider inside box
+  doc.setDrawColor(statusColorRgb[0], statusColorRgb[1], statusColorRgb[2]);
+  doc.setLineWidth(0.2);
+  doc.line(rightColX + 3, currentY + 6, rightColX + colWidth - 3, currentY + 6);
 
-  container.innerHTML = `
-    <!-- Top Accent Bar -->
-    <div style="height: 5px; background: linear-gradient(90deg, #1e3a8a 0%, #2563eb 50%, #0284c7 100%); margin: -44px -52px 32px -52px;"></div>
+  let decY = currentY + 11;
+  if (app.reviewedBy) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(30, 41, 59);
+    doc.text('Reviewed by:', rightColX + 4, decY);
 
-    <!-- Official Letterhead Header -->
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 20px; margin-bottom: 26px;">
-      <div style="max-width: 65%;">
-        ${effectiveLogoUrl ? `
-          <img 
-            src="${effectiveLogoUrl}" 
-            alt="${effectiveCompanyName}" 
-            style="max-height: 48px; max-width: 180px; object-fit: contain; margin-bottom: 8px; display: block;" 
-            crossorigin="anonymous"
-          />
-        ` : ''}
-        <h1 style="margin: 0; font-size: 22px; font-weight: 900; color: #0f172a; text-transform: uppercase; letter-spacing: -0.3px; line-height: 1.2;">
-          ${effectiveCompanyName}
-        </h1>
-        <div style="margin: 3px 0 0 0; font-size: 10.5px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">
-          Official Employee Request & Formal Application
-        </div>
-      </div>
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(app.reviewedBy, rightColX + 24, decY);
+    decY += 4.5;
 
-      <div style="text-align: right; min-width: 220px;">
-        <div style="display: inline-block; background: #0f172a; color: #ffffff; padding: 5px 12px; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 6px;">
-          ${app.applicationId || 'APP-RECORD'}
-        </div>
-        <div style="font-size: 11.5px; color: #334155; font-weight: 600;">
-          Date: <strong style="color: #0f172a;">${submissionDate}</strong>
-        </div>
-        <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
-          Category: <span style="font-weight: 700; color: #2563eb;">${app.applicationType || app.templateName || 'General Application'}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Recipient Section -->
-    <div style="margin-bottom: 24px; padding-left: 2px;">
-      <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 4px; letter-spacing: 0.5px;">To,</div>
-      <div style="font-size: 15px; font-weight: 800; color: #0f172a; line-height: 1.3;">${recipientDisplay}</div>
-      <div style="font-size: 13px; color: #334155; font-weight: 600; margin-top: 2px;">${recipientDeptDisplay}</div>
-      <div style="font-size: 12px; color: #64748b; margin-top: 1px;">${effectiveCompanyName}</div>
-    </div>
-
-    <!-- Subject Banner -->
-    <div style="margin-bottom: 24px; padding: 12px 18px; background-color: #f8fafc; border-left: 4px solid #2563eb; border-top: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; border-radius: 6px;">
-      <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: #2563eb; letter-spacing: 0.8px; margin-bottom: 2px;">Subject:</div>
-      <div style="font-size: 14.5px; font-weight: 800; color: #0f172a; line-height: 1.4;">${app.subject}</div>
-    </div>
-
-    <!-- Salutation -->
-    <div style="font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 14px;">
-      ${app.salutation || 'Dear Sir/Madam,'}
-    </div>
-
-    <!-- Main Letter Body -->
-    <div style="margin-bottom: 26px; font-size: 13.5px; color: #1e293b; line-height: 1.8; white-space: pre-wrap; word-break: break-word; text-align: justify;">${app.body}</div>
-
-    <!-- Field Details Table (Handover Plan, Leave Dates, Reasons, etc. if present) -->
-    ${fieldEntries.length > 0 ? `
-      <div style="margin-bottom: 28px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #ffffff;">
-        <div style="background-color: #f1f5f9; padding: 8px 14px; font-size: 11px; font-weight: 800; text-transform: uppercase; color: #334155; letter-spacing: 0.6px; border-bottom: 1px solid #e2e8f0;">
-          Documented Application Particulars & Details
-        </div>
-        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-          ${fieldEntries.map(([key, val], idx) => {
-            const label = formatFieldLabel(key);
-            const displayVal = typeof val === 'string' && /^\d{4}-\d{2}-\d{2}/.test(val)
-              ? formatOfficialDate(val)
-              : String(val);
-            const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
-            return `
-              <tr style="background-color: ${rowBg}; border-bottom: 1px solid #edf2f7;">
-                <td style="padding: 8px 14px; color: #475569; font-weight: 700; width: 35%; vertical-align: top;">${label}:</td>
-                <td style="padding: 8px 14px; color: #0f172a; font-weight: 600; width: 65%; white-space: pre-wrap; line-height: 1.5;">${displayVal}</td>
-              </tr>
-            `;
-          }).join('')}
-        </table>
-      </div>
-    ` : ''}
-
-    <!-- Formal Closing Sign-off -->
-    <div style="font-size: 13.5px; font-weight: 600; color: #334155; margin-bottom: 18px;">
-      ${app.closing || 'Sincerely,'}
-    </div>
-
-    <!-- Bottom Particulars & Decision Row -->
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 24px; padding-top: 18px; border-top: 1px dashed #cbd5e1; gap: 24px;">
-      
-      <!-- Applicant Credentials -->
-      <div style="flex: 1; max-width: 52%;">
-        <div style="font-size: 10.5px; font-weight: 800; text-transform: uppercase; color: #64748b; margin-bottom: 8px; letter-spacing: 0.6px;">
-          Applicant Signature & Credentials
-        </div>
-        <table style="border-collapse: collapse; font-size: 12px; width: 100%;">
-          <tr>
-            <td style="padding: 3px 8px 3px 0; color: #64748b; font-weight: 600; width: 110px;">Full Name:</td>
-            <td style="padding: 3px 0; color: #0f172a; font-weight: 800;">${app.userName}</td>
-          </tr>
-          <tr>
-            <td style="padding: 3px 8px 3px 0; color: #64748b; font-weight: 600;">Employee ID:</td>
-            <td style="padding: 3px 0; color: #2563eb; font-weight: 800; font-family: ui-monospace, SFMono-Regular, monospace;">
-              ${app.employeeId || app.userId}
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 3px 8px 3px 0; color: #64748b; font-weight: 600;">Department:</td>
-            <td style="padding: 3px 0; color: #0f172a; font-weight: 600;">
-              ${app.department || app.applicantDepartment || 'Not Assigned'}
-            </td>
-          </tr>
-          ${app.designation ? `
-          <tr>
-            <td style="padding: 3px 8px 3px 0; color: #64748b; font-weight: 600;">Designation:</td>
-            <td style="padding: 3px 0; color: #0f172a; font-weight: 600;">${app.designation}</td>
-          </tr>` : ''}
-          <tr>
-            <td style="padding: 3px 8px 3px 0; color: #64748b; font-weight: 600;">Email:</td>
-            <td style="padding: 3px 0; color: #475569; font-size: 11px;">${app.userEmail}</td>
-          </tr>
-        </table>
-
-        <div style="margin-top: 14px; padding-top: 8px; border-top: 1px solid #e2e8f0; font-size: 10.5px; color: #64748b; font-style: italic;">
-          ✓ Electronically Verified & Submitted on ${submissionDate}
-        </div>
-      </div>
-
-      <!-- Authority Decision Block -->
-      <div style="flex: 1; max-width: 45%; border: 2px solid ${statusColor}; background-color: ${statusBg}; border-radius: 8px; padding: 14px 16px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid ${statusColor}40; padding-bottom: 6px;">
-          <span style="font-size: 9.5px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.6px;">Authority Status</span>
-          <span style="font-size: 11px; font-weight: 900; color: ${statusColor}; letter-spacing: 0.4px;">${statusLabel}</span>
-        </div>
-        
-        ${app.reviewedBy ? `
-          <div style="font-size: 11.5px; color: #1e293b; margin-top: 4px;">
-            Reviewed by: <strong style="color: #0f172a;">${app.reviewedBy}</strong>
-          </div>
-          ${app.reviewedAt ? `<div style="font-size: 10.5px; color: #64748b; margin-top: 1px;">On: ${reviewedDate}</div>` : ''}
-        ` : `
-          <div style="font-size: 11px; color: #64748b; font-style: italic; margin-top: 4px;">
-            Awaiting Official Authorization & Review
-          </div>
-        `}
-
-        ${app.adminComment ? `
-          <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed ${statusColor}80; font-size: 11px; color: #0f172a;">
-            <div style="font-size: 9.5px; font-weight: 800; text-transform: uppercase; color: #475569; letter-spacing: 0.5px;">Approver Remarks:</div>
-            <div style="font-style: italic; margin-top: 3px; line-height: 1.4; color: #1e293b;">"${app.adminComment}"</div>
-          </div>
-        ` : ''}
-      </div>
-    </div>
-
-    <!-- Official Document Security Footer -->
-    <div style="margin-top: 38px; padding-top: 12px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; font-size: 9.5px; color: #94a3b8;">
-      <div>Generated via ${effectiveCompanyName} Portal • Ref: ${app.applicationId || 'N/A'}</div>
-      <div>Security Hash: ${(app.id || 'SEC-000').substring(0, 14)}... (Official Record)</div>
-    </div>
-  `;
-
-  document.body.appendChild(container);
-
-  // Allow styles, fonts, and DOM layout to paint cleanly
-  await new Promise((resolve) => setTimeout(resolve, 150));
-
-  let downloadSucceeded = false;
-
-  // PRIMARY ATTEMPT: html2pdf.js with proper viewport and zero scroll offsets
-  try {
-    const html2pdfModule = await import('html2pdf.js');
-    const html2pdfFn: any = (html2pdfModule as any).default || html2pdfModule;
-
-    const opt = {
-      margin: [10, 10, 10, 10],
-      filename: cleanFilename,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        scrollX: 0,
-        scrollY: 0,
-        windowWidth: 794,
-        x: 0,
-        y: 0
-      },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-    };
-
-    await html2pdfFn().set(opt).from(container).save();
-    downloadSucceeded = true;
-  } catch (pdfErr) {
-    console.warn('html2pdf execution error, attempting html-to-image + jsPDF fallback:', pdfErr);
-  }
-
-  // SECONDARY ATTEMPT: html-to-image + jsPDF direct generation
-  if (!downloadSucceeded) {
-    try {
-      const { toPng } = await import('html-to-image');
-      const { jsPDF } = await import('jspdf');
-
-      const dataUrl = await toPng(container, {
-        quality: 0.98,
-        pixelRatio: 2,
-        backgroundColor: '#ffffff',
-        skipFonts: true
-      });
-
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgProps = pdf.getImageProperties(dataUrl);
-      const renderedHeight = (imgProps.height * pageWidth) / imgProps.width;
-
-      if (renderedHeight <= pageHeight) {
-        pdf.addImage(dataUrl, 'PNG', 0, 0, pageWidth, renderedHeight, undefined, 'FAST');
-      } else {
-        let heightLeft = renderedHeight;
-        let position = 0;
-        pdf.addImage(dataUrl, 'PNG', 0, position, pageWidth, renderedHeight, undefined, 'FAST');
-        heightLeft -= pageHeight;
-        while (heightLeft > 0) {
-          position -= pageHeight;
-          pdf.addPage();
-          pdf.addImage(dataUrl, 'PNG', 0, position, pageWidth, renderedHeight, undefined, 'FAST');
-          heightLeft -= pageHeight;
-        }
-      }
-
-      pdf.save(cleanFilename);
-      downloadSucceeded = true;
-    } catch (fallbackErr) {
-      console.warn('Direct jsPDF export error, resorting to print dialog fallback:', fallbackErr);
+    if (app.reviewedAt) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`On: ${reviewedDate}`, rightColX + 4, decY);
+      decY += 5;
     }
+  } else {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Awaiting Official Authorization & Review', rightColX + 4, decY);
+    decY += 6;
   }
 
-  // TERTIARY FALLBACK: Browser Print Dialog
-  if (!downloadSucceeded) {
-    try {
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <title>${app.applicationId} - ${app.subject}</title>
-              <style>
-                body { margin: 0; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #ffffff; color: #0f172a; }
-                @media print {
-                  @page { margin: 12mm; size: A4 portrait; }
-                  body { padding: 0; }
-                }
-              </style>
-            </head>
-            <body>
-              ${container.innerHTML}
-              <script>
-                window.onload = function() { window.print(); window.close(); };
-              </script>
-            </body>
-          </html>
-        `);
-        printWindow.document.close();
-      }
-    } catch (printErr) {
-      console.error('All PDF export options failed:', printErr);
-    }
+  // Approver comment if present
+  if (app.adminComment) {
+    doc.setDrawColor(statusColorRgb[0], statusColorRgb[1], statusColorRgb[2]);
+    doc.setLineWidth(0.2);
+    doc.setLineDashPattern([1.5, 1.5], 0);
+    doc.line(rightColX + 3, decY, rightColX + colWidth - 3, decY);
+    doc.setLineDashPattern([], 0);
+    decY += 4;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(71, 85, 105);
+    doc.text('APPROVER REMARKS:', rightColX + 4, decY);
+    decY += 4;
+
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8);
+    doc.setTextColor(15, 23, 42);
+    const commentLines = doc.splitTextToSize(`"${app.adminComment}"`, colWidth - 8);
+    commentLines.slice(0, 3).forEach((line: string) => {
+      doc.text(line, rightColX + 4, decY);
+      decY += 3.8;
+    });
   }
 
-  // Cleanup container safely
-  if (document.body.contains(container)) {
-    document.body.removeChild(container);
+  // ==========================================
+  // FOOTER ON ALL PAGES
+  // ==========================================
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+
+    const footerY = pageHeight - 12;
+
+    // Footer divider line
+    doc.setDrawColor(226, 232, 240); // #e2e8f0
+    doc.setLineWidth(0.3);
+    doc.line(marginX, footerY - 3, pageWidth - marginX, footerY - 3);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184); // #94a3b8
+
+    const leftFooter = `Generated via ${effectiveCompanyName} Portal • Ref: ${app.applicationId || 'N/A'}`;
+    doc.text(leftFooter, marginX, footerY);
+
+    const rightFooter = `Official Record • Page ${i} of ${totalPages}`;
+    const rfWidth = doc.getTextWidth(rightFooter);
+    doc.text(rightFooter, pageWidth - marginX - rfWidth, footerY);
   }
+
+  // Save the PDF file - triggers instant, crisp download in browser
+  doc.save(cleanFilename);
 }
-

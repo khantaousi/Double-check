@@ -105,7 +105,7 @@ export function renderApplicationBody(
 export function formatRecipientBlock(
   recipient: ApplicationRecipient,
   userDepartment?: string,
-  companyName: string = 'Parcel Intelligence'
+  companyName: string = 'Vics Ventures'
 ): { title: string; subtitle: string } {
   const title = RECIPIENT_LABELS[recipient] || 'Team Leader';
   let subtitle = '';
@@ -135,6 +135,60 @@ export function generateNextApplicationId(currentMaxNumber: number = 0): string 
 /**
  * Check if a user can approve/reject an application based on their role and recipient
  */
+/**
+ * Clean application category or template name to guarantee pure, crisp English text
+ * and remove any Bengali text, Bengali Unicode characters (\u0980-\u09FF), or corrupted bracketed notes.
+ */
+export function cleanApplicationCategory(category?: string, fallbackName?: string): string {
+  const target = (category || fallbackName || '').trim();
+  if (/salary\s*advance/i.test(target) || target === 'salary_advance') {
+    return 'Salary Advance';
+  }
+  if (/paid\s*leave/i.test(target) || target === 'paid_leave') {
+    return 'Paid Leave';
+  }
+  if (/casual\s*leave/i.test(target) || target === 'casual_leave') {
+    return 'Casual Leave';
+  }
+  if (/resignation/i.test(target) || target === 'resignation') {
+    return 'Resignation';
+  }
+  if (/reassign/i.test(target) || target === 'reassignment') {
+    return 'Reassignment';
+  }
+  if (/day\s*off/i.test(target) || target === 'day_off') {
+    return 'Day Off Exchange';
+  }
+  if (/permission/i.test(target) || target === 'permission') {
+    return 'Permission Request';
+  }
+  const cleaned = target
+    .replace(/\s*\([^)]*[\u0980-\u09FF][^)]*\)/g, '')
+    .replace(/[\u0980-\u09FF]/g, '')
+    .replace(/\s*\(\s*\)/g, '')
+    .replace(/[-_]/g, ' ')
+    .trim();
+
+  return cleaned || 'General Application';
+}
+
+export function cleanTemplateName(name?: string): string {
+  if (!name) return 'Application';
+  if (/salary\s*advance/i.test(name)) return 'Salary Advance';
+  if (/paid\s*leave/i.test(name)) return 'Paid Leave';
+  if (/casual\s*leave/i.test(name)) return 'Casual Leave';
+  if (/resignation/i.test(name)) return 'Resignation';
+  if (/reassign/i.test(name)) return 'Reassignment';
+  if (/day\s*off/i.test(name)) return 'Day Off Exchange';
+  if (/permission/i.test(name)) return 'Permission Request';
+  const cleaned = name
+    .replace(/\s*\([^)]*[\u0980-\u09FF][^)]*\)/g, '')
+    .replace(/[\u0980-\u09FF]/g, '')
+    .replace(/\s*\(\s*\)/g, '')
+    .trim();
+  return cleaned || 'Application';
+}
+
 export function canUserApproveApplication(
   userRole: 'admin' | 'user',
   userRoleType?: 'user' | 'squad_leader' | 'team_leader' | 'hr_admin',

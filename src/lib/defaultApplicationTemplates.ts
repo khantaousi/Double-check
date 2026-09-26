@@ -212,7 +212,7 @@ export const DEFAULT_APPLICATION_TEMPLATES: ApplicationTemplate[] = [
       {
         id: 'f_advance_amount',
         key: 'advanceAmount',
-        label: 'Requested Advance Amount (BDT ৳)',
+        label: 'Requested Advance Amount (BDT)',
         type: 'number',
         required: true,
         placeholder: 'e.g. 5000'

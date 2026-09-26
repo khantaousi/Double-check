@@ -16,7 +16,7 @@ import {
   Printer
 } from 'lucide-react';
 import { downloadApplicationPdf } from '../lib/applicationPdf';
-import { canUserApproveApplication } from '../lib/applicationFormatters';
+import { canUserApproveApplication, cleanApplicationCategory, cleanTemplateName } from '../lib/applicationFormatters';
 import { getBSTISOString } from '../lib/utils';
 
 interface ApplicationViewModalProps {
@@ -110,7 +110,7 @@ export const ApplicationViewModal: React.FC<ApplicationViewModalProps> = ({
   };
 
   const handleDownloadPdf = async () => {
-    await downloadApplicationPdf(application, 'Company Enterprise');
+    await downloadApplicationPdf(application, 'Vics Ventures');
   };
 
   const formattedDate = application.submittedAt 
@@ -135,7 +135,7 @@ export const ApplicationViewModal: React.FC<ApplicationViewModalProps> = ({
                 {getStatusBadge(application.status)}
               </div>
               <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                {application.templateName} • {application.category.toUpperCase()}
+                {cleanTemplateName(application.templateName)} • {cleanApplicationCategory(application.category, application.templateName).toUpperCase()}
               </p>
             </div>
           </div>

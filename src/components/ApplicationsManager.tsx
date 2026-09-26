@@ -47,7 +47,7 @@ import { ApplicationFormModal } from './ApplicationFormModal';
 import { ApplicationViewModal } from './ApplicationViewModal';
 import { ApplicationTemplatesManager } from './ApplicationTemplatesManager';
 import { DEFAULT_APPLICATION_TEMPLATES } from '../lib/defaultApplicationTemplates';
-import { generateNextApplicationId, canUserApproveApplication } from '../lib/applicationFormatters';
+import { generateNextApplicationId, canUserApproveApplication, cleanTemplateName } from '../lib/applicationFormatters';
 import { downloadApplicationPdf } from '../lib/applicationPdf';
 import { getBSTISOString, cleanObject } from '../lib/utils';
 
@@ -594,7 +594,7 @@ export const ApplicationsManager: React.FC<ApplicationsManagerProps> = ({
                         <td className="py-3 px-4 max-w-xs">
                           <div>
                             <span className="inline-block text-[9px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.2 rounded mr-1.5">
-                              {app.templateName}
+                              {cleanTemplateName(app.templateName)}
                             </span>
                             <span className="font-bold text-slate-800 dark:text-slate-200 truncate block mt-0.5">
                               {app.subject}
@@ -638,7 +638,7 @@ export const ApplicationsManager: React.FC<ApplicationsManagerProps> = ({
 
                             <button
                               type="button"
-                              onClick={() => downloadApplicationPdf(app, 'Company Enterprise')}
+                              onClick={() => downloadApplicationPdf(app, 'Vics Ventures')}
                               className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 text-blue-600 dark:text-blue-400 transition-colors"
                               title="Download PDF"
                             >
