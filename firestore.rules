@@ -226,5 +226,29 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
+
+    // 15. Birthday Wishes (Only visible to recipient, sender, and admin)
+    match /birthday_wishes/{wishId} {
+      allow list, get: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.recipientId == request.auth.uid ||
+        resource.data.senderId == request.auth.uid ||
+        (request.auth.token.email != null && (
+          resource.data.get('recipientEmail', '') == request.auth.token.email ||
+          resource.data.get('senderEmail', '') == request.auth.token.email
+        ))
+      );
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        incoming().senderId == request.auth.uid ||
+        (request.auth.token.email != null && incoming().get('senderEmail', '') == request.auth.token.email)
+      );
+      allow delete: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.senderId == request.auth.uid ||
+        (request.auth.token.email != null && resource.data.get('senderEmail', '') == request.auth.token.email)
+      );
+      allow update: if isAdmin();
+    }
   }
 }

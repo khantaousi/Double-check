@@ -45,7 +45,10 @@ import { PrintSlips } from './components/PrintSlips';
 import { Complaints } from './components/Complaints';
 import { PhoneTracker } from './components/PhoneTracker';
 import { ApplicationsManager } from './components/ApplicationsManager';
+import { SendBirthdayWishModal, ViewBirthdayWishesModal } from './components/BirthdayWishModal';
+import { isUserBirthdayToday, subscribeToBirthdayWishes } from './lib/birthdayUtils';
 import { sounds } from './lib/sounds';
+import { BirthdayWish } from './types';
 
 const getInitialRules = (): ValidationRule[] => {
   try {
@@ -325,6 +328,9 @@ export default function App() {
   const [rosterSearch, setRosterSearch] = useState('');
   const [showBirthdayPortalModal, setShowBirthdayPortalModal] = useState(false);
   const [birthdayPortalSearch, setBirthdayPortalSearch] = useState('');
+  const [birthdayWishes, setBirthdayWishes] = useState<BirthdayWish[]>([]);
+  const [wishingTargetUser, setWishingTargetUser] = useState<UserProfile | null>(null);
+  const [viewingWishesCelebrant, setViewingWishesCelebrant] = useState<{ id: string; name: string } | null>(null);
   const [selectedRosterId, setSelectedRosterId] = useState('');
   const [pendingTasksCount, setPendingTasksCount] = useState(0);
 
@@ -901,6 +907,18 @@ export default function App() {
   };
 
   const isAdmin = userProfile?.role === 'admin' || user?.email === 'khantaousi@gmail.com';
+
+  // Real-time Birthday Wishes subscription (Strictly visible only to Celebrant, Sender, and Admin)
+  useEffect(() => {
+    if (!userProfile) {
+      setBirthdayWishes([]);
+      return;
+    }
+    const unsubscribe = subscribeToBirthdayWishes(userProfile, isAdmin, (wishes) => {
+      setBirthdayWishes(wishes);
+    });
+    return () => unsubscribe();
+  }, [userProfile?.id, userProfile?.email, isAdmin]);
 
   useEffect(() => {
     if (userProfile && !hasShownWelcome) {
@@ -3374,6 +3392,43 @@ export default function App() {
                       </p>
                     </div>
 
+                    {/* Celebrant Personal Banner if today is current user's birthday */}
+                    {userProfile && isUserBirthdayToday(userProfile.birthday) && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="bg-gradient-to-r from-amber-500 via-rose-500 to-purple-600 p-6 rounded-3xl text-white shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-3xl shadow-inner">
+                            🎂
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-black uppercase tracking-widest bg-white/20 px-2 py-0.5 rounded-full">
+                              Special Day Today!
+                            </span>
+                            <h3 className="text-xl font-black tracking-tight mt-1">
+                              Happy Birthday, {userProfile.displayName || 'Teammate'}! 🎉
+                            </h3>
+                            <p className="text-xs text-white/90 font-semibold mt-0.5">
+                              {birthdayWishes.filter(w => w.recipientId === (userProfile.id || userProfile.email) || w.recipientEmail === userProfile.email).length > 0
+                                ? `You have received ${birthdayWishes.filter(w => w.recipientId === (userProfile.id || userProfile.email) || w.recipientEmail === userProfile.email).length} birthday wish${birthdayWishes.filter(w => w.recipientId === (userProfile.id || userProfile.email) || w.recipientEmail === userProfile.email).length === 1 ? '' : 'es'} from your teammates!`
+                                : "Wishing you a wonderful celebration and a fantastic year ahead!"}
+                            </p>
+                          </div>
+                        </div>
+                        {birthdayWishes.filter(w => w.recipientId === (userProfile.id || userProfile.email) || w.recipientEmail === userProfile.email).length > 0 && (
+                          <button
+                            onClick={() => setViewingWishesCelebrant({ id: userProfile.id || userProfile.email, name: userProfile.displayName || 'You' })}
+                            className="px-5 py-2.5 bg-white text-slate-900 hover:bg-slate-100 rounded-xl text-xs font-black uppercase tracking-wider shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer shrink-0 flex items-center gap-2"
+                          >
+                            <Gift size={14} className="text-rose-500" />
+                            Read My Birthday Wishes 💌
+                          </button>
+                        )}
+                      </motion.div>
+                    )}
+
                     {nextBday && (
                       <div className="space-y-4">
                         <motion.div
@@ -3394,13 +3449,24 @@ export default function App() {
                               </p>
                             </div>
                           </div>
-                          <button
-                            onClick={() => setShowBirthdayPortalModal(true)}
-                            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-amber-500/10 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer self-start sm:self-center shrink-0 flex items-center gap-1.5"
-                          >
-                            <Gift size={13} className="animate-bounce" />
-                            View Birthday Portal
-                          </button>
+                          <div className="flex items-center gap-2 self-start sm:self-center shrink-0 flex-wrap">
+                            {nextBday.daysLeft === 0 && userProfile && (
+                              <button
+                                onClick={() => setWishingTargetUser(nextBday.user)}
+                                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-600 hover:to-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-rose-500/20 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+                              >
+                                <Gift size={13} />
+                                Wish {nextBday.user.displayName || 'Celebrant'} 🎂
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setShowBirthdayPortalModal(true)}
+                              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-amber-500/10 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+                            >
+                              <Gift size={13} className="animate-bounce" />
+                              View Birthday Portal
+                            </button>
+                          </div>
                         </motion.div>
 
                         {/* Birthday Portal Modal */}
@@ -3555,14 +3621,60 @@ export default function App() {
                                             </div>
                                           </div>
                                           
-                                          <div className="text-right">
-                                            <div className={`text-xs font-black tabular-nums uppercase ${isToday ? 'text-amber-600 dark:text-amber-400' : isSoon ? 'text-orange-600 dark:text-orange-400' : 'text-slate-500'}`}>
-                                              {isToday ? 'Celebration 🎉' : `${item.daysLeft} days left`}
-                                            </div>
-                                            <div className="text-[9px] text-slate-400 dark:text-slate-500 font-bold mt-0.5">
-                                              {isToday ? 'Wish them today!' : `Next birthday: ${item.bdayDate.getFullYear()}`}
-                                            </div>
-                                          </div>
+                                          {(() => {
+                                            const targetId = u.id || u.email;
+                                            const userWishes = birthdayWishes.filter(
+                                              w => w.recipientId === targetId || w.recipientEmail === u.email
+                                            );
+                                            const mySentWish = userProfile && userWishes.find(
+                                              w => w.senderId === (userProfile.id || userProfile.email) || w.senderEmail === userProfile.email
+                                            );
+                                            const isCelebrant = userProfile && (userProfile.id === targetId || userProfile.email === u.email);
+                                            // Only Celebrant, Sender, or Admin can see wishes
+                                            const canViewWishes = isAdmin || isCelebrant || Boolean(mySentWish);
+
+                                            return (
+                                              <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                                <div className={`text-xs font-black tabular-nums uppercase ${isToday ? 'text-amber-600 dark:text-amber-400' : isSoon ? 'text-orange-600 dark:text-orange-400' : 'text-slate-500'}`}>
+                                                  {isToday ? 'Celebration 🎉' : `${item.daysLeft} days left`}
+                                                </div>
+
+                                                <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                                                  {isToday && userProfile && (
+                                                    <button
+                                                      onClick={() => setWishingTargetUser(u)}
+                                                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer ${
+                                                        mySentWish
+                                                          ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 hover:bg-amber-200'
+                                                          : 'bg-gradient-to-r from-amber-500 to-rose-600 text-white hover:from-amber-600 hover:to-rose-700 shadow-sm shadow-rose-500/20'
+                                                      }`}
+                                                    >
+                                                      <Gift size={11} />
+                                                      {mySentWish ? 'Wished ✓ (Wish Again)' : 'Wish 🎂'}
+                                                    </button>
+                                                  )}
+
+                                                  {canViewWishes && userWishes.length > 0 && (
+                                                    <button
+                                                      onClick={() => setViewingWishesCelebrant({
+                                                        id: targetId,
+                                                        name: u.displayName || u.email?.split('@')[0] || 'Teammate'
+                                                      })}
+                                                      className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1 cursor-pointer"
+                                                    >
+                                                      💌 Wishes ({userWishes.length})
+                                                    </button>
+                                                  )}
+
+                                                  {!isToday && (
+                                                    <div className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">
+                                                      Next: {item.bdayDate.getFullYear()}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            );
+                                          })()}
                                         </div>
                                       );
                                     });
@@ -4834,6 +4946,30 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Birthday Wish Modals */}
+      {wishingTargetUser && userProfile && (
+        <SendBirthdayWishModal
+          isOpen={Boolean(wishingTargetUser)}
+          onClose={() => setWishingTargetUser(null)}
+          recipient={wishingTargetUser}
+          currentUser={userProfile}
+        />
+      )}
+
+      {viewingWishesCelebrant && userProfile && (
+        <ViewBirthdayWishesModal
+          isOpen={Boolean(viewingWishesCelebrant)}
+          onClose={() => setViewingWishesCelebrant(null)}
+          celebrantId={viewingWishesCelebrant.id}
+          celebrantName={viewingWishesCelebrant.name}
+          wishes={birthdayWishes.filter(
+            w => w.recipientId === viewingWishesCelebrant.id || w.recipientEmail === viewingWishesCelebrant.id
+          )}
+          currentUser={userProfile}
+          isAdmin={isAdmin}
+        />
+      )}
     </div>
   );
 }

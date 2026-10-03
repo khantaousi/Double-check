@@ -439,4 +439,19 @@ export interface EmployeeApplication {
   isArchived?: boolean;
 }
 
+export interface BirthdayWish {
+  id: string;
+  recipientId: string;
+  recipientName: string;
+  recipientEmail: string;
+  recipientBirthday?: string;
+  senderId: string;
+  senderName: string;
+  senderEmail: string;
+  senderRole?: string;
+  message: string;
+  wishDate: string; // YYYY-MM-DD (e.g. 2026-10-03)
+  createdAt: string; // ISO string
+}
+
 

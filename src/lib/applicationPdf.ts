@@ -176,7 +176,7 @@ export async function downloadApplicationPdf(
   const pageHeight = 297;
   const marginX = 16;
   const contentWidth = pageWidth - marginX * 2; // 178mm
-  const bottomThreshold = 265; // Trigger page break if exceeded
+  const bottomThreshold = 240; // Safe threshold leaving 42mm clearance above the 282mm footer line
   let currentY = 16;
 
   // Helper: check space and break page if needed
@@ -499,29 +499,37 @@ export async function downloadApplicationPdf(
   }
 
   // ==========================================
-  // CLOSING SIGN-OFF
+  // CLOSING SIGN-OFF & CREDENTIALS/DECISION BLOCK
   // ==========================================
-  ensureSpace(12);
+  const rightColWidth = 85;
+  const commentText = app.adminComment ? `"${app.adminComment}"` : '';
+  const commentLines = commentText ? doc.splitTextToSize(commentText, rightColWidth - 8).slice(0, 3) : [];
+
+  let dynamicDecBoxHeight = 26;
+  if (app.reviewedBy) dynamicDecBoxHeight += 6;
+  if (app.reviewedAt) dynamicDecBoxHeight += 5;
+  if (commentLines.length > 0) {
+    dynamicDecBoxHeight += 8 + commentLines.length * 4;
+  }
+  const decisionBoxHeight = Math.max(32, dynamicDecBoxHeight);
+  const applicantBlockHeight = 44; // 5 lines credentials + 2 lines verification
+  const signatureBlockHeight = Math.max(applicantBlockHeight, decisionBoxHeight) + 8;
+  const totalClosingNeeded = 14 + signatureBlockHeight;
+
+  // Safe boundary check: ensure closing sign-off and the authority decision block stay together
+  // and maintain a minimum of 40mm distance from the bottom footer line (which is at 282mm)
+  if (currentY + totalClosingNeeded > 235) {
+    doc.addPage();
+    currentY = 20;
+    drawSubsequentHeader();
+  }
+
+  // Draw Closing
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
   doc.setTextColor(51, 65, 85);
   doc.text(app.closing || 'Sincerely,', marginX, currentY);
   currentY += 8;
-
-  // ==========================================
-  // CREDENTIALS & DECISION BLOCK (TWO COLUMNS)
-  // ==========================================
-  // Calculate dynamic decision box height based on actual content
-  let decisionBoxHeight = 24;
-  if (app.reviewedBy && app.reviewedAt) {
-    decisionBoxHeight = 29;
-  }
-  if (app.adminComment) {
-    decisionBoxHeight = 42;
-  }
-
-  const bottomBlockNeeded = Math.max(38, decisionBoxHeight) + 12;
-  ensureSpace(bottomBlockNeeded);
 
   // Top dashed divider
   doc.setDrawColor(203, 213, 225); // #cbd5e1
@@ -533,7 +541,6 @@ export async function downloadApplicationPdf(
   currentY += 6;
 
   const leftColWidth = 85;
-  const rightColWidth = 85;
   const leftColX = marginX; // 16mm
   const rightColX = marginX + leftColWidth + 8; // 16 + 85 + 8 = 109mm (8mm clear buffer)
 

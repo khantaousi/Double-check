@@ -213,9 +213,32 @@
         "adminComment": { "type": "string" }
       },
       "required": ["applicationId", "userId", "userName", "department", "subject", "status"]
+    },
+    "BirthdayWish": {
+      "title": "Birthday Wish",
+      "description": "Heartfelt birthday wishes sent by agents to celebrants",
+      "type": "object",
+      "properties": {
+        "recipientId": { "type": "string" },
+        "recipientName": { "type": "string" },
+        "recipientEmail": { "type": "string" },
+        "recipientBirthday": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderEmail": { "type": "string" },
+        "senderRole": { "type": "string" },
+        "message": { "type": "string" },
+        "wishDate": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["recipientId", "recipientName", "senderId", "senderName", "message", "wishDate", "createdAt"]
     }
   },
   "firestore": {
+    "/birthday_wishes/{wishId}": {
+      "schema": "BirthdayWish",
+      "description": "Birthday wishes viewable only by recipient, sender, and admin"
+    },
     "/applications/{applicationId}": {
       "schema": "EmployeeApplication",
       "description": "Formal employee requests and status history"
