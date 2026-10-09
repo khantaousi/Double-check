@@ -4,6 +4,8 @@ import { Shield, UserCheck, ShieldAlert, Plus, Mail, Lock, X, Activity, ToggleLe
 import { motion, AnimatePresence } from 'motion/react';
 import { secondaryAuth, secondaryDb, db, auth } from '../lib/firebase';
 import { getInitials, getAvatarColor } from '../lib/avatar';
+import { isUserBirthdayToday } from '../lib/birthdayUtils';
+import { BirthdayBalloons } from './BirthdayBalloons';
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/errors';
@@ -25,29 +27,40 @@ function UserAvatarItem({
 }) {
   const [hasError, setHasError] = useState(false);
   const displayName = user.displayName || user.loginHandle || user.email;
+  const isBirthday = isUserBirthdayToday(user.birthday);
 
   if (user.photoURL && !hasError) {
     return (
-      <button
-        type="button"
-        onClick={() => onPreview && onPreview(user.photoURL!, displayName)}
-        className="w-10 h-10 rounded-xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700 transition-all hover:scale-105 active:scale-95 bg-slate-100 dark:bg-slate-800 block relative shrink-0 cursor-pointer focus:outline-none ring-offset-2 hover:ring-2 hover:ring-blue-500/40"
-        title="Click to view profile picture"
-      >
-        <img
-          src={user.photoURL}
-          alt={displayName}
-          className="w-full h-full object-cover"
-          referrerPolicy="no-referrer"
-          onError={() => setHasError(true)}
-        />
-      </button>
+      <div className="relative inline-block">
+        {isBirthday && <BirthdayBalloons size="sm" />}
+        <button
+          type="button"
+          onClick={() => onPreview && onPreview(user.photoURL!, displayName)}
+          className={`w-10 h-10 rounded-xl overflow-hidden shadow-sm border transition-all hover:scale-105 active:scale-95 bg-slate-100 dark:bg-slate-800 block relative shrink-0 cursor-pointer focus:outline-none ring-offset-2 hover:ring-2 hover:ring-blue-500/40 ${
+            isBirthday ? 'border-amber-400 ring-2 ring-amber-400/40' : 'border-slate-200 dark:border-slate-700'
+          }`}
+          title="Click to view profile picture"
+        >
+          <img
+            src={user.photoURL}
+            alt={displayName}
+            className="w-full h-full object-cover"
+            referrerPolicy="no-referrer"
+            onError={() => setHasError(true)}
+          />
+        </button>
+      </div>
     );
   }
 
   return (
-    <div className={`w-10 h-10 rounded-xl ${getAvatarColor(displayName)} flex items-center justify-center text-white text-xs font-black shadow-sm transition-transform hover:scale-105 shrink-0`}>
-      {getInitials(displayName)}
+    <div className="relative inline-block">
+      {isBirthday && <BirthdayBalloons size="sm" />}
+      <div className={`w-10 h-10 rounded-xl ${getAvatarColor(displayName)} flex items-center justify-center text-white text-xs font-black shadow-sm transition-transform hover:scale-105 shrink-0 ${
+        isBirthday ? 'ring-2 ring-amber-400/40 border border-amber-300' : ''
+      }`}>
+        {getInitials(displayName)}
+      </div>
     </div>
   );
 }

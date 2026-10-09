@@ -232,9 +232,44 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["recipientId", "recipientName", "senderId", "senderName", "message", "wishDate", "createdAt"]
+    },
+    "BirthdayFundSummary": {
+      "type": "object",
+      "properties": {
+        "currentBalance": { "type": "number" },
+        "totalDeposits": { "type": "number" },
+        "totalExpenses": { "type": "number" },
+        "lastUpdated": { "type": "string" },
+        "updatedBy": { "type": "string" }
+      },
+      "required": ["currentBalance", "totalDeposits", "totalExpenses"]
+    },
+    "BirthdayFundTransaction": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["deposit", "expense"] },
+        "amount": { "type": "number" },
+        "recipientId": { "type": "string" },
+        "recipientName": { "type": "string" },
+        "recipientEmail": { "type": "string" },
+        "itemDescription": { "type": "string" },
+        "date": { "type": "string" },
+        "notes": { "type": "string" },
+        "recordedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "amount", "itemDescription", "date", "recordedBy", "createdAt"]
     }
   },
   "firestore": {
+    "/birthday_fund_summary/{summaryId}": {
+      "schema": "BirthdayFundSummary",
+      "description": "Birthday fund aggregate balance visible to all signed-in users"
+    },
+    "/birthday_fund_transactions/{transactionId}": {
+      "schema": "BirthdayFundTransaction",
+      "description": "Itemized gift purchases and deposits, strictly private and only visible and manageable by admin"
+    },
     "/birthday_wishes/{wishId}": {
       "schema": "BirthdayWish",
       "description": "Birthday wishes viewable only by recipient, sender, and admin"

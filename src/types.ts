@@ -454,4 +454,27 @@ export interface BirthdayWish {
   createdAt: string; // ISO string
 }
 
+export interface BirthdayFundSummary {
+  currentBalance: number;
+  totalDeposits: number;
+  totalExpenses: number;
+  lastUpdated?: string;
+  updatedBy?: string;
+}
+
+export interface BirthdayFundTransaction {
+  id: string;
+  type: 'deposit' | 'expense';
+  amount: number;
+  // For expenses (gift purchases)
+  recipientId?: string;
+  recipientName?: string;
+  recipientEmail?: string;
+  itemDescription: string; // "Birthday Cake & Gift", "Headphones", etc.
+  date: string; // YYYY-MM-DD
+  notes?: string;
+  recordedBy: string;
+  createdAt: string; // ISO string
+}
+
 

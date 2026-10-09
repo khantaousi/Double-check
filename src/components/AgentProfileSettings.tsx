@@ -5,6 +5,8 @@ import { User as FirebaseUser, reauthenticateWithCredential, EmailAuthProvider, 
 import { auth, db } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { cleanObject } from '../lib/utils';
+import { isUserBirthdayToday } from '../lib/birthdayUtils';
+import { BirthdayBalloons } from './BirthdayBalloons';
 
 interface AgentProfileSettingsProps {
   user: FirebaseUser | null;
@@ -264,7 +266,14 @@ export function AgentProfileSettings({
 
         <div className="flex flex-col sm:flex-row items-center gap-6">
           <div className="relative group">
-            <div className="w-24 h-24 rounded-3xl overflow-hidden border-4 border-slate-100 dark:border-slate-800 shadow-md flex items-center justify-center bg-slate-100 dark:bg-slate-800">
+            {userProfile && isUserBirthdayToday(userProfile.birthday) && (
+              <BirthdayBalloons size="lg" className="-top-12" />
+            )}
+            <div className={`w-24 h-24 rounded-3xl overflow-hidden border-4 shadow-md flex items-center justify-center bg-slate-100 dark:bg-slate-800 ${
+              userProfile && isUserBirthdayToday(userProfile.birthday) 
+                ? 'border-amber-400 ring-4 ring-amber-400/30' 
+                : 'border-slate-100 dark:border-slate-800'
+            }`}>
               {userProfile?.photoURL ? (
                 <img src={userProfile.photoURL} alt="Profile Avatar" className="w-full h-full object-cover" />
               ) : (

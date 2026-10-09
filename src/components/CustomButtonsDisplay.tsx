@@ -26,6 +26,8 @@ export function CustomButtonsDisplay({
   const currentUserId = currentUser?.id || '';
 
   // Filter buttons for the current user
+  // All buttons set by admin are visible to everyone across the company.
+  // Inactive buttons are kept hidden for non-admin teammates.
   const visibleButtons = buttons.filter(btn => {
     // Inactive buttons are hidden for non-admin
     if (btn.isActive === false && !isAdmin) return false;
@@ -33,10 +35,10 @@ export function CustomButtonsDisplay({
     // Admin sees all buttons
     if (isAdmin) return true;
 
-    // Everyone audience
+    // All active buttons configured by admin are visible to all users
     if (btn.targetAudience === 'all') return true;
 
-    // Specific audience check
+    // If specific audience was optionally chosen, check if user is targeted or fallback to visible
     if (btn.targetAudience === 'specific') {
       const assigned = (btn.assignedUserEmails || []).map(e => e.toLowerCase().trim());
       const assignedIds = btn.assignedUserIds || [];
@@ -45,10 +47,11 @@ export function CustomButtonsDisplay({
       const matchesEmpId = currentEmpId && assigned.includes(currentEmpId);
       const matchesId = currentUserId && assignedIds.includes(currentUserId);
 
-      return matchesEmail || matchesEmpId || matchesId;
+      // If assigned list is empty or matches user, show it
+      return assigned.length === 0 || matchesEmail || matchesEmpId || matchesId;
     }
 
-    return false;
+    return true;
   });
 
   // If regular user and no buttons visible, do not take up any space

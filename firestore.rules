@@ -250,5 +250,16 @@ service cloud.firestore {
       );
       allow update: if isAdmin();
     }
+
+    // 16. Birthday Fund Summary (Everyone can read balance; only Admin can modify)
+    match /birthday_fund_summary/{summaryId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // 17. Birthday Fund Transactions & Gift Purchases (Confidential: ONLY Admin can read and write)
+    match /birthday_fund_transactions/{transactionId} {
+      allow read, write: if isAdmin();
+    }
   }
 }

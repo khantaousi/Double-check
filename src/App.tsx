@@ -46,9 +46,12 @@ import { Complaints } from './components/Complaints';
 import { PhoneTracker } from './components/PhoneTracker';
 import { ApplicationsManager } from './components/ApplicationsManager';
 import { SendBirthdayWishModal, ViewBirthdayWishesModal } from './components/BirthdayWishModal';
+import { BirthdayFundModal } from './components/BirthdayFundModal';
+import { BirthdayBalloons } from './components/BirthdayBalloons';
 import { isUserBirthdayToday, subscribeToBirthdayWishes } from './lib/birthdayUtils';
+import { subscribeToBirthdayFundSummary } from './lib/birthdayFundUtils';
 import { sounds } from './lib/sounds';
-import { BirthdayWish } from './types';
+import { BirthdayWish, BirthdayFundSummary } from './types';
 
 const getInitialRules = (): ValidationRule[] => {
   try {
@@ -328,6 +331,12 @@ export default function App() {
   const [rosterSearch, setRosterSearch] = useState('');
   const [showBirthdayPortalModal, setShowBirthdayPortalModal] = useState(false);
   const [birthdayPortalSearch, setBirthdayPortalSearch] = useState('');
+  const [showBirthdayFundModal, setShowBirthdayFundModal] = useState(false);
+  const [birthdayFundSummary, setBirthdayFundSummary] = useState<BirthdayFundSummary>({
+    currentBalance: 0,
+    totalDeposits: 0,
+    totalExpenses: 0,
+  });
   const [birthdayWishes, setBirthdayWishes] = useState<BirthdayWish[]>([]);
   const [wishingTargetUser, setWishingTargetUser] = useState<UserProfile | null>(null);
   const [viewingWishesCelebrant, setViewingWishesCelebrant] = useState<{ id: string; name: string } | null>(null);
@@ -919,6 +928,15 @@ export default function App() {
     });
     return () => unsubscribe();
   }, [userProfile?.id, userProfile?.email, isAdmin]);
+
+  // Real-time Birthday Fund Summary subscription (visible to all users)
+  useEffect(() => {
+    if (!user) return;
+    const unsubscribe = subscribeToBirthdayFundSummary((summary) => {
+      setBirthdayFundSummary(summary);
+    });
+    return () => unsubscribe();
+  }, [user]);
 
   useEffect(() => {
     if (userProfile && !hasShownWelcome) {
@@ -2563,7 +2581,7 @@ export default function App() {
               <h1 className="font-black text-lg sm:text-xl tracking-tighter text-slate-800 dark:text-slate-100 truncate">
                 {siteSettings.companyName.split(' ')[0]} <span className="text-blue-600">{siteSettings.companyName.split(' ').slice(1).join(' ')}</span>
               </h1>
-              <p className="text-[10px] font-bold uppercase text-slate-400 tracking-widest leading-none">Intelligence v2.2</p>
+              <p className="text-[10px] font-bold uppercase text-slate-400 tracking-widest leading-none">Intelligence v2.3</p>
             </div>
           </div>
           {!isSidebarCollapsed && (
@@ -3109,6 +3127,10 @@ export default function App() {
             {user ? (
               <div className="flex items-center gap-2 sm:gap-3 bg-white dark:bg-slate-800 p-1 px-2 sm:p-1.5 sm:px-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300">
                 <div className="relative shrink-0">
+                  {/* Google-style Birthday Balloons when today is the user's birthday */}
+                  {userProfile && isUserBirthdayToday(userProfile.birthday) && (
+                    <BirthdayBalloons size="sm" />
+                  )}
                   {userProfile?.photoURL ? (
                     <img src={userProfile.photoURL} alt="Avatar" className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg object-cover shadow-sm border border-slate-200 dark:border-slate-700" />
                   ) : (
@@ -3466,6 +3488,13 @@ export default function App() {
                               <Gift size={13} className="animate-bounce" />
                               View Birthday Portal
                             </button>
+                            <button
+                              onClick={() => setShowBirthdayFundModal(true)}
+                              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-emerald-500/15 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+                            >
+                              <Wallet size={13} />
+                              Birthday Fund: ৳{birthdayFundSummary.currentBalance.toLocaleString()}
+                            </button>
                           </div>
                         </motion.div>
 
@@ -3505,6 +3534,34 @@ export default function App() {
                                   >
                                     <X size={18} />
                                   </button>
+                                </div>
+
+                                {/* Birthday Fund status banner inside portal */}
+                                <div className="px-5 pt-4 pb-1">
+                                  <div className="p-3 bg-gradient-to-r from-amber-500/10 via-rose-500/5 to-emerald-500/10 border border-amber-300/40 dark:border-amber-500/20 rounded-2xl flex items-center justify-between gap-3 shadow-sm">
+                                    <div className="flex items-center gap-2.5">
+                                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-rose-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20">
+                                        <Wallet size={16} />
+                                      </div>
+                                      <div>
+                                        <div className="text-[10px] uppercase font-black text-slate-400 dark:text-slate-500 tracking-wider">
+                                          Birthday Fund Balance
+                                        </div>
+                                        <div className="text-sm font-black text-slate-800 dark:text-slate-100 tabular-nums flex items-center gap-1.5">
+                                          ৳ {birthdayFundSummary.currentBalance.toLocaleString()}
+                                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
+                                            Live
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <button
+                                      onClick={() => setShowBirthdayFundModal(true)}
+                                      className="px-3 py-1.5 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-[10px] font-black uppercase tracking-wider hover:opacity-90 transition-all flex items-center gap-1 cursor-pointer shrink-0"
+                                    >
+                                      {isAdmin ? 'Manage Fund & Expenses' : 'View Fund Details'}
+                                    </button>
+                                  </div>
                                 </div>
 
                                 {/* Search bar */}
@@ -3592,14 +3649,29 @@ export default function App() {
                                           }`}
                                         >
                                           <div className="flex items-center gap-3">
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 uppercase tracking-tighter ${
-                                              isToday 
-                                                ? 'bg-amber-50 text-white shadow-md shadow-amber-500/20 animate-bounce' 
-                                                : isSoon
-                                                ? 'bg-orange-100 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400'
-                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                                            }`}>
-                                              {isToday ? '🎂' : (u.displayName || u.email || 'U').substring(0, 2)}
+                                            <div className="relative">
+                                              {isToday && <BirthdayBalloons size="sm" />}
+                                              {u.photoURL ? (
+                                                <img 
+                                                  src={u.photoURL} 
+                                                  alt={u.displayName || 'Avatar'} 
+                                                  className={`w-10 h-10 rounded-xl object-cover border shrink-0 ${
+                                                    isToday 
+                                                      ? 'border-amber-400 shadow-md shadow-amber-500/20 ring-2 ring-amber-400/40' 
+                                                      : 'border-slate-200 dark:border-slate-700'
+                                                  }`}
+                                                />
+                                              ) : (
+                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 uppercase tracking-tighter ${
+                                                  isToday 
+                                                    ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20' 
+                                                    : isSoon
+                                                    ? 'bg-orange-100 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400'
+                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                                }`}>
+                                                  {isToday ? '🎂' : getInitials(u.displayName || u.email)}
+                                                </div>
+                                              )}
                                             </div>
                                             <div>
                                               <div className="font-black text-xs text-slate-800 dark:text-slate-100 flex items-center gap-2">
@@ -4589,7 +4661,7 @@ export default function App() {
                           buttons={customButtons}
                           allUsers={allUsers}
                           onSave={handleSaveCustomButtons}
-                          canWrite={true}
+                          canWrite={isAdmin}
                           adminEmail={user?.email || ''}
                         />
                       </div>
@@ -4968,6 +5040,18 @@ export default function App() {
           )}
           currentUser={userProfile}
           isAdmin={isAdmin}
+        />
+      )}
+
+      {/* Birthday Fund Modal */}
+      {showBirthdayFundModal && (
+        <BirthdayFundModal
+          isOpen={showBirthdayFundModal}
+          onClose={() => setShowBirthdayFundModal(false)}
+          userProfile={userProfile}
+          isAdmin={isAdmin}
+          summary={birthdayFundSummary}
+          allUsers={allUsers}
         />
       )}
     </div>
